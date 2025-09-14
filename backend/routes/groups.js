@@ -2,6 +2,8 @@ const express = require('express');
 const Group = require('../model/Group');
 const GroupMember = require('../model/GroupMember');
 const router = express.Router();
+const User = require('../model/User'); 
+const { protect } = require('../middleware/authMiddleware');
 
 // Get all groups
 router.get('/', async (req, res) => {
@@ -199,13 +201,14 @@ router.get('/:id/members', async (req, res) => {
 });
 
 // Join group
-router.post('/:id/join', async (req, res) => {
+router.post('/:id/join', protect, async (req, res) => {
   try {
-    const { user_id } = req.body;
+    // CHANGE 1: Get the user ID SECURELY from the token, not the body.
+    const user_id = req.user.id; 
     
     // Check if user is already a member
     const existingMember = await GroupMember.findOne({
-      user_id,
+      user_id: user_id, // Use the secure user_id
       group_id: req.params.id
     });
 
@@ -217,13 +220,16 @@ router.post('/:id/join', async (req, res) => {
     }
 
     const membership = new GroupMember({
-      user_id,
+      user_id: user_id, // Use the secure user_id
       group_id: req.params.id
     });
 
     await membership.save();
+    
+    // Also update the user model to set their group_id
+    await User.findByIdAndUpdate(user_id, { group_id: req.params.id });
 
-    res.status(201).json({
+    res.status(200).json({
       success: true,
       message: 'Successfully joined the group',
       data: membership

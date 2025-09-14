@@ -1,54 +1,114 @@
 // lib/api_service.dart
-
+import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'models/user.dart';
 
 class ApiService {
-  // Use the correct IP depending on the platform (web vs mobile)
   final String _baseUrl = kIsWeb ? 'http://localhost:3000/api' : 'http://10.0.2.2:3000/api';
 
-  /// Fetches the list of all yoga groups from the server.
-  Future<List<dynamic>> getGroups() async {
-    try {
-      final response = await http.get(Uri.parse('$_baseUrl/groups'));
-
-      if (response.statusCode == 200) {
-        final decodedJson = json.decode(response.body);
-        return decodedJson['data']['groups'];
-      } else {
-        throw Exception('Failed to load groups. Status code: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Error connecting to the server: $e');
+  Future<User> login(String email, String password) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/auth/login'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'password': password}),
+    );
+    final data = json.decode(response.body);
+    if (response.statusCode == 200 && data['success']) {
+      return User.fromAuthJson(data['data']);
+    } else {
+      throw Exception(data['message'] ?? 'Login failed');
     }
   }
 
-  /// Logs a user in.
-  /// NOTE: The backend you have uses email/password, not mobile number.
-  /// We are passing a test email here to make the login work.
-  Future<Map<String, dynamic>> loginUser(String email) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/auth/login'),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode(<String, String>{
-          'email': email,
-          'password': 'password123' // Using the default password from the seed script
-        }),
-      );
+  Future<User> register({
+    required String fullName,
+    required String email,
+    required String password,
+    required String role,
+  }) async {
+    final nameParts = fullName.trim().split(' ');
+    final String firstName = nameParts.isNotEmpty ? nameParts.first : '';
+    final String lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+    final response = await http.post(
+      Uri.parse('$_baseUrl/auth/register'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'firstName': firstName,
+        'lastName': lastName,
+        'email': email,
+        'password': password,
+        'role': role,
+      }),
+    );
+    final data = json.decode(response.body);
+    if (response.statusCode == 201 && data['success']) {
+      return User.fromAuthJson(data['data']);
+    } else {
+      throw Exception(data['message'] ?? 'Registration failed');
+    }
+  }
 
-      final decodedJson = json.decode(response.body);
+  Future<User> getUserProfile(String token) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/auth/profile'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = json.decode(response.body);
+    if (response.statusCode == 200 && data['success']) {
+      return User.fromProfileJson(data['data']);
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load user profile');
+    }
+  }
 
-      if (response.statusCode == 200 && decodedJson['success'] == true) {
-        return decodedJson['data']['user']; // The user data is nested here
-      } else {
-        throw Exception(decodedJson['message'] ?? 'Failed to login.');
-      }
-    } catch (e) {
-      throw Exception('Error connecting to the server: $e');
+  Future<List<dynamic>> getAllGroups(String token) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/groups'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = json.decode(response.body);
+    if (response.statusCode == 200 && data['success']) {
+      return data['data']['groups'];
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load groups');
+    }
+  }
+
+  Future<void> joinGroup(String groupId, String token) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/groups/$groupId/join'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({}),
+    );
+    final data = json.decode(response.body);
+    if (response.statusCode != 200 || !data['success']) {
+      throw Exception(data['message'] ?? 'Failed to join group');
+    }
+  }
+
+  Future<List<dynamic>> getGroupMembers(String groupId, String token) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/groups/$groupId/members'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = json.decode(response.body);
+    if (response.statusCode == 200 && data['success']) {
+      return data['data'];
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load group members');
     }
   }
 }
