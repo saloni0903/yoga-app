@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'models/user.dart';
+import 'models/yoga_group.dart';
+import 'models/session_qr_code.dart';
 
 class ApiService {
   final String _baseUrl = kIsWeb ? 'http://localhost:3000/api' : 'http://10.0.2.2:3000/api';
@@ -111,4 +113,42 @@ class ApiService {
       throw Exception(data['message'] ?? 'Failed to load group members');
     }
   }
+
+  Future<YogaGroup> getGroupById(String groupId, String token) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/groups/$groupId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = json.decode(response.body);
+    if (response.statusCode == 200 && data['success']) {
+      return YogaGroup.fromJson(data['data']);
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load group details');
+    }
+  }
+
+  Future<SessionQrCode> generateQrCode(String groupId, String token) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/qr/generate'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'group_id': groupId,
+        // The backend uses the current date by default, so we don't need to send it
+      }),
+    );
+
+    final data = json.decode(response.body);
+    if (response.statusCode == 201 && data['success']) {
+      return SessionQrCode.fromJson(data['data']);
+    } else {
+      throw Exception(data['message'] ?? 'Failed to generate QR Code');
+    }
+  }
+  
 }

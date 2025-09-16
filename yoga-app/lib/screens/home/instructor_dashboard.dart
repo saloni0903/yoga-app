@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
+import '../../models/session_qr_code.dart';
+import '../instructor/qr_display_screen.dart';
 
 class InstructorDashboard extends StatefulWidget {
   final User user;
@@ -21,8 +23,37 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
     _dashboardDataFuture = _fetchDashboardData();
   }
 
+  // This function handles the API call and navigation
+  void _generateAndShowQrCode(String groupId, String groupName) async {
+    // Show a loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final qrCode = await _apiService.generateQrCode(groupId, widget.user.token);
+      if (mounted) {
+        Navigator.pop(context); // Dismiss loading indicator
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => QrDisplayScreen(qrCode: qrCode, groupName: groupName),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Dismiss loading indicator
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    }
+  }
+  
   Future<Map<String, dynamic>> _fetchDashboardData() async {
-    // First, get all groups to find the one managed by this instructor
     final allGroups = await _apiService.getAllGroups(widget.user.token);
     final myGroup = allGroups.firstWhere(
       (group) => group['instructor_id']['id'] == widget.user.id,
@@ -30,11 +61,9 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
     );
 
     if (myGroup == null) {
-      // Handle case where instructor has not created a group yet
       return {'group': null, 'members': []};
     }
     
-    // If we found a group, get its members
     final members = await _apiService.getGroupMembers(myGroup['id'], widget.user.token);
     return {'group': myGroup, 'members': members};
   }
@@ -65,17 +94,21 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
             _buildYourGroupCard(group),
             const SizedBox(height: 24),
             _buildRegisteredParticipantsCard(members),
-             const SizedBox(height: 24),
+            const SizedBox(height: 24),
             ElevatedButton.icon(
-              icon: const Icon(Icons.qr_code_2),
-              label: const Text('Generate Session QR Code'),
-              onPressed: () {
-                // TODO: Navigate to QR Code generation screen
-              },
+              icon: const Icon(Icons.qr_code_2, color: Colors.white),
+              label: const Text('Generate Session QR Code', style: TextStyle(color: Colors.white)),
+              
+              // ==========================================================
+              // THE ONLY CHANGE IS HERE
+              // ==========================================================
+              onPressed: () => _generateAndShowQrCode(group['id'], group['group_name']),
+              // ==========================================================
+
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black87,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16)
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
               ),
             )
           ],
@@ -83,6 +116,8 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
       },
     );
   }
+
+  // --- No changes needed for the helper widgets below this line ---
 
   Widget _buildTodaySessionCard(Map<String, dynamic> group, int participantCount) {
     return Card(
@@ -99,7 +134,7 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
             ),
             const SizedBox(height: 8),
             Text(
-              "September 15, 2025    60 minutes", // Using current date for example
+              "September 15, 2025    60 minutes", // Date is for example
               style: TextStyle(fontSize: 16, color: Colors.white.withOpacity(0.9)),
             ),
             const SizedBox(height: 16),
@@ -111,7 +146,7 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                   style: TextStyle(fontSize: 16, color: Colors.white.withOpacity(0.9)),
                 ),
                 Text(
-                  group['location_text'].split(',').first, // Show just the park name
+                  group['location_text']?.split(',').first ?? 'N/A',
                   style: TextStyle(fontSize: 16, color: Colors.white.withOpacity(0.9)),
                 ),
               ],
@@ -133,9 +168,9 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
           children: [
             const Text("Your Yoga Group", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            _buildDetailRow("Group Name", group['group_name']),
-            _buildDetailRow("Location", group['location_text']),
-            _buildDetailRow("Timings", group['timings_text']),
+            _buildDetailRow("Group Name", group['group_name'] ?? 'N/A'),
+            _buildDetailRow("Location", group['location_text'] ?? 'N/A'),
+            _buildDetailRow("Timings", group['timings_text'] ?? 'N/A'),
             _buildDetailRow("Participants", "${group['members_count'] ?? 0} members"),
           ],
         ),
@@ -143,7 +178,7 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
     );
   }
 
-   Widget _buildRegisteredParticipantsCard(List members) {
+  Widget _buildRegisteredParticipantsCard(List members) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -158,14 +193,15 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
               const Text("No participants have joined yet.")
             else
               ...members.map((member) {
-              final fullName = member['fullName'] ?? 'N/A';
-              final initials = fullName.isNotEmpty ? fullName.split(' ').map((e) => e[0]).take(2).join() : 'N/A';
-              return ListTile(
-                leading: CircleAvatar(backgroundColor: Colors.green.shade100, child: Text(initials, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold))),
-                title: Text(fullName),
-                trailing: const Text("Member", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-              );
-            }).toList(),
+                final user = member['user_id']; // The user object is nested
+                final fullName = user?['fullName'] ?? 'N/A';
+                final initials = fullName.isNotEmpty ? fullName.split(' ').map((e) => e[0]).take(2).join() : 'N/A';
+                return ListTile(
+                  leading: CircleAvatar(backgroundColor: Colors.green.shade100, child: Text(initials, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold))),
+                  title: Text(fullName),
+                  trailing: const Text("Member", style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                );
+              }).toList(),
           ],
         ),
       ),
