@@ -9,6 +9,7 @@ import 'models/session_qr_code.dart';
 class ApiService {
   final String _baseUrl = kIsWeb ? 'http://localhost:3000/api' : 'http://10.0.2.2:3000/api';
 
+  // Handles user login
   Future<User> login(String email, String password) async {
     final response = await http.post(
       Uri.parse('$_baseUrl/auth/login'),
@@ -23,6 +24,7 @@ class ApiService {
     }
   }
 
+  // Handles new user registration
   Future<User> register({
     required String fullName,
     required String email,
@@ -51,6 +53,7 @@ class ApiService {
     }
   }
 
+  // Fetches the profile of the currently logged-in user
   Future<User> getUserProfile(String token) async {
     final response = await http.get(
       Uri.parse('$_baseUrl/auth/profile'),
@@ -67,6 +70,7 @@ class ApiService {
     }
   }
 
+  // Fetches a list of all yoga groups
   Future<List<dynamic>> getAllGroups(String token) async {
     final response = await http.get(
       Uri.parse('$_baseUrl/groups'),
@@ -83,37 +87,7 @@ class ApiService {
     }
   }
 
-  Future<void> joinGroup(String groupId, String token) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/groups/$groupId/join'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({}),
-    );
-    final data = json.decode(response.body);
-    if (response.statusCode != 200 || !data['success']) {
-      throw Exception(data['message'] ?? 'Failed to join group');
-    }
-  }
-
-  Future<List<dynamic>> getGroupMembers(String groupId, String token) async {
-    final response = await http.get(
-      Uri.parse('$_baseUrl/groups/$groupId/members'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-    final data = json.decode(response.body);
-    if (response.statusCode == 200 && data['success']) {
-      return data['data'];
-    } else {
-      throw Exception(data['message'] ?? 'Failed to load group members');
-    }
-  }
-
+  // Fetches details for a single group by its ID
   Future<YogaGroup> getGroupById(String groupId, String token) async {
     final response = await http.get(
       Uri.parse('$_baseUrl/groups/$groupId'),
@@ -130,7 +104,63 @@ class ApiService {
     }
   }
 
+  // Allows a user to join a group
+  Future<void> joinGroup(String groupId, String token) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/groups/$groupId/join'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({}),
+    );
+    final data = json.decode(response.body);
+    if (response.statusCode != 200 || !data['success']) {
+      throw Exception(data['message'] ?? 'Failed to join group');
+    }
+  }
+  Future<void> createGroup(String groupName, String location, String timings, String token) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/groups'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'group_name': groupName,
+        'location_text': location,
+        'timings_text': timings,
+        // The backend requires lat/long, we'll send defaults for now.
+        'latitude': 22.7196, // Default for Indore
+        'longitude': 75.8577, // Default for Indore
+      }),
+    );
+    final data = json.decode(response.body);
+    if (response.statusCode != 201 || !data['success']) {
+      throw Exception(data['message'] ?? 'Failed to create group');
+    }
+  }
+
+  // Fetches the list of members for a specific group
+  Future<List<dynamic>> getGroupMembers(String groupId, String token) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/groups/$groupId/members'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    final data = json.decode(response.body);
+    if (response.statusCode == 200 && data['success']) {
+      return data['data'];
+    } else {
+      throw Exception(data['message'] ?? 'Failed to load group members');
+    }
+  }
+
+  // Generates a new QR code for an instructor's group
   Future<SessionQrCode> generateQrCode(String groupId, String token) async {
+    final String today = DateTime.now().toIso8601String();
     final response = await http.post(
       Uri.parse('$_baseUrl/qr/generate'),
       headers: {
@@ -139,7 +169,7 @@ class ApiService {
       },
       body: jsonEncode({
         'group_id': groupId,
-        // The backend uses the current date by default, so we don't need to send it
+        'session_date': today,
       }),
     );
 
@@ -150,5 +180,20 @@ class ApiService {
       throw Exception(data['message'] ?? 'Failed to generate QR Code');
     }
   }
-  
+  Future<String> scanQrAndMarkAttendance(String qrToken, String authToken) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/qr/scan'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $authToken',
+      },
+      body: jsonEncode({'token': qrToken}),
+    );
+    final data = json.decode(response.body);
+    if (response.statusCode == 200 && data['success']) {
+      return data['message'] ?? 'Attendance marked successfully!';
+    } else {
+      throw Exception(data['message'] ?? 'Failed to mark attendance');
+    }
+  }
 }
