@@ -2,42 +2,48 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
+
 import 'models/user.dart';
 import 'models/yoga_group.dart';
 import 'models/session_qr_code.dart';
+import 'models/attendance.dart';
 
 class ApiService {
-  final String _baseUrl = kIsWeb ? 'http://localhost:3000/api' : 'http://10.0.2.2:3000/api';
+  // Base URL (adjust port if needed)
+  final String baseUrl = kIsWeb
+      ? 'http://localhost:3000'
+      : 'http://10.0.2.2:3000';
 
-  // Handles user login
+  // Persist token after login/register for protected endpoints
+  String? token;
+
+  // ---------------- Auth ----------------
+
   Future<User> login(String email, String password) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/auth/login'),
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/auth/login'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'password': password}),
+      body: json.encode({'email': email, 'password': password}),
     );
-    final data = json.decode(response.body);
-    if (response.statusCode == 200 && data['success']) {
-      return User.fromAuthJson(data['data']);
-    } else {
-      throw Exception(data['message'] ?? 'Login failed');
-    }
+    final data = _decode(res);
+    _ensureOk(res, data);
+    token = data['token'] as String?;
+    return User.fromAuthJson(data['data']);
   }
 
-  // Handles new user registration
   Future<User> register({
     required String fullName,
     required String email,
     required String password,
     required String role,
   }) async {
-    final nameParts = fullName.trim().split(' ');
-    final String firstName = nameParts.isNotEmpty ? nameParts.first : '';
-    final String lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
-    final response = await http.post(
-      Uri.parse('$_baseUrl/auth/register'),
+    final parts = fullName.trim().split(' ');
+    final firstName = parts.isNotEmpty ? parts.first : '';
+    final lastName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/auth/register'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
+      body: json.encode({
         'firstName': firstName,
         'lastName': lastName,
         'email': email,
@@ -45,155 +51,303 @@ class ApiService {
         'role': role,
       }),
     );
-    final data = json.decode(response.body);
-    if (response.statusCode == 201 && data['success']) {
-      return User.fromAuthJson(data['data']);
-    } else {
-      throw Exception(data['message'] ?? 'Registration failed');
-    }
+    final data = _decode(res);
+    _ensureCreated(res, data);
+    token = data['token'] as String?;
+    return User.fromAuthJson(data['data']);
   }
 
-  // Fetches the profile of the currently logged-in user
-  Future<User> getUserProfile(String token) async {
-    final response = await http.get(
-      Uri.parse('$_baseUrl/auth/profile'),
+  Future<User> getUserProfile(String bearerToken) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/auth/profile'),
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
+        'Authorization': 'Bearer $bearerToken',
       },
     );
-    final data = json.decode(response.body);
-    if (response.statusCode == 200 && data['success']) {
-      return User.fromProfileJson(data['data']);
-    } else {
-      throw Exception(data['message'] ?? 'Failed to load user profile');
-    }
+    final data = _decode(res);
+    _ensureOk(res, data);
+    return User.fromProfileJson(data['data']);
   }
 
-  // Fetches a list of all yoga groups
-  Future<List<dynamic>> getAllGroups(String token) async {
-    final response = await http.get(
-      Uri.parse('$_baseUrl/groups'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
+  // ---------------- Groups ----------------
+
+  Future<List<YogaGroup>> getGroups({
+    String? search,
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/groups').replace(
+      queryParameters: {
+        if (search != null && search.isNotEmpty) 'search': search,
+        'page': '$page',
+        'limit': '$limit',
       },
     );
-    final data = json.decode(response.body);
-    if (response.statusCode == 200 && data['success']) {
-      return data['data']['groups'];
+    final res = await http.get(uri, headers: _authHeaders(optional: true));
+    final data = _decode(res);
+    _ensureOk(res, data);
+
+    // Accept both: {data: [..]} or {data: {groups: [..]}}
+    final payload = data['data'];
+    List listJson;
+    if (payload is List) {
+      listJson = payload;
+    } else if (payload is Map && payload['groups'] is List) {
+      listJson = payload['groups'];
     } else {
-      throw Exception(data['message'] ?? 'Failed to load groups');
+      // Fallback for unknown shapes
+      listJson = [];
     }
+    return listJson.map((e) => YogaGroup.fromJson(e)).toList();
   }
 
-  // Fetches details for a single group by its ID
-  Future<YogaGroup> getGroupById(String groupId, String token) async {
-    final response = await http.get(
-      Uri.parse('$_baseUrl/groups/$groupId'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
+  Future<YogaGroup> getGroupById(String id) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/groups/$id'),
+      headers: _authHeaders(optional: true),
     );
-    final data = json.decode(response.body);
-    if (response.statusCode == 200 && data['success']) {
-      return YogaGroup.fromJson(data['data']);
-    } else {
-      throw Exception(data['message'] ?? 'Failed to load group details');
-    }
+    final data = _decode(res);
+    _ensureOk(res, data);
+    return YogaGroup.fromJson(data['data']);
   }
 
-  // Allows a user to join a group
-  Future<void> joinGroup(String groupId, String token) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/groups/$groupId/join'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({}),
+  Future<void> joinGroup(String groupId) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/groups/$groupId/join'),
+      headers: _authHeaders(),
+      body: json.encode({}),
     );
-    final data = json.decode(response.body);
-    if (response.statusCode != 200 || !data['success']) {
-      throw Exception(data['message'] ?? 'Failed to join group');
-    }
+    final data = _decode(res);
+    _ensureOk(res, data);
   }
-  Future<void> createGroup(String groupName, String location, String timings, String token) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/groups'),
+
+  Future<void> leaveGroup(String groupId) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/groups/$groupId/leave'),
+      headers: _authHeaders(),
+      body: json.encode({}),
+    );
+    final data = _decode(res);
+    _ensureOk(res, data);
+  }
+
+  // Instructor: create/update group (session metadata)
+  Future<void> createGroup({
+    required String groupname,
+    required String locationtext,
+    required String timingstext,
+    required String yogastyle,
+    required String difficultylevel,
+    double? latitude,
+    double? longitude,
+  }) async {
+    final body = {
+      'groupname': groupname,
+      'locationtext': locationtext,
+      'timingstext': timingstext,
+      'yogastyle': yogastyle,
+      'difficultylevel': difficultylevel,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+    };
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/groups'),
+      headers: _authHeaders(),
+      body: json.encode(body),
+    );
+    final data = _decode(res);
+    _ensureCreated(res, data);
+  }
+
+  Future<void> updateGroup({
+    required String id,
+    String? groupname,
+    String? locationtext,
+    String? timingstext,
+    String? yogastyle,
+    String? difficultylevel,
+    bool? isactive,
+  }) async {
+    final body = {
+      if (groupname != null) 'groupname': groupname,
+      if (locationtext != null) 'locationtext': locationtext,
+      if (timingstext != null) 'timingstext': timingstext,
+      if (yogastyle != null) 'yogastyle': yogastyle,
+      if (difficultylevel != null) 'difficultylevel': difficultylevel,
+      if (isactive != null) 'isactive': isactive,
+    };
+    final res = await http.put(
+      Uri.parse('$baseUrl/api/groups/$id'),
+      headers: _authHeaders(),
+      body: json.encode(body),
+    );
+    final data = _decode(res);
+    _ensureOk(res, data);
+  }
+
+  Future<List<dynamic>> getGroupMembers(
+    String groupId,
+    String bearerToken,
+  ) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/groups/$groupId/members'),
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
+        'Authorization': 'Bearer $bearerToken',
       },
-      body: jsonEncode({
-        'group_name': groupName,
-        'location_text': location,
-        'timings_text': timings,
-        // The backend requires lat/long, we'll send defaults for now.
-        'latitude': 22.7196, // Default for Indore
-        'longitude': 75.8577, // Default for Indore
+    );
+    final data = _decode(res);
+    _ensureOk(res, data);
+    return (data['data'] as List);
+  }
+
+  // ---------------- Attendance ----------------
+
+  // Participant: own attendance by group
+  Future<List<AttendanceRecord>> getAttendanceByGroup(
+    String groupId, {
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/attendance/user/me').replace(
+      queryParameters: {'groupid': groupId, 'page': '$page', 'limit': '$limit'},
+    );
+    final res = await http.get(uri, headers: _authHeaders());
+    final data = _decode(res);
+    _ensureOk(res, data);
+
+    // Accept both: {data: [..]} or {data: {items:[..]}}
+    final payload = data['data'];
+    List listJson;
+    if (payload is List) {
+      listJson = payload;
+    } else if (payload is Map && payload['items'] is List) {
+      listJson = payload['items'];
+    } else {
+      listJson = [];
+    }
+    return listJson.map((e) => AttendanceRecord.fromJson(e)).toList();
+  }
+
+  // Instructor: full group attendance list (if backend exposes it)
+  // Replace getGroupAttendanceAll in ApiService
+  Future<List<AttendanceRecord>> getGroupAttendanceAll({
+    required String groupId,
+    int page = 1,
+    int limit = 50,
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/api/attendance/group/$groupId',
+    ).replace(queryParameters: {'page': '$page', 'limit': '$limit'});
+    final res = await http.get(uri, headers: _authHeaders());
+    final data = _decode(res);
+    _ensureOk(res, data);
+    final payload = data['data'];
+    final listJson = payload is List
+        ? payload
+        : (payload is Map && payload['items'] is List ? payload['items'] : []);
+    return listJson.map((e) => AttendanceRecord.fromJson(e)).toList();
+  }
+
+  // ---------------- QR ----------------
+
+  // Instructor: generate QR for session
+  Future<SessionQrCode> qrGenerate({
+    required String groupId,
+    required DateTime sessionDate,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/qr/generate'),
+      headers: _authHeaders(),
+      body: json.encode({
+        'groupid': groupId,
+        'sessiondate': sessionDate.toIso8601String(),
+        'options': {'maxusage': 100},
       }),
     );
-    final data = json.decode(response.body);
-    if (response.statusCode != 201 || !data['success']) {
-      throw Exception(data['message'] ?? 'Failed to create group');
+    final data = _decode(res);
+    _ensureCreated(res, data);
+    return SessionQrCode.fromJson(data['data']);
+  }
+
+  Future<void> qrDeactivate(String qrId) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/qr/$qrId/deactivate'),
+      headers: _authHeaders(),
+      body: json.encode({}),
+    );
+    final data = _decode(res);
+    _ensureOk(res, data);
+  }
+
+  // Participant: scan QR to mark attendance
+  Future<void> qrScan({
+    required String tokenValue,
+    required String groupId,
+    required DateTime sessionDate,
+    double? lat,
+    double? lng,
+  }) async {
+    final body = {
+      'token': tokenValue,
+      'groupid': groupId,
+      'sessiondate': sessionDate.toIso8601String(),
+      if (lat != null && lng != null)
+        'gps': {'latitude': lat, 'longitude': lng},
+    };
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/qr/scan'),
+      headers: _authHeaders(),
+      body: json.encode(body),
+    );
+    final data = _decode(res);
+    _ensureCreatedOrOk(
+      res,
+      data,
+    ); // scan may return 201 or 200 depending on backend
+  }
+
+  // ---------------- Helpers ----------------
+
+  Map<String, String> _authHeaders({bool optional = false}) {
+    final headers = {'Content-Type': 'application/json'};
+    if (token != null && token!.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    } else if (!optional) {
+      // If needed, throw to signal missing token on protected endpoints
+      // throw Exception('Not authenticated');
+    }
+    return headers;
+  }
+
+  Map<String, dynamic> _decode(http.Response res) {
+    try {
+      return json.decode(res.body) as Map<String, dynamic>;
+    } catch (_) {
+      return {'message': 'Invalid JSON response', 'success': false};
     }
   }
 
-  // Fetches the list of members for a specific group
-  Future<List<dynamic>> getGroupMembers(String groupId, String token) async {
-    final response = await http.get(
-      Uri.parse('$_baseUrl/groups/$groupId/members'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-    final data = json.decode(response.body);
-    if (response.statusCode == 200 && data['success']) {
-      return data['data'];
-    } else {
-      throw Exception(data['message'] ?? 'Failed to load group members');
+  void _ensureOk(http.Response res, Map<String, dynamic> data) {
+    if (res.statusCode < 200 ||
+        res.statusCode >= 300 ||
+        (data['success'] == false)) {
+      throw Exception(data['message'] ?? 'Request failed (${res.statusCode})');
     }
   }
 
-  // Generates a new QR code for an instructor's group
-  Future<SessionQrCode> generateQrCode(String groupId, String token) async {
-    final String today = DateTime.now().toIso8601String();
-    final response = await http.post(
-      Uri.parse('$_baseUrl/qr/generate'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({
-        'group_id': groupId,
-        'session_date': today,
-      }),
-    );
-
-    final data = json.decode(response.body);
-    if (response.statusCode == 201 && data['success']) {
-      return SessionQrCode.fromJson(data['data']);
-    } else {
-      throw Exception(data['message'] ?? 'Failed to generate QR Code');
+  void _ensureCreated(http.Response res, Map<String, dynamic> data) {
+    if ((res.statusCode != 201 && res.statusCode != 200) ||
+        (data['success'] == false)) {
+      throw Exception(data['message'] ?? 'Request failed (${res.statusCode})');
     }
   }
-  Future<String> scanQrAndMarkAttendance(String qrToken, String authToken) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/qr/scan'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $authToken',
-      },
-      body: jsonEncode({'token': qrToken}),
-    );
-    final data = json.decode(response.body);
-    if (response.statusCode == 200 && data['success']) {
-      return data['message'] ?? 'Attendance marked successfully!';
-    } else {
-      throw Exception(data['message'] ?? 'Failed to mark attendance');
+
+  void _ensureCreatedOrOk(http.Response res, Map<String, dynamic> data) {
+    if (!((res.statusCode >= 200 && res.statusCode < 300)) ||
+        (data['success'] == false)) {
+      throw Exception(data['message'] ?? 'Request failed (${res.statusCode})');
     }
   }
 }

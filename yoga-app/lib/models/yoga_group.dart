@@ -2,28 +2,34 @@
 class YogaGroup {
   final String id;
   final String name;
-  final String location;
-  final String timings;
-  final String instructorName;
-  final int memberCount;
+  final String locationText;
+  final String timingText;
+  final String yogaStyle;
+  final String difficulty;
+  final bool isActive;
+  final int? memberCount;
 
   YogaGroup({
     required this.id,
     required this.name,
-    required this.location,
-    required this.timings,
-    required this.instructorName,
-    required this.memberCount,
+    required this.locationText,
+    required this.timingText,
+    required this.yogaStyle,
+    required this.difficulty,
+    required this.isActive,
+    this.memberCount,
   });
 
-  factory YogaGroup.fromJson(Map<String, dynamic> json) {
+  factory YogaGroup.fromJson(Map<String, dynamic> j) {
     return YogaGroup(
-      id: json['id'] ?? 'N/A',
-      name: json['group_name'] ?? 'Unnamed Group',
-      location: json['location_text'] ?? 'No Location',
-      timings: json['timings_text'] ?? 'No Timings',
-      instructorName: json['instructor_id']?['fullName'] ?? 'N/A',
-      memberCount: json['memberCount'] ?? 0,
+      id: j['_id']?.toString() ?? j['id']?.toString() ?? '',
+      name: j['groupname'] ?? '',
+      locationText: j['locationtext'] ?? '',
+      timingText: j['timingstext'] ?? '',
+      yogaStyle: j['yogastyle'] ?? 'hatha',
+      difficulty: j['difficultylevel'] ?? 'all-levels',
+      isActive: j['isactive'] ?? true,
+      memberCount: j['memberCount'] is int ? j['memberCount'] : null,
     );
   }
 }
