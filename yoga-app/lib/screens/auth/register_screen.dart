@@ -1,3 +1,4 @@
+// lib/screens/auth/register_screen.dart
 import 'package:flutter/material.dart';
 import '../../api_service.dart';
 
@@ -10,28 +11,67 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
+
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  
+
   String _selectedRole = 'participant';
   bool _isLoading = false;
+  bool _obscurePw = true;
+
   final ApiService _apiService = ApiService();
 
+  // Strong password: >=8, 1 upper, 1 lower, 1 digit, 1 special
+  final _passwordRegex = RegExp(
+    r'^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{8,}$',
+  );
+
+  String? _validateName(String? value, String label) {
+    final v = value?.trim() ?? '';
+    if (v.isEmpty) return '$label is required';
+    if (v.length <= 2) return '$label must be longer than 2 characters';
+    return null;
+  }
+
+  // Per requirement: must include '@' and end with '.com'
+  String? _validateEmail(String? value) {
+    final v = value?.trim() ?? '';
+    if (v.isEmpty) return 'Email is required';
+    if (!v.contains('@')) return 'Email must contain @';
+    if (!v.endsWith('.com')) return 'Email must end with .com';
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    final v = value ?? '';
+    if (v.isEmpty) return 'Password is required';
+    if (!_passwordRegex.hasMatch(v)) {
+      return 'Min 8 chars, include upper, lower, digit, special';
+    }
+    return null;
+  }
+
   Future<void> _register() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isLoading = true);
     try {
+      final fullName =
+          '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
       await _apiService.register(
-        fullName: _nameController.text,
-        email: _emailController.text,
+        fullName: fullName,
+        email: _emailController.text.trim(),
         password: _passwordController.text,
         role: _selectedRole,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(backgroundColor: Colors.green, content: Text('Registration Successful! Please login.')),
+          const SnackBar(
+            backgroundColor: Colors.green,
+            content: Text('Registration Successful! Please login.'),
+          ),
         );
         Navigator.pop(context);
       }
@@ -40,7 +80,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: Colors.redAccent,
-            content: Text(e.toString().replaceFirst('Exception: ', ''), style: const TextStyle(color: Colors.white)),
+            content: Text(
+              e.toString().replaceFirst('Exception: ', ''),
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         );
       }
@@ -50,95 +93,187 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create Account'),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
-      ),
+      appBar: AppBar(title: const Text('Create Account'), centerTitle: true),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Form(
-            key: _formKey,
-            child: SingleChildScrollView(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
+                children: [
+                  // Header
+                  Align(
+                    alignment: Alignment.center,
+                    child: Container(
+                      width: 84,
+                      height: 84,
+                      decoration: BoxDecoration(
+                        color: cs.primaryContainer,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Icon(
+                        Icons.self_improvement,
+                        color: cs.onPrimaryContainer,
+                        size: 44,
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 16),
-                  const Text('I am a...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 16),
-                  
-                  _buildRoleSelector(title: 'Participant', subtitle: 'Join yoga sessions and track progress', role: 'participant'),
-                  const SizedBox(height: 16),
-                  _buildRoleSelector(title: 'Instructor', subtitle: 'Create groups and manage sessions', role: 'instructor'),
-                  const SizedBox(height: 32),
+                  Text(
+                    'Join YES Yoga',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
 
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(labelText: 'Full Name'),
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Full Name is required.';
-                      if (!v.trim().contains(' ')) return 'Please enter both first and last name.';
-                      return null;
-                    },
+                  // Role selection
+                  Text(
+                    'I am a...',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(labelText: 'Email Address'),
-                    validator: (v) => v!.isEmpty ? 'Email is required.' : null,
+                  const SizedBox(height: 12),
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: 'participant',
+                        icon: const Icon(Icons.favorite_outline),
+                        label: const Text('Participant'),
+                      ),
+                      ButtonSegment(
+                        value: 'instructor',
+                        icon: const Icon(Icons.school_outlined),
+                        label: const Text('Instructor'),
+                      ),
+                    ],
+                    selected: {_selectedRole},
+                    onSelectionChanged: (set) =>
+                        setState(() => _selectedRole = set.first),
+                    showSelectedIcon: false,
                   ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(labelText: 'Password'),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Password is required.';
-                      if (v.length < 6) return 'Password must be at least 6 characters.';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 20),
 
-                  ElevatedButton(
+                  // Form card
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Form(
+                        key: _formKey,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _firstNameController,
+                                    textInputAction: TextInputAction.next,
+                                    decoration: const InputDecoration(
+                                      labelText: 'First name',
+                                      prefixIcon: Icon(Icons.person_outline),
+                                      helperText:
+                                          'Must be longer than 2 characters',
+                                    ),
+                                    validator: (v) =>
+                                        _validateName(v, 'First name'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _lastNameController,
+                                    textInputAction: TextInputAction.next,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Last name',
+                                      prefixIcon: Icon(Icons.person_outline),
+                                      helperText:
+                                          'Must be longer than 2 characters',
+                                    ),
+                                    validator: (v) =>
+                                        _validateName(v, 'Last name'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                labelText: 'Email address',
+                                prefixIcon: Icon(Icons.alternate_email),
+                                helperText: 'Must contain @ and end with .com',
+                              ),
+                              validator: _validateEmail,
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _passwordController,
+                              obscureText: _obscurePw,
+                              textInputAction: TextInputAction.done,
+                              onFieldSubmitted: (_) => _register(),
+                              decoration: InputDecoration(
+                                labelText: 'Password',
+                                prefixIcon: const Icon(Icons.lock_outline),
+                                helperText:
+                                    'Min 8, upper + lower + digit + special',
+                                suffixIcon: IconButton(
+                                  onPressed: () =>
+                                      setState(() => _obscurePw = !_obscurePw),
+                                  icon: Icon(
+                                    _obscurePw
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
+                                  ),
+                                  tooltip: _obscurePw
+                                      ? 'Show password'
+                                      : 'Hide password',
+                                ),
+                              ),
+                              validator: _validatePassword,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton(
                     onPressed: _isLoading ? null : _register,
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                    child: _isLoading 
-                        ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white), strokeWidth: 3))
-                        : const Text('Continue', style: TextStyle(fontSize: 16, color: Colors.white)),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Continue'),
                   ),
                 ],
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRoleSelector({required String title, required String subtitle, required String role}) {
-    final bool isSelected = _selectedRole == role;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedRole = role),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.green.shade50 : Colors.grey.shade100,
-          border: Border.all(color: isSelected ? Colors.green : Colors.grey.shade300, width: 2),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 4),
-            Text(subtitle, style: TextStyle(color: Colors.grey.shade700)),
-          ],
         ),
       ),
     );
