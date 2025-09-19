@@ -38,13 +38,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _passwordController.text = 'password123';
   }
 
-  String? _validateName(String? value, String label) {
-    final v = value?.trim() ?? '';
-    if (v.isEmpty) return '$label is required';
-    if (v.length <= 2) return '$label must be longer than 2 characters';
-    return null;
-  }
-
   // Per request: must include '@' and end with '.com'
   String? _validateEmail(String? value) {
     final v = value?.trim() ?? '';
@@ -163,40 +156,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _firstNameController,
-                                    textInputAction: TextInputAction.next,
-                                    decoration: const InputDecoration(
-                                      labelText: 'First name',
-                                      prefixIcon: Icon(Icons.person_outline),
-                                      helperText:
-                                          'Must be longer than 2 characters',
-                                    ),
-                                    validator: (v) =>
-                                        _validateName(v, 'First name'),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _lastNameController,
-                                    textInputAction: TextInputAction.next,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Last name',
-                                      prefixIcon: Icon(Icons.person_outline),
-                                      helperText:
-                                          'Must be longer than 2 characters',
-                                    ),
-                                    validator: (v) =>
-                                        _validateName(v, 'Last name'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
                             TextFormField(
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,

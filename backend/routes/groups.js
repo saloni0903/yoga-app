@@ -2,13 +2,11 @@ const express = require('express');
 const Group = require('../model/Group');
 const GroupMember = require('../model/GroupMember');
 const router = express.Router();
-const User = require('../model/User'); 
-const { protect } = require('../middleware/authMiddleware');
 
 // Get all groups
 router.get('/', async (req, res) => {
   try {
-    const { page = 1, limit = 10, search, yoga_style, difficulty_level, is_active } = req.query;
+    const { page = 1, limit = 10, search, yoga_style, difficulty_level, is_active, location } = req.query;
     const query = {};
 
     if (search) {
@@ -17,6 +15,10 @@ router.get('/', async (req, res) => {
         { location_text: { $regex: search, $options: 'i' } },
         { description: { $regex: search, $options: 'i' } }
       ];
+    }
+
+    if (location) {
+      query.location = { $regex: location, $options: 'i' };
     }
 
     if (yoga_style) {
@@ -55,6 +57,57 @@ router.get('/', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch groups',
+      error: error.message
+    });
+  }
+});
+
+// Get groups by location
+router.get('/location/:location', async (req, res) => {
+  try {
+    const { location } = req.params;
+    const { page = 1, limit = 10, yoga_style, difficulty_level, is_active } = req.query;
+    const query = {
+      location: { $regex: location, $options: 'i' }
+    };
+
+    if (yoga_style) {
+      query.yoga_style = yoga_style;
+    }
+
+    if (difficulty_level) {
+      query.difficulty_level = difficulty_level;
+    }
+
+    if (is_active !== undefined) {
+      query.is_active = is_active === 'true';
+    }
+
+    const groups = await Group.find(query)
+      .populate('instructor_id', 'firstName lastName email')
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .sort({ created_at: -1 });
+
+    const total = await Group.countDocuments(query);
+
+    res.json({
+      success: true,
+      data: {
+        groups,
+        location,
+        pagination: {
+          current: parseInt(page),
+          pages: Math.ceil(total / limit),
+          total
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get groups by location error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch groups by location',
       error: error.message
     });
   }
@@ -99,7 +152,62 @@ router.get('/:id', async (req, res) => {
 // Create new group
 router.post('/', async (req, res) => {
   try {
-    const groupData = req.body;
+    const {
+      group_name,
+      location,
+      location_text,
+      latitude,
+      longitude,
+      timings_text,
+      description,
+      yoga_style,
+      difficulty_level,
+      session_duration,
+      price_per_session,
+      max_participants,
+      instructor_id
+    } = req.body;
+
+    // Validate required fields
+    if (!instructor_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'instructor_id is required'
+      });
+    }
+
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        success: false,
+        message: 'latitude and longitude are required'
+      });
+    }
+
+    // Convert string numbers to actual numbers
+    const groupData = {
+      instructor_id,
+      group_name,
+      location,
+      location_text,
+      latitude: parseFloat(latitude),
+      longitude: parseFloat(longitude),
+      timings_text,
+      description,
+      yoga_style,
+      difficulty_level,
+      session_duration: parseInt(session_duration) || 60,
+      price_per_session: parseFloat(price_per_session) || 0,
+      max_participants: parseInt(max_participants) || 20
+    };
+
+    // Validate that latitude and longitude are valid numbers
+    if (isNaN(groupData.latitude) || isNaN(groupData.longitude)) {
+      return res.status(400).json({
+        success: false,
+        message: 'latitude and longitude must be valid numbers'
+      });
+    }
+
     const group = new Group(groupData);
     await group.save();
 
@@ -201,14 +309,13 @@ router.get('/:id/members', async (req, res) => {
 });
 
 // Join group
-router.post('/:id/join', protect, async (req, res) => {
+router.post('/:id/join', async (req, res) => {
   try {
-    // CHANGE 1: Get the user ID SECURELY from the token, not the body.
-    const user_id = req.user.id; 
+    const { user_id } = req.body;
     
     // Check if user is already a member
     const existingMember = await GroupMember.findOne({
-      user_id: user_id, // Use the secure user_id
+      user_id,
       group_id: req.params.id
     });
 
@@ -220,16 +327,13 @@ router.post('/:id/join', protect, async (req, res) => {
     }
 
     const membership = new GroupMember({
-      user_id: user_id, // Use the secure user_id
+      user_id,
       group_id: req.params.id
     });
 
     await membership.save();
-    
-    // Also update the user model to set their group_id
-    await User.findByIdAndUpdate(user_id, { group_id: req.params.id });
 
-    res.status(200).json({
+    res.status(201).json({
       success: true,
       message: 'Successfully joined the group',
       data: membership
