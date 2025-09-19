@@ -11,9 +11,7 @@ import 'models/attendance.dart';
 
 class ApiService {
   // Base URL (adjust port if needed)
-  final String baseUrl = kIsWeb
-      ? 'http://localhost:3000'
-      : 'http://10.0.2.2:3000';
+  final String baseUrl = kIsWeb ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
 
   // Persist token after login/register for protected endpoints
   String? token;
@@ -28,8 +26,8 @@ class ApiService {
     );
     final data = _decode(res);
     _ensureOk(res, data);
-    token = data['token'] as String?;
-    return User.fromAuthJson(data['data']);
+    token = data['data']['token'] as String?;
+    return User.fromAuthJson(data['data']['user']);
   }
 
   Future<User> register({
@@ -37,6 +35,7 @@ class ApiService {
     required String email,
     required String password,
     required String role,
+    required String location,
   }) async {
     final parts = fullName.trim().split(' ');
     final firstName = parts.isNotEmpty ? parts.first : '';
@@ -50,25 +49,13 @@ class ApiService {
         'email': email,
         'password': password,
         'role': role,
+        'location': location,
       }),
     );
     final data = _decode(res);
     _ensureCreated(res, data);
-    token = data['token'] as String?;
-    return User.fromAuthJson(data['data']);
-  }
-
-  Future<User> getUserProfile(String bearerToken) async {
-    final res = await http.get(
-      Uri.parse('$baseUrl/api/auth/profile'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $bearerToken',
-      },
-    );
-    final data = _decode(res);
-    _ensureOk(res, data);
-    return User.fromProfileJson(data['data']);
+    token = data['data']['token'] as String?;
+    return User.fromAuthJson(data['data']['user']);
   }
 
   // ---------------- Groups ----------------
@@ -89,20 +76,11 @@ class ApiService {
     final data = _decode(res);
     _ensureOk(res, data);
 
-    // Accept both: {data: [..]} or {data: {groups: [..]}}
     final payload = data['data'];
-    List listJson;
-    if (payload is List) {
-      listJson = payload;
-    } else if (payload is Map && payload['groups'] is List) {
-      listJson = payload['groups'];
-    } else {
-      // Fallback for unknown shapes
-      listJson = [];
-    }
+    List listJson = (payload is Map && payload['groups'] is List) ? payload['groups'] : [];
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
   }
-
+  
   Future<YogaGroup> getGroupById(String id) async {
     final res = await http.get(
       Uri.parse('$baseUrl/api/groups/$id'),
@@ -117,154 +95,53 @@ class ApiService {
     final res = await http.post(
       Uri.parse('$baseUrl/api/groups/$groupId/join'),
       headers: _authHeaders(),
-      body: json.encode({}),
+      body: jsonEncode({}),
     );
-    final data = _decode(res);
-    _ensureOk(res, data);
+    _ensureOk(res, _decode(res));
   }
 
-  Future<void> leaveGroup(String groupId) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/api/groups/$groupId/leave'),
-      headers: _authHeaders(),
-      body: json.encode({}),
-    );
-    final data = _decode(res);
-    _ensureOk(res, data);
-  }
-
-  // Instructor: create/update group (session metadata)
   Future<void> createGroup({
-    required String groupname,
-    required String locationtext,
-    required String timingstext,
-    required String yogastyle,
-    required String difficultylevel,
-    double? latitude,
-    double? longitude,
+    required String groupName,
+    required String location,
+    required String timings,
   }) async {
-    final body = {
-      'groupname': groupname,
-      'locationtext': locationtext,
-      'timingstext': timingstext,
-      'yogastyle': yogastyle,
-      'difficultylevel': difficultylevel,
-      if (latitude != null) 'latitude': latitude,
-      if (longitude != null) 'longitude': longitude,
-    };
     final res = await http.post(
       Uri.parse('$baseUrl/api/groups'),
       headers: _authHeaders(),
-      body: json.encode(body),
+      body: jsonEncode({
+        'group_name': groupName,
+        'location_text': location,
+        'timings_text': timings,
+        'latitude': 22.7196, // Default for Indore
+        'longitude': 75.8577, // Default for Indore
+      }),
     );
-    final data = _decode(res);
-    _ensureCreated(res, data);
+    _ensureCreated(res, _decode(res));
   }
-
-  Future<void> updateGroup({
-    required String id,
-    String? groupname,
-    String? locationtext,
-    String? timingstext,
-    String? yogastyle,
-    String? difficultylevel,
-    bool? isactive,
-  }) async {
+  
+  Future<void> updateGroup({required String id, String? groupName, String? location, String? timings}) async {
     final body = {
-      if (groupname != null) 'groupname': groupname,
-      if (locationtext != null) 'locationtext': locationtext,
-      if (timingstext != null) 'timingstext': timingstext,
-      if (yogastyle != null) 'yogastyle': yogastyle,
-      if (difficultylevel != null) 'difficultylevel': difficultylevel,
-      if (isactive != null) 'isactive': isactive,
+      if (groupName != null) 'group_name': groupName,
+      if (location != null) 'location_text': location,
+      if (timings != null) 'timings_text': timings,
     };
     final res = await http.put(
       Uri.parse('$baseUrl/api/groups/$id'),
       headers: _authHeaders(),
       body: json.encode(body),
     );
-    final data = _decode(res);
-    _ensureOk(res, data);
+    _ensureOk(res, _decode(res));
   }
-
-  Future<List<dynamic>> getGroupMembers(
-    String groupId,
-    String bearerToken,
-  ) async {
-    final res = await http.get(
-      Uri.parse('$baseUrl/api/groups/$groupId/members'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $bearerToken',
-      },
-    );
-    final data = _decode(res);
-    _ensureOk(res, data);
-    return (data['data'] as List);
-  }
-
-  // ---------------- Attendance ----------------
-
-  // Participant: own attendance by group
-  Future<List<AttendanceRecord>> getAttendanceByGroup(
-    String groupId, {
-    int page = 1,
-    int limit = 20,
-  }) async {
-    final uri = Uri.parse('$baseUrl/api/attendance/user/me').replace(
-      queryParameters: {'groupid': groupId, 'page': '$page', 'limit': '$limit'},
-    );
-    final res = await http.get(uri, headers: _authHeaders());
-    final data = _decode(res);
-    _ensureOk(res, data);
-
-    // Accept both: {data: [..]} or {data: {items:[..]}}
-    final payload = data['data'];
-    List listJson;
-    if (payload is List) {
-      listJson = payload;
-    } else if (payload is Map && payload['items'] is List) {
-      listJson = payload['items'];
-    } else {
-      listJson = [];
-    }
-    return listJson.map((e) => AttendanceRecord.fromJson(e)).toList();
-  }
-
-  // Instructor: full group attendance list (if backend exposes it)
-  // Replace getGroupAttendanceAll in ApiService
-  Future<List<AttendanceRecord>> getGroupAttendanceAll({
-    required String groupId,
-    int page = 1,
-    int limit = 50,
-  }) async {
-    final uri = Uri.parse(
-      '$baseUrl/api/attendance/group/$groupId',
-    ).replace(queryParameters: {'page': '$page', 'limit': '$limit'});
-    final res = await http.get(uri, headers: _authHeaders());
-    final data = _decode(res);
-    _ensureOk(res, data);
-    final payload = data['data'];
-    final listJson = payload is List
-        ? payload
-        : (payload is Map && payload['items'] is List ? payload['items'] : []);
-    return listJson.map((e) => AttendanceRecord.fromJson(e)).toList();
-  }
-
+  
   // ---------------- QR ----------------
 
-  // Instructor: generate QR for session
-  Future<SessionQrCode> qrGenerate({
-    required String groupId,
-    required DateTime sessionDate,
-  }) async {
+  Future<SessionQrCode> qrGenerate({required String groupId, required DateTime sessionDate}) async {
     final res = await http.post(
       Uri.parse('$baseUrl/api/qr/generate'),
       headers: _authHeaders(),
       body: json.encode({
-        'groupid': groupId,
-        'sessiondate': sessionDate.toIso8601String(),
-        'options': {'maxusage': 100},
+        'group_id': groupId,
+        'session_date': sessionDate.toIso8601String(),
       }),
     );
     final data = _decode(res);
@@ -272,41 +149,21 @@ class ApiService {
     return SessionQrCode.fromJson(data['data']);
   }
 
-  Future<void> qrDeactivate(String qrId) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/api/qr/$qrId/deactivate'),
-      headers: _authHeaders(),
-      body: json.encode({}),
-    );
-    final data = _decode(res);
-    _ensureOk(res, data);
-  }
-
-  // Participant: scan QR to mark attendance
-  Future<void> qrScan({
-    required String tokenValue,
-    required String groupId,
-    required DateTime sessionDate,
-    double? lat,
-    double? lng,
-  }) async {
-    final body = {
-      'token': tokenValue,
-      'groupid': groupId,
-      'sessiondate': sessionDate.toIso8601String(),
-      if (lat != null && lng != null)
-        'gps': {'latitude': lat, 'longitude': lng},
-    };
+  Future<void> qrScan({required String tokenValue}) async {
     final res = await http.post(
       Uri.parse('$baseUrl/api/qr/scan'),
       headers: _authHeaders(),
-      body: json.encode(body),
+      body: jsonEncode({'token': tokenValue}),
     );
-    final data = _decode(res);
-    _ensureCreatedOrOk(
-      res,
-      data,
-    ); // scan may return 201 or 200 depending on backend
+    _ensureOk(res, _decode(res));
+  }
+
+  Future<void> qrDeactivate(String qrId) async {
+    final res = await http.put(
+        Uri.parse('$baseUrl/api/qr/$qrId/deactivate'),
+        headers: _authHeaders()
+    );
+    _ensureOk(res, _decode(res));
   }
 
   // ---------------- Helpers ----------------
@@ -315,39 +172,26 @@ class ApiService {
     final headers = {'Content-Type': 'application/json'};
     if (token != null && token!.isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
-    } else if (!optional) {
-      // If needed, throw to signal missing token on protected endpoints
-      // throw Exception('Not authenticated');
     }
     return headers;
   }
 
   Map<String, dynamic> _decode(http.Response res) {
     try {
-      return json.decode(res.body) as Map<String, dynamic>;
-    } catch (_) {
-      return {'message': 'Invalid JSON response', 'success': false};
+      return json.decode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    } catch (e) {
+      return {'success': false, 'message': 'Invalid response from server (${res.statusCode})'};
     }
   }
 
   void _ensureOk(http.Response res, Map<String, dynamic> data) {
-    if (res.statusCode < 200 ||
-        res.statusCode >= 300 ||
-        (data['success'] == false)) {
+    if (res.statusCode < 200 || res.statusCode >= 300 || (data['success'] == false)) {
       throw Exception(data['message'] ?? 'Request failed (${res.statusCode})');
     }
   }
 
   void _ensureCreated(http.Response res, Map<String, dynamic> data) {
-    if ((res.statusCode != 201 && res.statusCode != 200) ||
-        (data['success'] == false)) {
-      throw Exception(data['message'] ?? 'Request failed (${res.statusCode})');
-    }
-  }
-
-  void _ensureCreatedOrOk(http.Response res, Map<String, dynamic> data) {
-    if (!((res.statusCode >= 200 && res.statusCode < 300)) ||
-        (data['success'] == false)) {
+    if ((res.statusCode != 201) || (data['success'] == false)) {
       throw Exception(data['message'] ?? 'Request failed (${res.statusCode})');
     }
   }

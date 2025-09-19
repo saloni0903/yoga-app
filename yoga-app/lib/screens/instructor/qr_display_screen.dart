@@ -1,15 +1,19 @@
+// lib/screens/qr/qr_display_screen.dart
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/session_qr_code.dart';
+import '../../api_service.dart';
 
 class QrDisplayScreen extends StatelessWidget {
   final SessionQrCode qrCode;
   final String groupName;
+  final ApiService api;
 
   const QrDisplayScreen({
     super.key,
     required this.qrCode,
     required this.groupName,
+    required this.api,
   });
 
   @override
@@ -29,20 +33,16 @@ class QrDisplayScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              "Participants can scan this code to mark their attendance.",
+              "Participants can scan this to mark attendance.",
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16, color: Colors.grey),
             ),
             const SizedBox(height: 40),
             Center(
               child: QrImageView(
-                data: qrCode.token, // FIX: use token instead of qrData
+                data: qrCode.token,
                 version: QrVersions.auto,
                 size: 260,
-                eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.circle),
-                dataModuleStyle: const QrDataModuleStyle(
-                  dataModuleShape: QrDataModuleShape.circle,
-                ),
               ),
             ),
             const SizedBox(height: 40),
@@ -50,6 +50,28 @@ class QrDisplayScreen extends StatelessWidget {
               "Expires at: ${TimeOfDay.fromDateTime(qrCode.expiresAt).format(context)}",
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 16, color: Colors.redAccent),
+            ),
+            const SizedBox(height: 20),
+            TextButton.icon(
+              icon: const Icon(Icons.cancel_outlined),
+              label: const Text('Deactivate this QR Code'),
+              onPressed: () async {
+                try {
+                  await api.qrDeactivate(qrCode.id);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('QR Code Deactivated')),
+                    );
+                    Navigator.pop(context);
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to deactivate: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              },
             ),
           ],
         ),

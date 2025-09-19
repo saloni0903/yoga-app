@@ -13,11 +13,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-
   final ApiService _apiService = ApiService();
 
-  final _firstNameController = TextEditingController();
-  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -29,17 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
     r'^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{8,}$',
   );
 
-  @override
-  void initState() {
-    super.initState();
-    // Prefill from seed for convenience (adjust as needed)
-    _firstNameController.text = 'Participant';
-    _lastNameController.text = 'One';
-    _emailController.text = 'participant1@example.com';
-    _passwordController.text = 'password123';
-  }
-
-  // Per request: must include '@' and end with '.com'
+  // Email validation
   String? _validateEmail(String? value) {
     final v = value?.trim() ?? '';
     if (v.isEmpty) return 'Email is required';
@@ -48,6 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
+  // Password validation
   String? _validatePassword(String? value) {
     final v = value ?? '';
     if (v.isEmpty) return 'Password is required';
@@ -58,9 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
-    // Validate all fields before sending request
-    final valid = _formKey.currentState?.validate() ?? false;
-    if (!valid) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isLoading = true);
     try {
@@ -68,11 +54,14 @@ class _LoginScreenState extends State<LoginScreen> {
         _emailController.text.trim(),
         _passwordController.text,
       );
+
       if (mounted) {
-        // Correct navigation to HomeScreen after successful login
+        // Pass ApiService into HomeScreen (fix from first version)
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => HomeScreen(user: user)),
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(user: user, apiService: _apiService),
+          ),
         );
       }
     } catch (e) {
@@ -80,7 +69,8 @@ class _LoginScreenState extends State<LoginScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             behavior: SnackBarBehavior.floating,
-            content: Text(e.toString()),
+            content: Text(e.toString().replaceFirst("Exception: ", "")),
+            backgroundColor: Colors.redAccent,
           ),
         );
       }
@@ -91,8 +81,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -130,20 +118,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
+
                   Text(
                     'Welcome Back',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                          fontWeight: FontWeight.w700,
+                        ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     'Continue your yoga journey',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey.shade700,
-                    ),
+                          color: Colors.grey.shade700,
+                        ),
                   ),
                   const SizedBox(height: 24),
 

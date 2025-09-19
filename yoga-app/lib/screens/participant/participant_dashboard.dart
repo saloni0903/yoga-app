@@ -2,12 +2,18 @@
 import 'package:flutter/material.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
-import '../home/my_groups_screen.dart';
 import 'find_group_screen.dart';
 
 class ParticipantDashboard extends StatefulWidget {
   final User user;
-  const ParticipantDashboard({super.key, required this.user});
+  // FIX: Accept the authenticated ApiService instance
+  final ApiService apiService;
+
+  const ParticipantDashboard({
+    super.key, 
+    required this.user,
+    required this.apiService,
+  });
 
   @override
   State<ParticipantDashboard> createState() => _ParticipantDashboardState();
@@ -15,51 +21,28 @@ class ParticipantDashboard extends StatefulWidget {
 
 class _ParticipantDashboardState extends State<ParticipantDashboard> {
   int _index = 0;
-  late final ApiService _api;
-
-  @override
-  void initState() {
-    super.initState();
-    _api = ApiService(); // assumes token already set after login
-  }
-
+  
   @override
   Widget build(BuildContext context) {
     final pages = [
-      MyGroupsScreen(api: _api),
-      FindGroupScreen(apiService: _api),
-      const _PlaceholderProfile(),
+      // FIX: Pass the provided apiService instance down to child screens
+      const Center(child: Text("My Groups (Coming Soon)")), // Placeholder for MyGroupsScreen
+      FindGroupScreen(apiService: widget.apiService),
+      const Center(child: Text("Profile (Coming Soon)")),
     ];
 
     return Scaffold(
+      appBar: AppBar(title: const Text('Participant Dashboard')),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.groups_outlined),
-            label: 'My Groups',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            label: 'Discover',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            label: 'Profile',
-          ),
-        ],
         onDestinationSelected: (i) => setState(() => _index = i),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.groups_outlined), label: 'My Groups'),
+          NavigationDestination(icon: Icon(Icons.explore_outlined), label: 'Discover'),
+          NavigationDestination(icon: Icon(Icons.person_outline), label: 'Profile'),
+        ],
       ),
       body: pages[_index],
     );
-  }
-}
-
-class _PlaceholderProfile extends StatelessWidget {
-  const _PlaceholderProfile();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(child: Text('Profile (coming soon)'));
   }
 }

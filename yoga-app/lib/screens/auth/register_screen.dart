@@ -1,6 +1,7 @@
 // lib/screens/auth/register_screen.dart
 import 'package:flutter/material.dart';
 import '../../api_service.dart';
+import '../home/home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -11,19 +12,19 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
+  final ApiService _apiService = ApiService();
 
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _locationController = TextEditingController();
 
   String _selectedRole = 'participant';
   bool _isLoading = false;
   bool _obscurePw = true;
 
-  final ApiService _apiService = ApiService();
-
-  // Strong password: >=8, 1 upper, 1 lower, 1 digit, 1 special
+  // Strong password regex: >=8, 1 upper, 1 lower, 1 digit, 1 special
   final _passwordRegex = RegExp(
     r'^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{8,}$',
   );
@@ -35,7 +36,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return null;
   }
 
-  // Per requirement: must include '@' and end with '.com'
   String? _validateEmail(String? value) {
     final v = value?.trim() ?? '';
     if (v.isEmpty) return 'Email is required';
@@ -53,6 +53,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return null;
   }
 
+  String? _validateLocation(String? value) {
+    final v = value?.trim() ?? '';
+    if (v.isEmpty) return 'Location is required';
+    return null;
+  }
+
   Future<void> _register() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
@@ -60,20 +66,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       final fullName =
           '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
-      await _apiService.register(
+      final user = await _apiService.register(
         fullName: fullName,
         email: _emailController.text.trim(),
         password: _passwordController.text,
         role: _selectedRole,
+        location: _locationController.text.trim(),
       );
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: Colors.green,
-            content: Text('Registration Successful! Please login.'),
+        // ✅ Pass apiService forward
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) =>
+                HomeScreen(user: user, apiService: _apiService),
           ),
         );
-        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
@@ -81,7 +90,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           SnackBar(
             backgroundColor: Colors.redAccent,
             content: Text(
-              e.toString().replaceFirst('Exception: ', ''),
+              e.toString().replaceFirst("Exception: ", ""),
               style: const TextStyle(color: Colors.white),
             ),
           ),
@@ -98,6 +107,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _locationController.dispose();
     super.dispose();
   }
 
@@ -110,13 +120,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Header
+                  // Header / Branding
                   Align(
                     alignment: Alignment.center,
                     child: Container(
@@ -137,31 +148,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Text(
                     'Join YES Yoga',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 24),
 
                   // Role selection
                   Text(
                     'I am a...',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 12),
                   SegmentedButton<String>(
                     segments: const [
                       ButtonSegment(
                         value: 'participant',
-                        icon: const Icon(Icons.favorite_outline),
-                        label: const Text('Participant'),
+                        icon: Icon(Icons.favorite_outline),
+                        label: Text('Participant'),
                       ),
                       ButtonSegment(
                         value: 'instructor',
-                        icon: const Icon(Icons.school_outlined),
-                        label: const Text('Instructor'),
+                        icon: Icon(Icons.school_outlined),
+                        label: Text('Instructor'),
                       ),
                     ],
                     selected: {_selectedRole},
@@ -189,8 +202,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     decoration: const InputDecoration(
                                       labelText: 'First name',
                                       prefixIcon: Icon(Icons.person_outline),
-                                      helperText:
-                                          'Must be longer than 2 characters',
                                     ),
                                     validator: (v) =>
                                         _validateName(v, 'First name'),
@@ -204,8 +215,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     decoration: const InputDecoration(
                                       labelText: 'Last name',
                                       prefixIcon: Icon(Icons.person_outline),
-                                      helperText:
-                                          'Must be longer than 2 characters',
                                     ),
                                     validator: (v) =>
                                         _validateName(v, 'Last name'),
@@ -221,7 +230,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               decoration: const InputDecoration(
                                 labelText: 'Email address',
                                 prefixIcon: Icon(Icons.alternate_email),
-                                helperText: 'Must contain @ and end with .com',
                               ),
                               validator: _validateEmail,
                             ),
@@ -229,8 +237,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             TextFormField(
                               controller: _passwordController,
                               obscureText: _obscurePw,
-                              textInputAction: TextInputAction.done,
-                              onFieldSubmitted: (_) => _register(),
+                              textInputAction: TextInputAction.next,
                               decoration: InputDecoration(
                                 labelText: 'Password',
                                 prefixIcon: const Icon(Icons.lock_outline),
@@ -244,12 +251,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         ? Icons.visibility_off
                                         : Icons.visibility,
                                   ),
-                                  tooltip: _obscurePw
-                                      ? 'Show password'
-                                      : 'Hide password',
                                 ),
                               ),
                               validator: _validatePassword,
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _locationController,
+                              textInputAction: TextInputAction.done,
+                              onFieldSubmitted: (_) => _register(),
+                              decoration: const InputDecoration(
+                                labelText: 'Your City',
+                                helperText: 'e.g., Indore',
+                                prefixIcon:
+                                    Icon(Icons.location_city_outlined),
+                              ),
+                              validator: _validateLocation,
                             ),
                           ],
                         ),

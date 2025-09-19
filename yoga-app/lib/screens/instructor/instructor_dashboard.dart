@@ -4,222 +4,145 @@ import '../../api_service.dart';
 import '../../models/user.dart';
 import '../../models/yoga_group.dart';
 import '../qr/qr_display_screen.dart';
-import '../participant/group_detail_screen.dart';
 import 'create_group_screen.dart';
+import '../../models/session_qr_code.dart';
 
 class InstructorDashboard extends StatefulWidget {
   final User user;
-  const InstructorDashboard({super.key, required this.user});
+  // FIX: Accept the authenticated ApiService instance
+  final ApiService apiService;
+
+  const InstructorDashboard({
+    super.key, 
+    required this.user,
+    required this.apiService,
+  });
 
   @override
   State<InstructorDashboard> createState() => _InstructorDashboardState();
 }
 
 class _InstructorDashboardState extends State<InstructorDashboard> {
-  int _index = 0;
-  late final ApiService _api;
   late Future<List<YogaGroup>> _groupsFuture;
 
   @override
   void initState() {
     super.initState();
-    _api = ApiService();
-    _groupsFuture = _api.getGroups(page: 1, limit: 50);
+    _loadGroups();
+  }
+  
+  void _loadGroups() {
+    setState(() {
+       // FIX: Use the ApiService instance provided via the widget
+       _groupsFuture = widget.apiService.getGroups();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      _UpcomingTab(api: _api, groupsFuture: _groupsFuture),
-      _HistoryTab(api: _api, groupsFuture: _groupsFuture),
-      _ManageTab(api: _api),
-    ];
     return Scaffold(
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.event_available_outlined),
-            label: 'Upcoming',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.history_toggle_off_outlined),
-            label: 'History',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            label: 'Manage',
-          ),
+      appBar: AppBar(
+        title: const Text('Instructor Dashboard'),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadGroups),
         ],
       ),
-      body: pages[_index],
-    );
-  }
-}
-
-class _UpcomingTab extends StatelessWidget {
-  final ApiService api;
-  final Future<List<YogaGroup>> groupsFuture;
-  const _UpcomingTab({required this.api, required this.groupsFuture});
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<YogaGroup>>(
-      future: groupsFuture,
-      builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snap.hasError) return Center(child: Text('Error: ${snap.error}'));
-        final groups = snap.data ?? [];
-        if (groups.isEmpty) return const Center(child: Text('No groups yet'));
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: groups.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (_, i) {
-            final g = groups[i];
-            return Card(
-              child: ListTile(
-                title: Text(
-                  g.name,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-                subtitle: Text('${g.locationText}\n${g.timingText}'),
-                isThreeLine: true,
-                trailing: Wrap(
-                  spacing: 8,
-                  children: [
-                    IconButton(
-                      tooltip: 'Generate QR',
-                      icon: const Icon(Icons.qr_code_2),
-                      onPressed: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => QrDisplayScreen(api: api, group: g),
-                          ),
-                        );
-                      },
-                    ),
-                    IconButton(
-                      tooltip: 'Edit',
-                      icon: const Icon(Icons.edit_outlined),
-                      onPressed: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                CreateGroupScreen(api: api, existing: g),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          GroupDetailScreen(api: api, groupId: g.id),
-                    ),
-                  );
-                },
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-class _HistoryTab extends StatefulWidget {
-  final ApiService api;
-  final Future<List<YogaGroup>> groupsFuture;
-  const _HistoryTab({required this.api, required this.groupsFuture});
-
-  @override
-  State<_HistoryTab> createState() => _HistoryTabState();
-}
-
-class _HistoryTabState extends State<_HistoryTab> {
-  YogaGroup? _selected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const SizedBox(height: 8),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: FutureBuilder<List<YogaGroup>>(
-            future: widget.groupsFuture,
-            builder: (context, snap) {
-              if (snap.connectionState != ConnectionState.done) {
-                return const LinearProgressIndicator();
-              }
-              final groups = snap.data ?? [];
-              return DropdownButtonFormField<YogaGroup>(
-                value: _selected,
-                decoration: const InputDecoration(labelText: 'Select group'),
-                items: groups
-                    .map((g) => DropdownMenuItem(value: g, child: Text(g.name)))
-                    .toList(),
-                onChanged: (g) => setState(() => _selected = g),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 12),
-        Expanded(
-          child: _selected == null
-              ? const Center(child: Text('Choose a group to view history'))
-              : _GroupHistoryList(api: widget.api, group: _selected!),
-        ),
-      ],
-    );
-  }
-}
-
-class _GroupHistoryList extends StatefulWidget {
-  final ApiService api;
-  final YogaGroup group;
-  const _GroupHistoryList({required this.api, required this.group});
-
-  @override
-  State<_GroupHistoryList> createState() => _GroupHistoryListState();
-}
-
-class _GroupHistoryListState extends State<_GroupHistoryList> {
-  @override
-  Widget build(BuildContext context) {
-    // For MVP, reuse participant detail which lists attendance items (instructor can view per-group aggregates later)
-    return Center(
-      child: Text('Past sessions for "${widget.group.name}" will appear here'),
-    );
-  }
-}
-
-class _ManageTab extends StatelessWidget {
-  final ApiService api;
-  const _ManageTab({required this.api});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: FilledButton.icon(
-        icon: const Icon(Icons.add_circle_outline),
-        label: const Text('Add group/session'),
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.add),
+        label: const Text('New Group'),
         onPressed: () async {
-          await Navigator.push(
+          final result = await Navigator.push<bool>(
             context,
-            MaterialPageRoute(builder: (_) => CreateGroupScreen(api: api)),
+            MaterialPageRoute(builder: (_) => CreateGroupScreen(api: widget.apiService)),
+          );
+          if (result == true) {
+            _loadGroups();
+          }
+        },
+      ),
+      body: FutureBuilder<List<YogaGroup>>(
+        future: _groupsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          final groups = snapshot.data ?? [];
+          if (groups.isEmpty) {
+            return const Center(child: Text('No groups yet. Create one!'));
+          }
+          
+          return RefreshIndicator(
+            onRefresh: () async => _loadGroups(),
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 80),
+              itemCount: groups.length,
+              itemBuilder: (_, i) {
+                final group = groups[i];
+                return _GroupListItem(
+                  group: group,
+                  api: widget.apiService,
+                  onUpdate: _loadGroups,
+                );
+              },
+            ),
           );
         },
       ),
     );
+  }
+}
+
+class _GroupListItem extends StatelessWidget {
+  final YogaGroup group;
+  final ApiService api;
+  final VoidCallback onUpdate;
+
+  const _GroupListItem({required this.group, required this.api, required this.onUpdate});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        title: Text(group.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(group.locationText),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.qr_code_2),
+              tooltip: 'Generate QR',
+              onPressed: () => _generateQrCode(context),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Edit',
+              onPressed: () async {
+                final result = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => CreateGroupScreen(api: api, existing: group)));
+                if(result == true) {
+                  onUpdate();
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _generateQrCode(BuildContext context) async {
+    showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+    try {
+      final qrCode = await api.qrGenerate(groupId: group.id, sessionDate: DateTime.now());
+      if (!context.mounted) return;
+      Navigator.pop(context); // Dismiss loading
+      Navigator.push(context, MaterialPageRoute(builder: (_) => QrDisplayScreen(api: api, qrCode: qrCode, groupName: group.name)));
+    } catch(e) {
+      if (!context.mounted) return;
+      Navigator.pop(context); // Dismiss loading
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+    }
   }
 }
