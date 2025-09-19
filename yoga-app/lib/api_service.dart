@@ -1,4 +1,5 @@
 // lib/api_service.dart
+
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
@@ -98,7 +99,7 @@ class ApiService {
     );
     final data = json.decode(response.body);
     if (response.statusCode == 200 && data['success']) {
-      return YogaGroup.fromJson(data['data']);
+      return YogaGroup.fromJson(data['data']); // Corrected here
     } else {
       throw Exception(data['message'] ?? 'Failed to load group details');
     }
@@ -119,6 +120,8 @@ class ApiService {
       throw Exception(data['message'] ?? 'Failed to join group');
     }
   }
+
+  // Creates a new group
   Future<void> createGroup(String groupName, String location, String timings, String token) async {
     final response = await http.post(
       Uri.parse('$_baseUrl/groups'),
@@ -180,6 +183,7 @@ class ApiService {
       throw Exception(data['message'] ?? 'Failed to generate QR Code');
     }
   }
+
   Future<String> scanQrAndMarkAttendance(String qrToken, String authToken) async {
     final response = await http.post(
       Uri.parse('$_baseUrl/qr/scan'),

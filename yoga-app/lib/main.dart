@@ -1,8 +1,8 @@
 // lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
-import 'screens/home/home_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -34,7 +34,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
-        // Note: We navigate to HomeScreen manually from login to pass user data
+        // The HomeScreen route is now handled dynamically after login
       },
     );
   }

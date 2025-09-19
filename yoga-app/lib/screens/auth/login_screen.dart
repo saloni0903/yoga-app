@@ -1,4 +1,5 @@
 // lib/screens/auth/login_screen.dart
+
 import 'package:flutter/material.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
@@ -21,7 +22,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    // Pre-fill with test data from the seed script for convenience
     _emailController.text = 'participant1@example.com';
     _passwordController.text = 'password123';
   }
@@ -34,6 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text,
       );
       if (mounted) {
+        // Correct navigation to HomeScreen after successful login
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => HomeScreen(user: user)),

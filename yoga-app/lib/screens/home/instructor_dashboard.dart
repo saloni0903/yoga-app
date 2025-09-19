@@ -1,3 +1,4 @@
+// lib/screens/instructor/instructor_dashboard.dart
 import 'package:flutter/material.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
@@ -22,6 +23,13 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
     super.initState();
     _dashboardDataFuture = _fetchDashboardData();
   }
+  
+  // This re-fetches data when you return from creating a new group
+  Future<void> _refreshData() async {
+    setState(() {
+      _dashboardDataFuture = _fetchDashboardData();
+    });
+  }
 
   void _generateAndShowQrCode(String groupId, String groupName) async {
     showDialog(context: context, barrierDismissible: false, builder: (context) => const Center(child: CircularProgressIndicator()));
@@ -38,9 +46,10 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
       }
     }
   }
-  
+
   Future<Map<String, dynamic>> _fetchDashboardData() async {
     final allGroups = await _apiService.getAllGroups(widget.user.token);
+    // FIX: Use the correct '_id' field for comparison
     final myGroup = allGroups.firstWhere((group) => group['instructor_id']['_id'] == widget.user.id, orElse: () => null);
     if (myGroup == null) return {'group': null, 'members': []};
     final members = await _apiService.getGroupMembers(myGroup['_id'], widget.user.token);
@@ -60,25 +69,25 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                 const Text("You haven't created a group yet.", style: TextStyle(fontSize: 18)),
-                 const SizedBox(height: 20),
-                 ElevatedButton(
-                   onPressed: () async {
-                     final success = await Navigator.push<bool>(context, MaterialPageRoute(builder: (context) => CreateGroupScreen(user: widget.user)));
-                     if (success == true) {
-                       // Refresh dashboard if group was created
-                       setState(() { _dashboardDataFuture = _fetchDashboardData(); });
-                     }
-                   },
-                   child: const Text("Create Your Group"),
-                 )
+                const Text("You haven't created a group yet.", style: TextStyle(fontSize: 18)),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () async {
+                    final success = await Navigator.push<bool>(context, MaterialPageRoute(builder: (context) => CreateGroupScreen(user: widget.user)));
+                    if (success == true) {
+                      _refreshData(); // Refresh dashboard if group was created
+                    }
+                  },
+                  child: const Text("Create Your Group"),
+                )
               ],
             ),
           );
         }
-        // if (!snapshot.hasData || snapshot.data!['group'] == null) return const Center(child: Text('You have not created a group yet.'));
+
         final group = snapshot.data!['group'];
         final members = snapshot.data!['members'] as List;
+
         return ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
