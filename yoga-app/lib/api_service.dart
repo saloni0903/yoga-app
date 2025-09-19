@@ -26,8 +26,10 @@ class ApiService {
     );
     final data = _decode(res);
     _ensureOk(res, data);
-    token = data['data']['token'] as String?;
-    return User.fromAuthJson(data['data']['user']);
+
+    final authData = data['data'] as Map<String, dynamic>;
+    token = authData['token'] as String?;
+    return User.fromAuthJson(authData);
   }
 
   Future<User> register({
@@ -54,8 +56,10 @@ class ApiService {
     );
     final data = _decode(res);
     _ensureCreated(res, data);
-    token = data['data']['token'] as String?;
-    return User.fromAuthJson(data['data']['user']);
+
+    final authData = data['data'] as Map<String, dynamic>;
+    token = authData['token'] as String?;
+    return User.fromAuthJson(authData);
   }
 
   // ---------------- Groups ----------------
@@ -80,7 +84,7 @@ class ApiService {
     List listJson = (payload is Map && payload['groups'] is List) ? payload['groups'] : [];
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
   }
-  
+
   Future<YogaGroup> getGroupById(String id) async {
     final res = await http.get(
       Uri.parse('$baseUrl/api/groups/$id'),
@@ -104,6 +108,7 @@ class ApiService {
     required String groupName,
     required String location,
     required String timings,
+    required String instructorId, // FIX: Added required instructorId
   }) async {
     final res = await http.post(
       Uri.parse('$baseUrl/api/groups'),
@@ -112,13 +117,14 @@ class ApiService {
         'group_name': groupName,
         'location_text': location,
         'timings_text': timings,
+        'instructor_id': instructorId, // FIX: Send instructor_id to backend
         'latitude': 22.7196, // Default for Indore
         'longitude': 75.8577, // Default for Indore
       }),
     );
     _ensureCreated(res, _decode(res));
   }
-  
+
   Future<void> updateGroup({required String id, String? groupName, String? location, String? timings}) async {
     final body = {
       if (groupName != null) 'group_name': groupName,
@@ -132,7 +138,7 @@ class ApiService {
     );
     _ensureOk(res, _decode(res));
   }
-  
+
   // ---------------- QR ----------------
 
   Future<SessionQrCode> qrGenerate({required String groupId, required DateTime sessionDate}) async {

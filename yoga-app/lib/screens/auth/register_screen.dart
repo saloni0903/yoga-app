@@ -1,4 +1,4 @@
-// lib/screens/auth/register_screen.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../api_service.dart';
 import '../home/home_screen.dart';
@@ -85,6 +85,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         );
       }
     } catch (e) {
+      // FIX: Add debug print to see errors in the console
+      debugPrint('Registration failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -120,8 +122,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
+            // FIX: Slightly reduce horizontal padding to fix overflow
             padding:
-                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
+                const EdgeInsets.symmetric(horizontal: 22.0, vertical: 16),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
               child: Column(

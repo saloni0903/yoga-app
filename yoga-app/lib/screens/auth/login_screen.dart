@@ -1,5 +1,4 @@
-// lib/screens/auth/login_screen.dart
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../api_service.dart';
 import '../home/home_screen.dart';
@@ -65,6 +64,8 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } catch (e) {
+      // FIX: Add debug print to see errors in the console
+      debugPrint('Login failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
