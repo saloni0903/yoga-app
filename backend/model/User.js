@@ -37,6 +37,11 @@ const userSchema = new mongoose.Schema({
     enum: ['instructor', 'participant'],
     default: 'participant',
   },
+  location: {
+    type: String,
+    required: true,
+    trim: true,
+  },
   isActive: {
     type: Boolean,
     default: true,

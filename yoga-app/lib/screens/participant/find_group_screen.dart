@@ -1,127 +1,146 @@
 // lib/screens/participant/find_group_screen.dart
 import 'package:flutter/material.dart';
 import '../../api_service.dart';
-import '../../models/user.dart';
+import '../../models/yoga_group.dart';
 
 class FindGroupScreen extends StatefulWidget {
-  final User user;
-  const FindGroupScreen({super.key, required this.user});
+  final ApiService apiService;
+  const FindGroupScreen({super.key, required this.apiService});
 
   @override
   State<FindGroupScreen> createState() => _FindGroupScreenState();
 }
 
 class _FindGroupScreenState extends State<FindGroupScreen> {
-  final ApiService _apiService = ApiService();
-  late Future<List<dynamic>> _groupsFuture;
+  final _city = TextEditingController();
+  List<YogaGroup> _results = [];
+  bool _loading = false;
+  String? _error;
 
-  @override
-  void initState() {
-    super.initState();
-    _groupsFuture = _apiService.getAllGroups(widget.user.token);
+  Future<void> _search() async {
+    final query = _city.text.trim();
+    if (query.isEmpty) {
+      setState(() {
+        _results = [];
+        _error = null;
+      });
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final list = await widget.apiService.getGroups(
+        search: query,
+        page: 1,
+        limit: 30,
+      );
+      setState(() => _results = list);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = 'Search failed: $e');
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Search failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
-  void _joinGroup(String groupId) async {
-    // Show a loading indicator
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const Center(child: CircularProgressIndicator());
-      },
-    );
-
+  Future<void> _join(String id) async {
+    setState(() => _loading = true);
     try {
-      await _apiService.joinGroup(groupId, widget.user.token);
+      await widget.apiService.joinGroup(id);
       if (mounted) {
-        Navigator.pop(context); // Dismiss loading indicator
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: Colors.green,
-            content: Text('Successfully joined group!'),
-          ),
-        );
-        Navigator.pop(context);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Joined group')));
       }
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context); // Dismiss loading indicator
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.red,
-            content: Text(e.toString().replaceFirst('Exception: ', '')),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Join failed: $e')));
       }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
+  void dispose() {
+    _city.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final hasQuery = _city.text.trim().isNotEmpty;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Find a Yoga Group'),
-      ),
-      body: FutureBuilder<List<dynamic>>(
-        future: _groupsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No yoga groups found.'));
-          }
-
-          final groups = snapshot.data!;
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16.0),
-            itemCount: groups.length,
-            itemBuilder: (context, index) {
-              final group = groups[index];
-              // --- FIX: Added null-aware operators (?) and default values (??) for safety ---
-              final instructorName = group['instructor_id']?['fullName'] ?? 'N/A';
-              final location = group['location_text'] ?? 'No location details';
-              final timings = group['timings_text'] ?? 'No timing details';
-              
-              return Card(
-                margin: const EdgeInsets.only(bottom: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 3,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(group['group_name'] ?? 'Unnamed Group', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      Text("Led by $instructorName", style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
-                      const SizedBox(height: 12),
-                      Text(location, style: const TextStyle(fontSize: 16)),
-                      Text(timings, style: const TextStyle(fontSize: 16)),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: () => _joinGroup(group['id']),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      appBar: AppBar(title: const Text('Discover groups')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            TextFormField(
+              controller: _city,
+              decoration: const InputDecoration(
+                labelText: 'City',
+                prefixIcon: Icon(Icons.location_city_outlined),
+                helperText: 'Search by city or location',
+              ),
+              textInputAction: TextInputAction.search,
+              onFieldSubmitted: (_) => _search(),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: _loading ? null : _search,
+              icon: const Icon(Icons.search),
+              label: const Text('Search'),
+            ),
+            const SizedBox(height: 12),
+            if (_loading) const LinearProgressIndicator(),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+            ],
+            Expanded(
+              child: _results.isEmpty
+                  ? Center(
+                      child: hasQuery && !_loading
+                          ? const Text('No groups found for this search')
+                          : const Text('Enter a city and tap Search'),
+                    )
+                  : ListView.separated(
+                      itemCount: _results.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (_, i) {
+                        final g = _results[i];
+                        return Card(
+                          child: ListTile(
+                            title: Text(
+                              g.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '${g.locationText} • ${g.yogaStyle} • ${g.difficulty}',
+                            ),
+                            trailing: FilledButton(
+                              onPressed: _loading ? null : () => _join(g.id),
+                              child: const Text('Join'),
+                            ),
                           ),
-                          child: const Text('Join This Group', style: TextStyle(color: Colors.white, fontSize: 16)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

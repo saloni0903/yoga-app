@@ -22,20 +22,35 @@ class QrDisplayScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(groupName, textAlign: TextAlign.center, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            Text(
+              groupName,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
-            const Text("Participants can scan this code to mark their attendance.", textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey)),
+            const Text(
+              "Participants can scan this code to mark their attendance.",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
             const SizedBox(height: 40),
             Center(
               child: QrImageView(
-                data: qrCode.qrData,
+                data: qrCode.token, // FIX: use token instead of qrData
                 version: QrVersions.auto,
-                size: 250.0,
-                backgroundColor: Colors.white,
+                size: 260,
+                eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.circle),
+                dataModuleStyle: const QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.circle,
+                ),
               ),
             ),
             const SizedBox(height: 40),
-            Text("Expires at: ${TimeOfDay.fromDateTime(qrCode.expiresAt).format(context)}", textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, color: Colors.redAccent)),
+            Text(
+              "Expires at: ${TimeOfDay.fromDateTime(qrCode.expiresAt).format(context)}",
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16, color: Colors.redAccent),
+            ),
           ],
         ),
       ),

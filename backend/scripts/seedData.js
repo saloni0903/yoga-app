@@ -67,11 +67,12 @@ const seedData = async () => {
     // Create instructors
     const instructor1 = new User({
       email: 'sarah.yoga@example.com',
-      password: 'password123',
+      password: 'Password@123',
       firstName: 'Sarah',
       lastName: 'Johnson',
       role: 'instructor',
       phone: '+1234567890',
+      location: 'New York, NY',
       dateOfBirth: new Date('1985-03-15'),
       preferences: {
         notifications: { email: true, sms: false, push: true },
@@ -81,11 +82,12 @@ const seedData = async () => {
 
     const instructor2 = new User({
       email: 'mike.zen@example.com',
-      password: 'password123',
+      password: 'Password@123',
       firstName: 'Mike',
       lastName: 'Chen',
       role: 'instructor',
       phone: '+1234567891',
+      location: 'Los Angeles, CA',
       dateOfBirth: new Date('1980-07-22'),
       preferences: {
         notifications: { email: true, sms: true, push: true },
@@ -99,14 +101,16 @@ const seedData = async () => {
 
     // Create participants
     const participants = [];
+    const locations = ['New York, NY', 'Los Angeles, CA', 'Chicago, IL', 'Houston, TX', 'Phoenix, AZ'];
     for (let i = 1; i <= 10; i++) {
       const participant = new User({
         email: `participant${i}@example.com`,
-        password: 'password123',
+        password: 'Password@123',
         firstName: `Participant${i}`,
         lastName: `Last${i}`,
         role: 'participant',
         phone: `+12345678${90 + i}`,
+        location: locations[i % locations.length],
         dateOfBirth: new Date(1990 + i, 0, 1),
         preferences: {
           notifications: { email: true, sms: false, push: true },
@@ -122,6 +126,7 @@ const seedData = async () => {
     const group1 = new Group({
       instructor_id: instructor1._id,
       group_name: 'Morning Vinyasa Flow',
+      location: 'New York, NY',
       location_text: 'Central Park, New York, NY',
       latitude: 40.785091,
       longitude: -73.968285,
@@ -137,9 +142,10 @@ const seedData = async () => {
     const group2 = new Group({
       instructor_id: instructor2._id,
       group_name: 'Evening Hatha Yoga',
-      location_text: 'Yoga Studio Downtown, 123 Main St, New York, NY',
-      latitude: 40.758896,
-      longitude: -73.985130,
+      location: 'Los Angeles, CA',
+      location_text: 'Yoga Studio Downtown, 123 Main St, Los Angeles, CA',
+      latitude: 34.052235,
+      longitude: -118.243685,
       timings_text: 'Tuesday, Thursday 6:00 PM - 7:00 PM',
       description: 'Gentle hatha yoga for relaxation and stress relief',
       yoga_style: 'hatha',
@@ -152,6 +158,7 @@ const seedData = async () => {
     const group3 = new Group({
       instructor_id: instructor1._id,
       group_name: 'Weekend Ashtanga Intensive',
+      location: 'New York, NY',
       location_text: 'Beach Yoga Spot, Coney Island, NY',
       latitude: 40.574926,
       longitude: -73.985949,
@@ -300,16 +307,16 @@ connectDB().then(() => {
   seedData();
 });
 // 
-// List of available APIs and their sample responses:
+// Updated List of available APIs and their sample responses:
 //
 // 1. POST /api/auth/register
 //    - Registers a new user (instructor or participant).
-//    - Request body: { name, email, password, role }
+//    - Request body: { firstName, lastName, email, password, role }
 //    - Response:
 //      {
 //        "success": true,
 //        "message": "User registered successfully",
-//        "user": { "_id": "...", "name": "...", "email": "...", "role": "participant" }
+//        "user": { "_id": "...", "firstName": "...", "lastName": "...", "email": "...", "role": "participant" }
 //      }
 //
 // 2. POST /api/auth/login
@@ -319,7 +326,7 @@ connectDB().then(() => {
 //      {
 //        "success": true,
 //        "token": "JWT_TOKEN",
-//        "user": { "_id": "...", "name": "...", "email": "...", "role": "instructor" }
+//        "user": { "_id": "...", "firstName": "...", "lastName": "...", "email": "...", "role": "instructor" }
 //      }
 //
 // 3. GET /api/users/me
@@ -328,27 +335,47 @@ connectDB().then(() => {
 //    - Response:
 //      {
 //        "success": true,
-//        "user": { "_id": "...", "name": "...", "email": "...", "role": "participant" }
+//        "user": { "_id": "...", "firstName": "...", "lastName": "...", "email": "...", "role": "participant" }
 //      }
 //
 // 4. GET /api/groups
-//    - Lists all groups.
+//    - Lists all groups (with pagination, filtering, and search).
+//    - Query params: page, limit, search, yoga_style, difficulty_level, is_active, location
 //    - Response:
 //      {
 //        "success": true,
-//        "groups": [
-//          { "_id": "...", "name": "Morning Yoga", "description": "...", "instructor": { "_id": "...", "name": "..." } },
-//          ...
-//        ]
+//        "data": {
+//          "groups": [
+//            {
+//              "_id": "...",
+//              "group_name": "Morning Vinyasa Flow",
+//              "description": "...",
+//              "instructor_id": { "_id": "...", "firstName": "...", "lastName": "...", "email": "..." },
+//              "location": "...",
+//              "timings_text": "...",
+//              "yoga_style": "...",
+//              "difficulty_level": "...",
+//              ...
+//            },
+//            ...
+//          ],
+//          "pagination": { "current": 1, "pages": 2, "total": 12 }
+//        }
 //      }
 //
 // 5. POST /api/groups
 //    - Creates a new group (instructor only).
-//    - Request body: { name, description }
+//    - Request body: { group_name, location, location_text, latitude, longitude, timings_text, description, yoga_style, difficulty_level, session_duration, price_per_session, max_participants }
 //    - Response:
 //      {
 //        "success": true,
-//        "group": { "_id": "...", "name": "Evening Flow", "description": "...", "instructor": { "_id": "...", "name": "..." } }
+//        "group": {
+//          "_id": "...",
+//          "group_name": "...",
+//          "description": "...",
+//          "instructor_id": { "_id": "...", "firstName": "...", "lastName": "..." },
+//          ...
+//        }
 //      }
 //
 // 6. GET /api/groups/:groupId/members
@@ -357,7 +384,7 @@ connectDB().then(() => {
 //      {
 //        "success": true,
 //        "members": [
-//          { "_id": "...", "name": "...", "email": "...", "role": "participant" },
+//          { "_id": "...", "firstName": "...", "lastName": "...", "email": "...", "role": "participant" },
 //          ...
 //        ]
 //      }
@@ -377,7 +404,7 @@ connectDB().then(() => {
 //      {
 //        "success": true,
 //        "attendance": [
-//          { "_id": "...", "user": { "_id": "...", "name": "..." }, "date": "2024-06-10", "status": "present" },
+//          { "_id": "...", "user": { "_id": "...", "firstName": "...", "lastName": "..." }, "date": "2024-06-10", "status": "present" },
 //          ...
 //        ]
 //      }
@@ -411,9 +438,146 @@ connectDB().then(() => {
 //       {
 //         "success": true,
 //         "users": [
-//           { "_id": "...", "name": "...", "email": "...", "role": "participant" },
+//           { "_id": "...", "firstName": "...", "lastName": "...", "email": "...", "role": "participant" },
 //           ...
 //         ]
 //       }
 //
 // For more details, refer to the API documentation or route files.
+
+/*
+api_doc = """Updated List of Available APIs and Sample Responses:
+
+1. POST /api/auth/register
+   - Registers a new user (instructor or participant).
+   - Request body: { firstName, lastName, email, password, role }
+   - Response:
+     {
+       "success": true,
+       "message": "User registered successfully",
+       "user": { "_id": "...", "firstName": "...", "lastName": "...", "email": "...", "role": "participant" }
+     }
+
+2. POST /api/auth/login
+   - Logs in a user.
+   - Request body: { email, password }
+   - Response:
+     {
+       "success": true,
+       "token": "JWT_TOKEN",
+       "user": { "_id": "...", "firstName": "...", "lastName": "...", "email": "...", "role": "instructor" }
+     }
+
+3. GET /api/users/me
+   - Gets the current authenticated user's profile.
+   - Headers: Authorization: Bearer <token>
+   - Response:
+     {
+       "success": true,
+       "user": { "_id": "...", "firstName": "...", "lastName": "...", "email": "...", "role": "participant" }
+     }
+
+4. GET /api/groups
+   - Lists all groups (with pagination, filtering, and search).
+   - Query params: page, limit, search, yoga_style, difficulty_level, is_active, location
+   - Response:
+     {
+       "success": true,
+       "data": {
+         "groups": [
+           {
+             "_id": "...",
+             "group_name": "Morning Vinyasa Flow",
+             "description": "...",
+             "instructor_id": { "_id": "...", "firstName": "...", "lastName": "...", "email": "..." },
+             "location": "...",
+             "timings_text": "...",
+             "yoga_style": "...",
+             "difficulty_level": "..."
+           },
+           ...
+         ],
+         "pagination": { "current": 1, "pages": 2, "total": 12 }
+       }
+     }
+
+5. POST /api/groups
+   - Creates a new group (instructor only).
+   - Request body: { group_name, location, location_text, latitude, longitude, timings_text, description, yoga_style, difficulty_level, session_duration, price_per_session, max_participants }
+   - Response:
+     {
+       "success": true,
+       "group": {
+         "_id": "...",
+         "group_name": "...",
+         "description": "...",
+         "instructor_id": { "_id": "...", "firstName": "...", "lastName": "..." }
+       }
+     }
+
+6. GET /api/groups/:groupId/members
+   - Lists members of a group.
+   - Response:
+     {
+       "success": true,
+       "members": [
+         { "_id": "...", "firstName": "...", "lastName": "...", "email": "...", "role": "participant" },
+         ...
+       ]
+     }
+
+7. POST /api/groups/:groupId/members
+   - Adds a participant to a group (instructor only).
+   - Request body: { userId }
+   - Response:
+     {
+       "success": true,
+       "message": "Participant added to group"
+     }
+
+8. GET /api/attendance/:groupId
+   - Gets attendance records for a group.
+   - Response:
+     {
+       "success": true,
+       "attendance": [
+         { "_id": "...", "user": { "_id": "...", "firstName": "...", "lastName": "..." }, "date": "2024-06-10", "status": "present" },
+         ...
+       ]
+     }
+
+9. POST /api/attendance/mark
+   - Marks attendance for a session using QR code.
+   - Request body: { token }
+   - Response:
+     {
+       "success": true,
+       "message": "Attendance marked successfully"
+     }
+
+10. GET /api/qr/:groupId/today
+    - Gets today's QR code for a group (instructor only).
+    - Response:
+      {
+        "success": true,
+        "qrCode": {
+          "_id": "...",
+          "token": "...",
+          "expires_at": "2024-06-10T09:30:00.000Z",
+          "session_start_time": "2024-06-10T08:00:00.000Z",
+          "session_end_time": "2024-06-10T09:00:00.000Z"
+        }
+      }
+
+11. GET /api/users
+    - Lists all users (admin/instructor only).
+    - Response:
+      {
+        "success": true,
+        "users": [
+          { "_id": "...", "firstName": "...", "lastName": "...", "email": "...", "role": "participant" },
+          ...
+        ]
+      }
+"""
+*/

@@ -16,6 +16,11 @@ const groupSchema = new mongoose.Schema({
     trim: true,
     maxlength: 100,
   },
+  location: {
+    type: String,
+    required: true,
+    trim: true,
+  },
   location_text: {
     type: String,
     required: true,

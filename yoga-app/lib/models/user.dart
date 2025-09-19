@@ -27,7 +27,7 @@ class User {
       groupId: json['user']['group_id'], // Get groupId from login
     );
   }
-  
+
   // This factory is for fetching the user profile
   factory User.fromProfileJson(Map<String, dynamic> json) {
     return User(
