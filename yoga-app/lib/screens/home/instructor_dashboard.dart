@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
 import '../../models/yoga_group.dart';
-import './qr_display_screen.dart';
-import './create_group_screen.dart';
+import '../qr/qr_display_screen.dart';
+import 'create_group_screen.dart';
+import '../../models/session_qr_code.dart';
 
 class InstructorDashboard extends StatefulWidget {
   final User user;
@@ -21,198 +22,184 @@ class InstructorDashboard extends StatefulWidget {
 }
 
 class _InstructorDashboardState extends State<InstructorDashboard> {
-  late Future<YogaGroup?> _myGroupFuture;
+  late Future<List<YogaGroup>> _groupsFuture;
 
   @override
   void initState() {
     super.initState();
-    _myGroupFuture = _fetchMyGroup();
+    _loadGroups();
   }
 
-  Future<void> _refreshData() {
-    return setState(() {
-      _myGroupFuture = _fetchMyGroup();
+  void _loadGroups() {
+    setState(() {
+      _groupsFuture = widget.apiService.getGroups();
     });
-  }
-
-  Future<YogaGroup?> _fetchMyGroup() async {
-    try {
-      final allGroups = await widget.apiService.getGroups();
-      return allGroups.firstWhere(
-        (group) => group.instructorId == widget.user.id,
-      );
-    } catch (e) {
-      debugPrint("Could not find a group for this instructor: $e");
-      return null;
-    }
-  }
-
-  void _generateAndShowQrCode(YogaGroup group) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-    try {
-      final qrCode = await widget.apiService.qrGenerate(
-        groupId: group.id,
-        sessionDate: DateTime.now(),
-      );
-      if (mounted) {
-        Navigator.pop(context); // Close loading dialog
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => QrDisplayScreen(
-              qrCode: qrCode,
-              groupName: group.name,
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // Close loading dialog
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error generating QR: $e')));
-      }
-    }
-  }
-
-  void _navigateAndRefresh(YogaGroup? existingGroup) async {
-    final bool? needsRefresh = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CreateGroupScreen(
-          api: widget.apiService,
-          currentUser: widget.user,
-          existing: existingGroup,
-        ),
-      ),
-    );
-    if (needsRefresh == true) {
-      _refreshData();
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Instructor Dashboard'),
+        title: const Text('My Groups'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _refreshData,
+            onPressed: _loadGroups,
             tooltip: 'Refresh',
           ),
         ],
       ),
-      body: FutureBuilder<YogaGroup?>(
-        future: _myGroupFuture,
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.add),
+        label: const Text('New Group'),
+        onPressed: () async {
+          final bool? groupWasCreated = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CreateGroupScreen(
+                api: widget.apiService,
+                // ✅ FIX: This line passes the current user object.
+                currentUser: widget.user,
+              ),
+            ),
+          );
+          if (groupWasCreated == true) {
+            _loadGroups();
+          }
+        },
+      ),
+      body: FutureBuilder<List<YogaGroup>>(
+        future: _groupsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text('Error: ${snapshot.error.toString().replaceFirst("Exception: ", "")}'),
+              ),
+            );
+          }
+          final groups = snapshot.data ?? [];
+          if (groups.isEmpty) {
+            return const Center(child: Text('No groups found. Tap the + button to create one!'));
           }
 
-          final myGroup = snapshot.data;
-
-          if (myGroup == null) {
-            return _buildNoGroupView();
-          }
-
-          return _buildGroupDetailsView(myGroup);
+          return RefreshIndicator(
+            onRefresh: () async => _loadGroups(),
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 80), // Padding for FAB
+              itemCount: groups.length,
+              itemBuilder: (_, index) {
+                final group = groups[index];
+                return _GroupListItem(
+                  group: group,
+                  api: widget.apiService,
+                  onUpdate: _loadGroups,
+                  // ✅ FIX: This line passes the current user object to the list item.
+                  currentUser: widget.user,
+                );
+              },
+            ),
+          );
         },
       ),
     );
   }
+}
 
-  Widget _buildNoGroupView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text("You haven't created a group yet.", style: TextStyle(fontSize: 18)),
-          const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () => _navigateAndRefresh(null),
-            child: const Text("Create Your Group"),
-          ),
-        ],
-      ),
-    );
-  }
+class _GroupListItem extends StatelessWidget {
+  final YogaGroup group;
+  final ApiService api;
+  final VoidCallback onUpdate;
+  final User currentUser;
 
-  Widget _buildGroupDetailsView(YogaGroup group) {
-    return RefreshIndicator(
-      onRefresh: _refreshData,
-      child: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          _buildYourGroupCard(group),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.qr_code_2),
-            label: const Text('Generate Session QR Code'),
-            onPressed: () => _generateAndShowQrCode(group),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-          )
-        ],
-      ),
-    );
-  }
+  const _GroupListItem({
+    required this.group,
+    required this.api,
+    required this.onUpdate,
+    required this.currentUser,
+  });
 
-  Widget _buildYourGroupCard(YogaGroup group) {
+  @override
+  Widget build(BuildContext context) {
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: ListTile(
+        title: Text(group.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text("${group.locationText}\n${group.timingText}"),
+        isThreeLine: true,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text("Your Yoga Group", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, color: Colors.blue),
-                  tooltip: 'Edit Group',
-                  onPressed: () => _navigateAndRefresh(group),
-                ),
-              ],
+            IconButton(
+              icon: const Icon(Icons.qr_code_2),
+              tooltip: 'Generate Session QR Code',
+              onPressed: () => _generateQrCode(context),
             ),
-            const SizedBox(height: 16),
-            _buildDetailRow("Group Name", group.name),
-            _buildDetailRow("Location", group.locationText),
-            _buildDetailRow("Timings", group.timingText),
-            _buildDetailRow("Participants", "${group.memberCount ?? 0} members"),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Edit Group',
+              onPressed: () async {
+                final bool? groupWasUpdated = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CreateGroupScreen(
+                      api: api,
+                      existing: group,
+                      // ✅ FIX: This line passes the current user when editing a group.
+                      currentUser: currentUser,
+                    ),
+                  ),
+                );
+                if (groupWasUpdated == true) {
+                  onUpdate();
+                }
+              },
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDetailRow(String title, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-              width: 100,
-              child: Text(title, style: TextStyle(color: Colors.grey.shade600))),
-          Expanded(
-              child: Text(value,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 15))),
-        ],
-      ),
+  Future<void> _generateQrCode(BuildContext context) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
     );
+
+    try {
+      final SessionQrCode qrCode = await api.qrGenerate(
+        groupId: group.id,
+        sessionDate: DateTime.now(),
+      );
+      
+      if (!context.mounted) return;
+      Navigator.pop(context); // Dismiss loading dialog
+      
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => QrDisplayScreen(
+            qrCode: qrCode,
+            groupName: group.name,
+            api: api,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      Navigator.pop(context); // Dismiss loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to generate QR Code: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

@@ -1,12 +1,12 @@
 // lib/screens/instructor/create_group_screen.dart
 import 'package:flutter/material.dart';
 import '../../api_service.dart';
-import '../../models/user.dart'; 
+import '../../models/user.dart';
 import '../../models/yoga_group.dart';
 
 class CreateGroupScreen extends StatefulWidget {
   final ApiService api;
-  final User currentUser; 
+  final User currentUser;
   final YogaGroup? existing;
   const CreateGroupScreen({super.key, required this.api, required this.currentUser, this.existing});
 
@@ -41,7 +41,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           groupName: _name.text.trim(),
           location: _location.text.trim(),
           timings: _timings.text.trim(),
-          instructorId: widget.currentUser.id,
         );
       } else {
         await widget.api.updateGroup(
@@ -60,8 +59,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       if (mounted) setState(() => _saving = false);
     }
   }
-
-   @override
+  
+  @override
   void dispose() {
     _name.dispose();
     _location.dispose();

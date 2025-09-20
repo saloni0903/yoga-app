@@ -1,5 +1,4 @@
 // lib/api_service.dart
-
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
@@ -10,13 +9,8 @@ import 'models/session_qr_code.dart';
 import 'models/attendance.dart';
 
 class ApiService {
-  // Base URL (adjust port if needed)
   final String baseUrl = kIsWeb ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
-
-  // Persist token after login/register for protected endpoints
   String? token;
-
-  // ---------------- Auth ----------------
 
   Future<User> login(String email, String password) async {
     final res = await http.post(
@@ -26,10 +20,8 @@ class ApiService {
     );
     final data = _decode(res);
     _ensureOk(res, data);
-
-    final authData = data['data'] as Map<String, dynamic>;
-    token = authData['token'] as String?;
-    return User.fromAuthJson(authData);
+    token = data['data']['token'] as String?;
+    return User.fromAuthJson(data['data']['user']);
   }
 
   Future<User> register({
@@ -56,59 +48,26 @@ class ApiService {
     );
     final data = _decode(res);
     _ensureCreated(res, data);
-
-    final authData = data['data'] as Map<String, dynamic>;
-    token = authData['token'] as String?;
-    return User.fromAuthJson(authData);
+    token = data['data']['token'] as String?;
+    return User.fromAuthJson(data['data']['user']);
   }
 
-  // ---------------- Groups ----------------
-
-  Future<List<YogaGroup>> getGroups({
-    String? search,
-    int page = 1,
-    int limit = 20,
-  }) async {
+  Future<List<YogaGroup>> getGroups({String? search}) async {
     final uri = Uri.parse('$baseUrl/api/groups').replace(
-      queryParameters: {
-        if (search != null && search.isNotEmpty) 'search': search,
-        'page': '$page',
-        'limit': '$limit',
-      },
+      queryParameters: { if (search != null && search.isNotEmpty) 'search': search },
     );
     final res = await http.get(uri, headers: _authHeaders(optional: true));
     final data = _decode(res);
     _ensureOk(res, data);
-
     final payload = data['data'];
     List listJson = (payload is Map && payload['groups'] is List) ? payload['groups'] : [];
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
-  }
-
-  Future<YogaGroup> getGroupById(String id) async {
-    final res = await http.get(
-      Uri.parse('$baseUrl/api/groups/$id'),
-      headers: _authHeaders(optional: true),
-    );
-    final data = _decode(res);
-    _ensureOk(res, data);
-    return YogaGroup.fromJson(data['data']);
-  }
-
-  Future<void> joinGroup(String groupId) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/api/groups/$groupId/join'),
-      headers: _authHeaders(),
-      body: jsonEncode({}),
-    );
-    _ensureOk(res, _decode(res));
   }
 
   Future<void> createGroup({
     required String groupName,
     required String location,
     required String timings,
-    required String instructorId, // FIX: Added required instructorId
   }) async {
     final res = await http.post(
       Uri.parse('$baseUrl/api/groups'),
@@ -117,14 +76,13 @@ class ApiService {
         'group_name': groupName,
         'location_text': location,
         'timings_text': timings,
-        'instructor_id': instructorId, // FIX: Send instructor_id to backend
-        'latitude': 22.7196, // Default for Indore
-        'longitude': 75.8577, // Default for Indore
+        'latitude': 22.7196,
+        'longitude': 75.8577,
       }),
     );
     _ensureCreated(res, _decode(res));
   }
-
+  
   Future<void> updateGroup({required String id, String? groupName, String? location, String? timings}) async {
     final body = {
       if (groupName != null) 'group_name': groupName,
@@ -138,9 +96,7 @@ class ApiService {
     );
     _ensureOk(res, _decode(res));
   }
-
-  // ---------------- QR ----------------
-
+  
   Future<SessionQrCode> qrGenerate({required String groupId, required DateTime sessionDate}) async {
     final res = await http.post(
       Uri.parse('$baseUrl/api/qr/generate'),
@@ -155,24 +111,15 @@ class ApiService {
     return SessionQrCode.fromJson(data['data']);
   }
 
-  Future<void> qrScan({required String tokenValue}) async {
+  // ✅ FIX: This method was missing, causing an error.
+  Future<void> joinGroup(String groupId) async {
     final res = await http.post(
-      Uri.parse('$baseUrl/api/qr/scan'),
+      Uri.parse('$baseUrl/api/groups/$groupId/join'),
       headers: _authHeaders(),
-      body: jsonEncode({'token': tokenValue}),
+      body: jsonEncode({}),
     );
     _ensureOk(res, _decode(res));
   }
-
-  Future<void> qrDeactivate(String qrId) async {
-    final res = await http.put(
-        Uri.parse('$baseUrl/api/qr/$qrId/deactivate'),
-        headers: _authHeaders()
-    );
-    _ensureOk(res, _decode(res));
-  }
-
-  // ---------------- Helpers ----------------
 
   Map<String, String> _authHeaders({bool optional = false}) {
     final headers = {'Content-Type': 'application/json'};
