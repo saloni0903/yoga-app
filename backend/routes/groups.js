@@ -4,6 +4,7 @@ const express = require('express');
 const Group = require('../model/Group');
 const GroupMember = require('../model/GroupMember');
 const router = express.Router();
+const auth = require('../middleware/auth');
 
 // Get all groups
 router.get('/', async (req, res) => {
@@ -238,16 +239,51 @@ router.get('/:id/members', async (req, res) => {
 });
 
 // Join group
-router.post('/:id/join', async (req, res) => {
-  try {
-    const { user_id } = req.body;
+// router.post('/:id/join', async (req, res) => {
+//   try {
+//     const { user_id } = req.body;
     
-    // Check if user is already a member
-    const existingMember = await GroupMember.findOne({
-      user_id,
-      group_id: req.params.id
-    });
+//     // Check if user is already a member
+//     const existingMember = await GroupMember.findOne({
+//       user_id,
+//       group_id: req.params.id
+//     });
 
+//     if (existingMember) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'User is already a member of this group'
+//       });
+//     }
+
+//     const membership = new GroupMember({
+//       user_id,
+//       group_id: req.params.id
+//     });
+
+//     await membership.save();
+
+//     res.status(201).json({
+//       success: true,
+//       message: 'Successfully joined the group',
+//       data: membership
+//     });
+//   } catch (error) {
+//     console.error('Join group error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to join group',
+//       error: error.message
+//     });
+//   }
+// });
+
+router.post('/:id/join', auth, async (req, res) => {
+  try {
+    const user_id = req.user._id.toString(); // ✅ take from JWT
+    const group_id = req.params.id;
+
+    const existingMember = await GroupMember.findOne({ user_id, group_id });
     if (existingMember) {
       return res.status(400).json({
         success: false,
@@ -255,11 +291,7 @@ router.post('/:id/join', async (req, res) => {
       });
     }
 
-    const membership = new GroupMember({
-      user_id,
-      group_id: req.params.id
-    });
-
+    const membership = new GroupMember({ user_id, group_id });
     await membership.save();
 
     res.status(201).json({
