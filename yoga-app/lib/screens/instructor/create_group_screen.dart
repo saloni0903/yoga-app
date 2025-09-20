@@ -41,6 +41,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           groupName: _name.text.trim(),
           location: _location.text.trim(),
           timings: _timings.text.trim(),
+          instructorId: widget.currentUser.id,
         );
       } else {
         await widget.api.updateGroup(

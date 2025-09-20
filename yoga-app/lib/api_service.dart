@@ -63,24 +63,27 @@ class ApiService {
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
   }
 
-  Future<void> createGroup({
-    required String groupName,
-    required String location,
-    required String timings,
-  }) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/api/groups'),
-      headers: _authHeaders(),
-      body: jsonEncode({
-        'group_name': groupName,
-        'location_text': location,
-        'timings_text': timings,
-        'latitude': 22.7196,
-        'longitude': 75.8577,
-      }),
-    );
-    _ensureCreated(res, _decode(res));
-  }
+Future<void> createGroup({
+  required String groupName,
+  required String location,
+  required String timings,
+  required String instructorId, // Add this required parameter
+}) async {
+  final res = await http.post(
+    Uri.parse('$baseUrl/api/groups'),
+    headers: _authHeaders(),
+    body: jsonEncode({
+      'group_name': groupName,
+      'location': location,
+      'location_text': location,
+      'timings_text': timings,
+      'latitude': 22.7196,
+      'longitude': 75.8577,
+      'instructor_id': instructorId, // Send the ID to the backend
+    }),
+  );
+  _ensureCreated(res, _decode(res));
+}
   
   Future<void> updateGroup({required String id, String? groupName, String? location, String? timings}) async {
     final body = {

@@ -3,6 +3,7 @@
 class YogaGroup {
   final String id;
   final String name;
+  final String instructorId; // ✅ ADDED instructorId
   final String locationText;
   final String timingText;
   final String yogaStyle;
@@ -13,6 +14,7 @@ class YogaGroup {
   YogaGroup({
     required this.id,
     required this.name,
+    required this.instructorId, // ✅ ADDED
     required this.locationText,
     required this.timingText,
     required this.yogaStyle,
@@ -23,8 +25,11 @@ class YogaGroup {
 
   factory YogaGroup.fromJson(Map<String, dynamic> j) {
     return YogaGroup(
-      id: j['_id'] ?? '',
+      // Backend sends '_id', we map it to 'id'
+      id: j['_id']?.toString() ?? '',
       name: j['group_name'] ?? '',
+      // ✅ Now correctly reads the instructor_id as a String
+      instructorId: j['instructor_id']?.toString() ?? '',
       locationText: j['location_text'] ?? '',
       timingText: j['timings_text'] ?? '',
       yogaStyle: j['yoga_style'] ?? 'hatha',

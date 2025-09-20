@@ -15,21 +15,16 @@ class User {
     required this.token,
   });
 
-  // CORRECTED factory for login/register response
   factory User.fromAuthJson(Map<String, dynamic> json) {
-    // The 'json' variable here is the "data" object from the API response
     final userJson = json['user'] as Map<String, dynamic>? ?? {};
     final firstName = userJson['firstName'] ?? '';
     final lastName = userJson['lastName'] ?? '';
 
     return User(
-      // Use '_id' from backend, not 'id'
-      id: userJson['_id'] ?? '', 
-      // Combine firstName and lastName
+      id: userJson['id'] ?? '', 
       fullName: '$firstName $lastName'.trim(), 
       email: userJson['email'] ?? '',
       role: userJson['role'] ?? 'participant',
-      // Get token from the top level of the "data" object
       token: json['token'] ?? '', 
     );
   }
