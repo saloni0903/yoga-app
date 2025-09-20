@@ -6,7 +6,6 @@ import 'find_group_screen.dart';
 
 class ParticipantDashboard extends StatefulWidget {
   final User user;
-  // FIX: Accept the authenticated ApiService instance
   final ApiService apiService;
 
   const ParticipantDashboard({
@@ -25,7 +24,6 @@ class _ParticipantDashboardState extends State<ParticipantDashboard> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      // FIX: Pass the provided apiService instance down to child screens
       const Center(child: Text("My Groups (Coming Soon)")), // Placeholder for MyGroupsScreen
       FindGroupScreen(apiService: widget.apiService),
       const Center(child: Text("Profile (Coming Soon)")),

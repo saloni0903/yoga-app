@@ -21,12 +21,15 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
   Future<void> _search() async {
     final query = _searchController.text.trim();
     if (query.isEmpty) return;
-    setState(() => _loading = true);
+
+    FocusScope.of(context).unfocus();
+    setState(() { _loading = true; _searched = true; });
+
     try {
       final list = await widget.apiService.getGroups(search: query);
-      setState(() => _results = list);
+      if (mounted) setState(() => _results = list);
     } catch (e) {
-      if (mounted) _showError('Search failed: $e');
+      if (mounted) _showError('Search failed: ${e.toString().replaceFirst("Exception: ", "")}');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -66,7 +69,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
         child: Column(
           children: [
             TextFormField(
-              controller: _city,
+              controller: _searchController,
               decoration: const InputDecoration(labelText: 'Search by City'),
               onFieldSubmitted: (_) => _search(),
             ),

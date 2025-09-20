@@ -180,23 +180,14 @@ class ApiService {
     return SessionQrCode.fromJson(data['data']);
   }
 
-  // Future<void> joinGroup(String groupId) async {
-  //   final res = await http.post(
-  //     Uri.parse('$baseUrl/api/groups/$groupId/join'),
-  //     headers: _authHeaders(),
-  //     body: jsonEncode({}),
-  //   );
-  //   _ensureOk(res, _decode(res));
-  // }
-  Future<void> joinGroup(String groupId, String userId) async {
-  final res = await http.post(
-    Uri.parse('$baseUrl/api/groups/$groupId/join'),
-    headers: _authHeaders(),
-    body: jsonEncode({}), // ✅ send user_id
-  );
-  _ensureOk(res, _decode(res));
-}
-
+  Future<void> joinGroup({required String groupId}) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/groups/$groupId/join'),
+      headers: _authHeaders(),
+      body: jsonEncode({}),
+    );
+    _ensureOk(res, _decode(res));
+  }
 
   Map<String, String> _authHeaders({bool optional = false}) {
     final headers = {'Content-Type': 'application/json'};
