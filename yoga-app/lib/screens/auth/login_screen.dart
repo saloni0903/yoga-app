@@ -47,6 +47,18 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
+    final apiService = Provider.of<ApiService>(context, listen: false);
+    await apiService.login(...);
+    await apiService.login(...);
+    if (mounted && user != null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => HomeScreen(user: user),
+        ),
+      );
+   }
+
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isLoading = true);

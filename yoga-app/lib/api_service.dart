@@ -1,5 +1,6 @@
 // lib/api_service.dart
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'models/user.dart';
@@ -7,17 +8,25 @@ import 'models/yoga_group.dart';
 import 'models/session_qr_code.dart';
 import 'models/attendance.dart';
 
-class ApiService {
+class ApiService with ChangeNotifier {
   final String baseUrl = kIsWeb
       ? 'http://localhost:3000'
       : 'http://10.0.2.2:3000';
-  String? token;
+  String? _token;
+  User? _currentUser;
+
+  void _setAuth(String? token, User? user) {
+    _token = token;
+    _currentUser = user;
+    notifyListeners(); // 2. Broadcasts changes
+  }
 
   Future<User> login(String email, String password) async {
     final res = await http.post(
       Uri.parse('$baseUrl/api/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode({'email': email, 'password': password}),
+      _setAuth(token, user);
     );
     final data = _decode(res);
     _ensureOk(res, data);
