@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../api_service.dart';
+import '../../models/user.dart';
 import '../home/home_screen.dart';
 import 'register_screen.dart';
 
@@ -14,7 +15,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final ApiService _apiService = ApiService();
+  // FIXED: Removed the local instance of ApiService. We will get it from Provider.
+  // final ApiService _apiService = ApiService();
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -22,64 +24,56 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePw = true;
 
-  // Strong password regex: >=8, 1 upper, 1 lower, 1 digit, 1 special
   final _passwordRegex = RegExp(
     r'^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{8,}$',
   );
 
-  // Email validation
   String? _validateEmail(String? value) {
     final v = value?.trim() ?? '';
     if (v.isEmpty) return 'Email is required';
-    if (!v.contains('@')) return 'Email must contain @';
-    if (!v.endsWith('.com')) return 'Email must end with .com';
+    if (!v.contains('@') || !v.contains('.')) return 'Enter a valid email';
     return null;
   }
 
-  // Password validation
   String? _validatePassword(String? value) {
     final v = value ?? '';
     if (v.isEmpty) return 'Password is required';
-    if (!_passwordRegex.hasMatch(v)) {
-      return 'Min 8 chars, include upper, lower, digit, special';
-    }
+    if (v.length < 8) return 'Password must be at least 8 characters';
     return null;
   }
 
   Future<void> _login() async {
-    final apiService = Provider.of<ApiService>(context, listen: false);
-    await apiService.login(...);
-    await apiService.login(...);
-    if (mounted && user != null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => HomeScreen(user: user),
-        ),
-      );
-   }
-
+    // Return if the form is not valid
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isLoading = true);
+    
+    // FIXED: Get the ApiService instance from Provider.
+    final apiService = Provider.of<ApiService>(context, listen: false);
+
     try {
-      final user = await _apiService.login(
+      // Call the login method
+      final User user = await apiService.login(
         _emailController.text.trim(),
         _passwordController.text,
       );
 
+      // Navigate on success
       if (mounted) {
-        // Pass ApiService into HomeScreen (fix from first version)
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => HomeScreen(user: user, apiService: _apiService),
+            // FIXED: The HomeScreen can get the user from the ApiService via Provider,
+            // so we don't strictly need to pass it.
+            // However, passing it avoids a flicker while the Provider updates.
+            builder: (context) => HomeScreen(
+              user: user,
+              apiService: _apiService,
+            ),
           ),
         );
       }
     } catch (e) {
-      // FIX: Add debug print to see errors in the console
-      debugPrint('Login failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

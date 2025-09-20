@@ -297,8 +297,8 @@ const seedData = async () => {
     console.log('- QR codes for today\'s sessions');
 
     console.log('\nTest credentials:');
-    console.log('Instructor 1: geeta.yoga@example.com / password123');
-    console.log('Instructor 2: ram.sen@example.com / password123');
+    console.log('Instructor 1: geeta.yoga@example.com / Password@123');
+    console.log('Instructor 2: ram.sen@example.com / Password@123');
     console.log('Participants: participant1@example.com to participant10@example.com / password123');
 
   } catch (error) {

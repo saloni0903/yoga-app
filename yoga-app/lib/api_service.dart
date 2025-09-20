@@ -14,6 +14,7 @@ class ApiService with ChangeNotifier {
       : 'http://10.0.2.2:3000';
   String? _token;
   User? _currentUser;
+  bool get isAuthenticated => _token != null;
 
   void _setAuth(String? token, User? user) {
     _token = token;
@@ -26,12 +27,15 @@ class ApiService with ChangeNotifier {
       Uri.parse('$baseUrl/api/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode({'email': email, 'password': password}),
-      _setAuth(token, user);
     );
     final data = _decode(res);
     _ensureOk(res, data);
-    token = data['data']['token'] as String?;
-    return User.fromAuthJson(data['data']);
+
+    final user = User.fromAuthJson(data['data']);
+    final token = data['data']['token'] as String?;
+
+    _setAuth(token, user);
+    return user;
   }
 
   Future<User> register({
@@ -58,8 +62,12 @@ class ApiService with ChangeNotifier {
     );
     final data = _decode(res);
     _ensureCreated(res, data);
-    token = data['data']['token'] as String?;
-    return User.fromAuthJson(data['data']);
+
+    final user = User.fromAuthJson(data['data']);
+    final token = data['data']['token'] as String?;
+
+    _setAuth(token, user);
+    return user;
   }
 
   Future<List<YogaGroup>> getGroups({String? search}) async {
@@ -200,8 +208,8 @@ class ApiService with ChangeNotifier {
 
   Map<String, String> _authHeaders({bool optional = false}) {
     final headers = {'Content-Type': 'application/json'};
-    if (token != null && token!.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
+    if (_token != null && _token!.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $_token';
     }
     return headers;
   }
