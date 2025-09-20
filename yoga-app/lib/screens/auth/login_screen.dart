@@ -68,7 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
             // However, passing it avoids a flicker while the Provider updates.
             builder: (context) => HomeScreen(
               user: user,
-              apiService: _apiService,
+              apiService: apiService,
             ),
           ),
         );

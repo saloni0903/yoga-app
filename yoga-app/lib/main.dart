@@ -5,15 +5,22 @@ import 'package:provider/provider.dart';
 import 'api_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
+import 'models/user.dart';
+import 'screens/home/home_screen.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+    final apiService = ApiService();
+    await apiService.tryAutoLogin();
+
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => ApiService(),
+    ChangeNotifierProvider.value(
+      value: apiService, 
       child: const MyApp(),
     ),
   );
 }
+
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -220,7 +227,22 @@ class MyApp extends StatelessWidget {
         // Icon theme
         iconTheme: IconThemeData(color: const Color(0xFF3A4B47)),
       ),
-
+      home: Consumer<ApiService>(
+        builder: (context, apiService, child) {
+          if (apiService.isAuthenticated) {
+            // If logged in, go to HomeScreen
+            // NOTE: You may need to fetch the full user details here.
+            // For now, a placeholder user is fine for the UI to load.
+            return HomeScreen(
+              user: apiService.currentUser ?? User(id: 'cached-user', fullName: 'Welcome Back!', email: 'user@example.com', role: 'participant', token: ''),
+              apiService: apiService
+            );
+          } else {
+            // If not logged in, go to LoginScreen
+            return const LoginScreen();
+          }
+        },
+      ),
       initialRoute: '/login',
       routes: {
         '/login': (context) => const LoginScreen(),

@@ -7,6 +7,7 @@ import 'models/user.dart';
 import 'models/yoga_group.dart';
 import 'models/session_qr_code.dart';
 import 'models/attendance.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService with ChangeNotifier {
   final String baseUrl = kIsWeb
@@ -15,11 +16,30 @@ class ApiService with ChangeNotifier {
   String? _token;
   User? _currentUser;
   bool get isAuthenticated => _token != null;
-
-  void _setAuth(String? token, User? user) {
+  User? get currentUser => _currentUser;
+  
+  void _setAuth(String? token, User? user) async {
     _token = token;
     _currentUser = user;
-    notifyListeners(); // 2. Broadcasts changes
+    notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    if (token != null) {
+      await prefs.setString('token', token);
+    } else {
+      await prefs.remove('token');
+    }
+  }
+
+  Future<void> tryAutoLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!prefs.containsKey('token')) {
+      return;
+    }
+    _token = prefs.getString('token');
+    // You would also save and load user data similarly,
+    // perhaps by fetching user details from your server using the token.
+    notifyListeners();
   }
 
   Future<User> login(String email, String password) async {
@@ -30,12 +50,21 @@ class ApiService with ChangeNotifier {
     );
     final data = _decode(res);
     _ensureOk(res, data);
+    print("Login response JSON: $data");
 
     final user = User.fromAuthJson(data['data']);
     final token = data['data']['token'] as String?;
 
     _setAuth(token, user);
     return user;
+  }
+
+  Future<void> logout() async {
+    _token = null;
+    _currentUser = null;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('token');
   }
 
   Future<User> register({
@@ -207,10 +236,13 @@ class ApiService with ChangeNotifier {
   }
 
   Map<String, String> _authHeaders({bool optional = false}) {
+    print('[ApiService] Preparing headers. Current token is: $_token');
     final headers = {'Content-Type': 'application/json'};
     if (_token != null && _token!.isNotEmpty) {
       headers['Authorization'] = 'Bearer $_token';
-    }
+    } else if (!optional) {
+    throw Exception('Authentication token is missing for a protected route.');
+  }
     return headers;
   }
 

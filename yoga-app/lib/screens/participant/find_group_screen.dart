@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
 import '../../models/yoga_group.dart';
+import 'package:provider/provider.dart';
 
 class FindGroupScreen extends StatefulWidget {
-  final ApiService apiService;
-  const FindGroupScreen({super.key, required this.apiService});
+  const FindGroupScreen({super.key});
 
   @override
   State<FindGroupScreen> createState() => _FindGroupScreenState();
@@ -21,12 +21,11 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
   Future<void> _search() async {
     final query = _searchController.text.trim();
     if (query.isEmpty) return;
-
+    final apiService = Provider.of<ApiService>(context, listen: false);
     FocusScope.of(context).unfocus();
     setState(() { _loading = true; _searched = true; });
-
     try {
-      final list = await widget.apiService.getGroups(search: query);
+      final list = await apiService.getGroups(search: query);
       if (mounted) setState(() => _results = list);
     } catch (e) {
       if (mounted) _showError('Search failed: ${e.toString().replaceFirst("Exception: ", "")}');
@@ -36,9 +35,10 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
   }
 
   Future<void> _join(String groupId) async {
+    final apiService = Provider.of<ApiService>(context, listen: false);
     setState(() => _loading = true);
     try {
-      await widget.apiService.joinGroup(groupId: groupId);
+      await apiService.joinGroup(groupId: groupId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

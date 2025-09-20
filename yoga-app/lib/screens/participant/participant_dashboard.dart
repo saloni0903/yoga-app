@@ -25,7 +25,7 @@ class _ParticipantDashboardState extends State<ParticipantDashboard> {
   Widget build(BuildContext context) {
     final pages = [
       const Center(child: Text("My Groups (Coming Soon)")), // Placeholder for MyGroupsScreen
-      FindGroupScreen(apiService: widget.apiService),
+      FindGroupScreen(),
       const Center(child: Text("Profile (Coming Soon)")),
     ];
 
