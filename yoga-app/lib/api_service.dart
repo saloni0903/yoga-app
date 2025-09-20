@@ -8,7 +8,9 @@ import 'models/session_qr_code.dart';
 import 'models/attendance.dart';
 
 class ApiService {
-  final String baseUrl = kIsWeb ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
+  final String baseUrl = kIsWeb
+      ? 'http://localhost:3000'
+      : 'http://10.0.2.2:3000';
   String? token;
 
   Future<User> login(String email, String password) async {
@@ -53,44 +55,104 @@ class ApiService {
 
   Future<List<YogaGroup>> getGroups({String? search}) async {
     final uri = Uri.parse('$baseUrl/api/groups').replace(
-      queryParameters: { if (search != null && search.isNotEmpty) 'search': search },
+      queryParameters: {
+        if (search != null && search.isNotEmpty) 'search': search,
+      },
     );
     final res = await http.get(uri, headers: _authHeaders(optional: true));
     final data = _decode(res);
     _ensureOk(res, data);
     final payload = data['data'];
-    List listJson = (payload is Map && payload['groups'] is List) ? payload['groups'] : [];
+    List listJson = (payload is Map && payload['groups'] is List)
+        ? payload['groups']
+        : [];
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
   }
 
-Future<void> createGroup({
-  required String groupName,
-  required String location,
-  required String timings,
-  required String instructorId,
-}) async {
-  final res = await http.post(
-    Uri.parse('$baseUrl/api/groups'),
-    headers: _authHeaders(),
-    body: jsonEncode({
-      'group_name': groupName,
-      'location': location,
-      'location_text': location,
-      'timings_text': timings,
-      'latitude': 22.7196,
-      'longitude': 75.8577,
-      'instructor_id': instructorId,
-    }),
-  );
-  _ensureCreated(res, _decode(res));
-}
-  
-  Future<void> updateGroup({required String id, String? groupName, String? location, String? timings}) async {
-    final body = {
-      if (groupName != null) 'group_name': groupName,
-      if (location != null) 'location_text': location,
-      if (timings != null) 'timings_text': timings,
-    };
+  Future<void> createGroup({
+    required String groupName,
+    required String location,
+    required String locationText,
+    required double latitude,
+    required double longitude,
+    required String timingsText,
+    required String instructorId,
+    String? description,
+    int maxParticipants = 20,
+    String yogaStyle = 'hatha',
+    String difficultyLevel = 'all-levels',
+    int sessionDuration = 60,
+    double pricePerSession = 0,
+    String currency = 'USD',
+    List<String> requirements = const [],
+    List<String> equipmentNeeded = const [],
+    bool isActive = true,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/groups'),
+      headers: _authHeaders(),
+      body: jsonEncode({
+        'group_name': groupName,
+        'location': location,
+        'location_text': locationText,
+        'latitude': latitude,
+        'longitude': longitude,
+        'timings_text': timingsText,
+        'instructor_id': instructorId,
+        'description': description,
+        'max_participants': maxParticipants,
+        'yoga_style': yogaStyle,
+        'difficulty_level': difficultyLevel,
+        'session_duration': sessionDuration,
+        'price_per_session': pricePerSession,
+        'currency': currency,
+        'requirements': requirements,
+        'equipment_needed': equipmentNeeded,
+        'is_active': isActive,
+      }),
+    );
+    _ensureCreated(res, _decode(res));
+  }
+
+  Future<void> updateGroup({
+    required String id,
+    String? groupName,
+    String? location,
+    String? locationText,
+    double? latitude,
+    double? longitude,
+    String? timingsText,
+    String? description,
+    int? maxParticipants,
+    String? yogaStyle,
+    String? difficultyLevel,
+    int? sessionDuration,
+    double? pricePerSession,
+    String? currency,
+    List<String>? requirements,
+    List<String>? equipmentNeeded,
+    bool? isActive,
+  }) async {
+    final body = <String, dynamic>{};
+
+    // Only include fields that are not null
+    if (groupName != null) body['group_name'] = groupName;
+    if (location != null) body['location'] = location;
+    if (locationText != null) body['location_text'] = locationText;
+    if (latitude != null) body['latitude'] = latitude;
+    if (longitude != null) body['longitude'] = longitude;
+    if (timingsText != null) body['timings_text'] = timingsText;
+    if (description != null) body['description'] = description;
+    if (maxParticipants != null) body['max_participants'] = maxParticipants;
+    if (yogaStyle != null) body['yoga_style'] = yogaStyle;
+    if (difficultyLevel != null) body['difficulty_level'] = difficultyLevel;
+    if (sessionDuration != null) body['session_duration'] = sessionDuration;
+    if (pricePerSession != null) body['price_per_session'] = pricePerSession;
+    if (currency != null) body['currency'] = currency;
+    if (requirements != null) body['requirements'] = requirements;
+    if (equipmentNeeded != null) body['equipment_needed'] = equipmentNeeded;
+    if (isActive != null) body['is_active'] = isActive;
+
     final res = await http.put(
       Uri.parse('$baseUrl/api/groups/$id'),
       headers: _authHeaders(),
@@ -98,19 +160,19 @@ Future<void> createGroup({
     );
     _ensureOk(res, _decode(res));
   }
-  
+
   Future<SessionQrCode> qrGenerate({
-    required String groupId, 
+    required String groupId,
     required DateTime sessionDate,
     required String createdBy,
-    }) async {
+  }) async {
     final res = await http.post(
       Uri.parse('$baseUrl/api/qr/generate'),
       headers: _authHeaders(),
       body: json.encode({
         'group_id': groupId,
         'session_date': sessionDate.toIso8601String(),
-        'created_by': createdBy
+        'created_by': createdBy,
       }),
     );
     final data = _decode(res);
@@ -148,12 +210,17 @@ Future<void> createGroup({
     try {
       return json.decode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
     } catch (e) {
-      return {'success': false, 'message': 'Invalid response from server (${res.statusCode})'};
+      return {
+        'success': false,
+        'message': 'Invalid response from server (${res.statusCode})',
+      };
     }
   }
 
   void _ensureOk(http.Response res, Map<String, dynamic> data) {
-    if (res.statusCode < 200 || res.statusCode >= 300 || (data['success'] == false)) {
+    if (res.statusCode < 200 ||
+        res.statusCode >= 300 ||
+        (data['success'] == false)) {
       throw Exception(data['message'] ?? 'Request failed (${res.statusCode})');
     }
   }
