@@ -15,7 +15,7 @@ const SessionQRCode = require('../model/SessionQRCode');
 const connectDB = async () => {
   try {
     const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/yoga_app';
-    
+
     // Connection options
     const options = {
       useNewUrlParser: true,
@@ -35,7 +35,7 @@ const connectDB = async () => {
   } catch (error) {
     console.error('Database connection error:', error);
     console.log('Trying to connect to local MongoDB...');
-    
+
     // Fallback to local MongoDB
     try {
       const conn = await mongoose.connect('mongodb://localhost:27017/yoga_app', {
@@ -65,15 +65,18 @@ const seedData = async () => {
 
     console.log('Cleared existing data');
 
+    const instructor1Id = crypto.randomUUID();
+    const instructor2Id = crypto.randomUUID();
+
     // Create instructors
     const instructor1 = new User({
-      email: 'sarah.yoga@example.com',
-      password: 'password123',
-      firstName: 'Sarah',
-      lastName: 'Johnson',
+      email: 'geeta.yoga@example.com',
+      password: 'Password@123',
+      firstName: 'Geeta',
+      lastName: 'Sharma',
       role: 'instructor',
       phone: '+1234567890',
-      location: 'New York, NY',
+      location: 'Indore, MP',
       dateOfBirth: new Date('1985-03-15'),
       preferences: {
         notifications: { email: true, sms: false, push: true },
@@ -82,13 +85,13 @@ const seedData = async () => {
     });
 
     const instructor2 = new User({
-      email: 'mike.zen@example.com',
-      password: 'password123',
-      firstName: 'Mike',
-      lastName: 'Chen',
+      email: 'ramesh.sen@example.com',
+      password: 'Password@123',
+      firstName: 'Ramesh',
+      lastName: 'Sen',
       role: 'instructor',
       phone: '+1234567891',
-      location: 'Los Angeles, CA',
+      location: 'Ujjain, MP',
       dateOfBirth: new Date('1980-07-22'),
       preferences: {
         notifications: { email: true, sms: true, push: true },
@@ -105,6 +108,7 @@ const seedData = async () => {
     const locations = ['New York, NY', 'Los Angeles, CA', 'Chicago, IL', 'Houston, TX', 'Phoenix, AZ'];
     for (let i = 1; i <= 10; i++) {
       const participant = new User({
+        _id: crypto.randomUUID(),
         email: `participant${i}@example.com`,
         password: 'password123',
         firstName: `Participant${i}`,
@@ -121,6 +125,7 @@ const seedData = async () => {
       await participant.save();
       participants.push(participant);
     }
+
     console.log('Created participants');
 
     // Create groups
@@ -179,7 +184,7 @@ const seedData = async () => {
 
     // Create group memberships
     const memberships = [];
-    
+
     // Add participants to group 1
     for (let i = 0; i < 8; i++) {
       const membership = new GroupMember({
@@ -254,7 +259,7 @@ const seedData = async () => {
     todayMorning.setHours(7, 0, 0, 0);
     const todayEvening = new Date(today);
     todayEvening.setHours(18, 0, 0, 0);
-    
+
     // Create QR codes manually to ensure token generation
     const qrCode1 = new SessionQRCode({
       group_id: group1._id,
@@ -290,10 +295,10 @@ const seedData = async () => {
     console.log('- Multiple group memberships');
     console.log('- Sample attendance records');
     console.log('- QR codes for today\'s sessions');
-    
+
     console.log('\nTest credentials:');
-    console.log('Instructor 1: sarah.yoga@example.com / password123');
-    console.log('Instructor 2: mike.zen@example.com / password123');
+    console.log('Instructor 1: geeta.yoga@example.com / password123');
+    console.log('Instructor 2: ram.sen@example.com / password123');
     console.log('Participants: participant1@example.com to participant10@example.com / password123');
 
   } catch (error) {
@@ -307,7 +312,7 @@ const seedData = async () => {
 connectDB().then(() => {
   seedData();
 });
-// 
+//
 // Updated List of available APIs and their sample responses:
 //
 // 1. POST /api/auth/register

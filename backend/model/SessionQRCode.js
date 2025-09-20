@@ -4,19 +4,19 @@ const crypto = require('crypto');
 
 const sessionQRCodeSchema = new mongoose.Schema({
   _id: {
-    type: mongoose.Schema.Types.UUID,
-    default: () => new mongoose.Types.UUID(),
+    type: String,
+    default: () => crypto.randomUUID(),
   },
   group_id: {
-    type: mongoose.Schema.Types.UUID,
+    type: String,
     ref: 'Group',
     required: true,
   },
   token: {
     type: String,
-    required: true,
     unique: true,
     index: true,
+    default: () => crypto.randomBytes(32).toString('hex'),
   },
   session_date: {
     type: Date,
@@ -31,7 +31,7 @@ const sessionQRCodeSchema = new mongoose.Schema({
     default: Date.now,
   },
   created_by: {
-    type: mongoose.Schema.Types.UUID,
+    type: String,
     ref: 'User',
     required: true,
   },
@@ -109,12 +109,9 @@ sessionQRCodeSchema.pre('save', function(next) {
   if (!this.token) {
     this.token = crypto.randomBytes(32).toString('hex');
   }
-  
-  // Generate QR data URL if not provided
   if (!this.qr_data) {
     this.qr_data = `${process.env.APP_URL || 'http://localhost:3000'}/qr/scan/${this.token}`;
   }
-  
   next();
 });
 

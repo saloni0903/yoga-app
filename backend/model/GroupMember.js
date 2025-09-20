@@ -1,18 +1,23 @@
 // backend/model/Group.js
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const groupMemberSchema = new mongoose.Schema({
-  _id: {
-    type: mongoose.Schema.Types.UUID,
-    default: () => new mongoose.Types.UUID(),
+  // _id: {
+  //   type: mongoose.Schema.Types.UUID,
+  //   default: () => new mongoose.Types.UUID(),
+  // },
+  _id: { 
+    type: String, 
+    default: () => crypto.randomUUID() 
   },
   user_id: {
-    type: mongoose.Schema.Types.UUID,
+    type: String,
     ref: 'User',
     required: true,
   },
   group_id: {
-    type: mongoose.Schema.Types.UUID,
+    type: String,
     ref: 'Group',
     required: true,
   },

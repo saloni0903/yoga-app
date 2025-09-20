@@ -176,6 +176,7 @@ class _GroupListItem extends StatelessWidget {
       final SessionQrCode qrCode = await api.qrGenerate(
         groupId: group.id,
         sessionDate: DateTime.now(),
+        createdBy: currentUser.id, 
       );
       
       if (!context.mounted) return;
@@ -196,7 +197,7 @@ class _GroupListItem extends StatelessWidget {
       Navigator.pop(context); // Dismiss loading dialog
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to generate QR Code: $e'),
+          content: Text('Failed to generate QR Code: ${e.toString().replaceFirst("Exception: ", "")}'),
           backgroundColor: Colors.red,
         ),
       );

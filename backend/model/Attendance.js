@@ -1,18 +1,19 @@
 // backend/model/Attendance.js
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const attendanceSchema = new mongoose.Schema({
   _id: {
-    type: mongoose.Schema.Types.UUID,
-    default: () => new mongoose.Types.UUID(),
+    type: String,
+    default: () => crypto.randomUUID(),
   },
   user_id: {
-    type: mongoose.Schema.Types.UUID,
+    type: String,
     ref: 'User',
     required: true,
   },
   group_id: {
-    type: mongoose.Schema.Types.UUID,
+    type: String,
     ref: 'Group',
     required: true,
   },
@@ -25,7 +26,7 @@ const attendanceSchema = new mongoose.Schema({
     default: Date.now,
   },
   qr_code_id: {
-    type: mongoose.Schema.Types.UUID,
+    type: String,
     ref: 'SessionQRCode',
   },
   attendance_type: {
@@ -129,9 +130,11 @@ attendanceSchema.statics.getUserAttendance = function(userId, groupId = null) {
 
 // Static method to get attendance statistics
 attendanceSchema.statics.getAttendanceStats = function(groupId, startDate, endDate) {
-  const matchStage = {
-    group_id: new mongoose.Types.UUID(groupId)
-  };
+  // const matchStage = {
+  //   group_id: new mongoose.Types.UUID(groupId)
+  // };
+  const matchStage = { group_id: groupId }
+
   
   if (startDate && endDate) {
     matchStage.session_date = {

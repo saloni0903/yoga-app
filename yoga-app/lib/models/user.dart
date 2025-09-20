@@ -21,8 +21,8 @@ class User {
     final lastName = userJson['lastName'] ?? '';
 
     return User(
-      id: userJson['id'] ?? '', 
-      fullName: '$firstName $lastName'.trim(), 
+      id: userJson['_id'] ?? '',
+      fullName: userJson['fullName'] ?? '',
       email: userJson['email'] ?? '',
       role: userJson['role'] ?? 'participant',
       token: json['token'] ?? '', 

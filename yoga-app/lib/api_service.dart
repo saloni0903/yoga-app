@@ -67,7 +67,7 @@ Future<void> createGroup({
   required String groupName,
   required String location,
   required String timings,
-  required String instructorId, // Add this required parameter
+  required String instructorId,
 }) async {
   final res = await http.post(
     Uri.parse('$baseUrl/api/groups'),
@@ -79,7 +79,7 @@ Future<void> createGroup({
       'timings_text': timings,
       'latitude': 22.7196,
       'longitude': 75.8577,
-      'instructor_id': instructorId, // Send the ID to the backend
+      'instructor_id': instructorId,
     }),
   );
   _ensureCreated(res, _decode(res));
@@ -99,13 +99,18 @@ Future<void> createGroup({
     _ensureOk(res, _decode(res));
   }
   
-  Future<SessionQrCode> qrGenerate({required String groupId, required DateTime sessionDate}) async {
+  Future<SessionQrCode> qrGenerate({
+    required String groupId, 
+    required DateTime sessionDate,
+    required String createdBy,
+    }) async {
     final res = await http.post(
       Uri.parse('$baseUrl/api/qr/generate'),
       headers: _authHeaders(),
       body: json.encode({
         'group_id': groupId,
         'session_date': sessionDate.toIso8601String(),
+        'created_by': createdBy
       }),
     );
     final data = _decode(res);
@@ -113,7 +118,6 @@ Future<void> createGroup({
     return SessionQrCode.fromJson(data['data']);
   }
 
-  // ✅ FIX: This method was missing, causing an error.
   Future<void> joinGroup(String groupId) async {
     final res = await http.post(
       Uri.parse('$baseUrl/api/groups/$groupId/join'),

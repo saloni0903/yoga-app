@@ -2,15 +2,17 @@
 const mongoose = require('mongoose');
 
 const groupSchema = new mongoose.Schema({
-  _id: {
-    type: mongoose.Schema.Types.UUID,
-    default: () => new mongoose.Types.UUID(),
-  },
-  instructor_id: {
-    type: mongoose.Schema.Types.UUID,
-    ref: 'User',
-    required: true,
-  },
+  // _id: {
+  //   type: mongoose.Schema.Types.UUID,
+  //   default: () => new mongoose.Types.UUID(),
+  // },
+  _id: { type: String, default: () => crypto.randomUUID() },
+  // instructor_id: {
+  //   type: mongoose.Schema.Types.UUID,
+  //   ref: 'User',
+  //   required: true,
+  // },
+  instructor_id: { type: String, ref: 'User', required: true },
   group_name: {
     type: String,
     required: true,
@@ -105,12 +107,18 @@ const groupSchema = new mongoose.Schema({
   },
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
-  toJSON: { virtuals: true },
+  toJSON: {
+    virtuals: true,
+    transform: function(doc, ret) {
+      ret.id = ret._id.toString(); // Create 'id' as a string
+      delete ret.__v; // Remove the version key
+    }
+  },
   toObject: { virtuals: true },
 });
 
 // Virtual for location coordinates
-groupSchema.virtual('coordinates').get(function() {
+groupSchema.virtual('coordinates').get(function () {
   return {
     latitude: this.latitude,
     longitude: this.longitude,
@@ -124,7 +132,7 @@ groupSchema.index({ is_active: 1 });
 groupSchema.index({ created_at: -1 });
 
 // Pre-save middleware to update updated_at
-groupSchema.pre('save', function(next) {
+groupSchema.pre('save', function (next) {
   this.updated_at = new Date();
   next();
 });
