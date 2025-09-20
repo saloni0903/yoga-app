@@ -61,6 +61,26 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.get('/my-groups', auth, async (req, res) => {
+  try {
+    // 1. Find all memberships for the current user
+    const memberships = await GroupMember.find({ user_id: req.user.id });
+
+    // 2. Extract just the group IDs from the memberships
+    const groupIds = memberships.map(m => m.group_id);
+
+    // 3. Find all groups that match those IDs and populate the instructor's name
+    const groups = await Group.find({
+      '_id': { $in: groupIds }
+    }).populate('instructor_id', 'fullName'); // Fetches instructor's name
+
+    res.json({ success: true, data: { groups } });
+  } catch (error) {
+    console.error('Error fetching user groups:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // Get group by ID (This one can still populate for detail views)
 router.get('/:id', async (req, res) => {
   try {

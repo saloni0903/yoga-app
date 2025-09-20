@@ -1,8 +1,10 @@
 // backend/routes/attendance.js
 const express = require('express');
+const router = express.Router();
+const auth = require('../middleware/auth');
 const Attendance = require('../model/Attendance');
 const GroupMember = require('../model/GroupMember');
-const router = express.Router();
+const SessionQRCode = require('../model/SessionQRCode');
 
 // Mark attendance
 router.post('/mark', async (req, res) => {
@@ -233,6 +235,64 @@ router.delete('/:id', async (req, res) => {
       message: 'Failed to delete attendance',
       error: error.message
     });
+  }
+});
+
+router.post('/scan', auth, async (req, res) => {
+  try {
+    const { token } = req.body;
+    const userId = req.user.id;
+
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'QR token is required.' });
+    }
+
+    // 1. Find the QR code in the database
+    const qrCode = await SessionQRCode.findOne({ token: token });
+    if (!qrCode) {
+      return res.status(404).json({ success: false, message: 'Invalid or incorrect QR code.' });
+    }
+
+    // 2. Check if the QR code has expired
+    if (new Date() > qrCode.expires_at) {
+      return res.status(400).json({ success: false, message: 'This QR code has expired.' });
+    }
+
+    // 3. Check if user is a member of the group associated with the QR code
+    const groupId = qrCode.group_id;
+    const membership = await GroupMember.findOne({ user_id: userId, group_id: groupId });
+    if (!membership) {
+      return res.status(403).json({ success: false, message: 'You are not a member of this group.' });
+    }
+
+    // 4. Check if attendance has already been marked for today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to the beginning of the day
+
+    const existingAttendance = await Attendance.findOne({
+      user_id: userId,
+      group_id: groupId,
+      session_date: { $gte: today }
+    });
+
+    if (existingAttendance) {
+      return res.status(400).json({ success: false, message: 'Attendance already marked for today.' });
+    }
+
+    // 5. All checks passed! Create the attendance record.
+    const attendance = new Attendance({
+      user_id: userId,
+      group_id: groupId,
+      session_date: qrCode.session_date,
+      qr_code_id: qrCode._id,
+    });
+    await attendance.save();
+
+    res.status(201).json({ success: true, message: 'Attendance marked successfully!', data: attendance });
+
+  } catch (error) {
+    console.error('Error scanning QR code:', error);
+    res.status(500).json({ success: false, message: 'Server error during scan.' });
   }
 });
 

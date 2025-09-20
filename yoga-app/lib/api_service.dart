@@ -115,6 +115,17 @@ class ApiService with ChangeNotifier {
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
   }
 
+  Future<YogaGroup> getGroupById(String groupId) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/groups/$groupId'),
+      headers: _authHeaders(),
+    );
+    final data = _decode(res);
+    _ensureOk(res, data);
+    // The group data is directly in 'data' for this endpoint
+    return YogaGroup.fromJson(data['data']);
+  }
+
   Future<void> createGroup({
     required String groupName,
     required String location,
@@ -207,6 +218,38 @@ class ApiService with ChangeNotifier {
     _ensureOk(res, _decode(res));
   }
 
+  Future<void> joinGroup({required String groupId}) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/groups/$groupId/join'),
+      headers: _authHeaders(),
+      body: jsonEncode({}),
+    );
+    _ensureOk(res, _decode(res));
+  }
+
+  Future<List<YogaGroup>> getMyJoinedGroups() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/groups/my-groups'),
+      headers: _authHeaders(), // This is a protected route
+    );
+
+    final data = _decode(res);
+    _ensureOk(res, data);
+
+    final List listJson = data['data']['groups'];
+    return listJson.map((e) => YogaGroup.fromJson(e)).toList();
+  }
+
+  Future<void> markAttendanceByQr({required String qrToken}) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/attendance/scan'),
+      headers: _authHeaders(), // Must be authenticated
+      body: json.encode({'token': qrToken}),
+    );
+    final data = _decode(res);
+    _ensureOk(res, data); // ensureOk is fine, we want a 200 or 201 status
+  }
+  
   Future<SessionQrCode> qrGenerate({
     required String groupId,
     required DateTime sessionDate,
@@ -224,15 +267,6 @@ class ApiService with ChangeNotifier {
     final data = _decode(res);
     _ensureCreated(res, data);
     return SessionQrCode.fromJson(data['data']);
-  }
-
-  Future<void> joinGroup({required String groupId}) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/api/groups/$groupId/join'),
-      headers: _authHeaders(),
-      body: jsonEncode({}),
-    );
-    _ensureOk(res, _decode(res));
   }
 
   Map<String, String> _authHeaders({bool optional = false}) {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
 import 'find_group_screen.dart';
+import 'my_groups_screen.dart';
 
 class ParticipantDashboard extends StatefulWidget {
   final User user;
@@ -24,8 +25,8 @@ class _ParticipantDashboardState extends State<ParticipantDashboard> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      const Center(child: Text("My Groups (Coming Soon)")), // Placeholder for MyGroupsScreen
-      FindGroupScreen(),
+      const MyGroupsScreen(),
+      const FindGroupScreen(),
       const Center(child: Text("Profile (Coming Soon)")),
     ];
 
