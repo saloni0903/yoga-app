@@ -67,7 +67,7 @@ const seedData = async () => {
     // Create instructors
     const instructor1 = new User({
       email: 'sarah.yoga@example.com',
-      password: 'Password@123',
+      password: 'password123',
       firstName: 'Sarah',
       lastName: 'Johnson',
       role: 'instructor',
@@ -82,7 +82,7 @@ const seedData = async () => {
 
     const instructor2 = new User({
       email: 'mike.zen@example.com',
-      password: 'Password@123',
+      password: 'password123',
       firstName: 'Mike',
       lastName: 'Chen',
       role: 'instructor',
@@ -105,7 +105,7 @@ const seedData = async () => {
     for (let i = 1; i <= 10; i++) {
       const participant = new User({
         email: `participant${i}@example.com`,
-        password: 'Password@123',
+        password: 'password123',
         firstName: `Participant${i}`,
         lastName: `Last${i}`,
         role: 'participant',
