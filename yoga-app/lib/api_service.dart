@@ -2,7 +2,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
-
 import 'models/user.dart';
 import 'models/yoga_group.dart';
 import 'models/session_qr_code.dart';
@@ -21,7 +20,7 @@ class ApiService {
     final data = _decode(res);
     _ensureOk(res, data);
     token = data['data']['token'] as String?;
-    return User.fromAuthJson(data['data']['user']);
+    return User.fromAuthJson(data['data']);
   }
 
   Future<User> register({
@@ -49,7 +48,7 @@ class ApiService {
     final data = _decode(res);
     _ensureCreated(res, data);
     token = data['data']['token'] as String?;
-    return User.fromAuthJson(data['data']['user']);
+    return User.fromAuthJson(data['data']);
   }
 
   Future<List<YogaGroup>> getGroups({String? search}) async {

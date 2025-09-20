@@ -1,3 +1,4 @@
+// backend/routes/qr.js
 const express = require('express');
 const SessionQRCode = require('../model/SessionQRCode');
 const Attendance = require('../model/Attendance');

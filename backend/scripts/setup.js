@@ -1,3 +1,4 @@
+// backend/scripts/setup.js
 const fs = require('fs');
 const path = require('path');
 

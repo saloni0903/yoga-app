@@ -16,11 +16,11 @@ class AttendanceRecord {
 
   factory AttendanceRecord.fromJson(Map<String, dynamic> j) {
     return AttendanceRecord(
-      id: j['_id']?.toString() ?? j['id']?.toString() ?? '',
-      groupId: j['groupid']?.toString() ?? '',
-      sessionDate: DateTime.parse(j['sessiondate']),
-      type: j['attendancetype'] ?? 'present',
-      locationVerified: j['locationverified'] ?? false,
+      id: j['_id'] ?? '',
+      groupId: j['group_id'] ?? '', // FIX
+      sessionDate: DateTime.parse(j['session_date']), // FIX
+      type: j['attendance_type'] ?? 'present', // FIX
+      locationVerified: j['location_verified'] ?? false, // FIX
     );
   }
 }

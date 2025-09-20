@@ -1,3 +1,4 @@
+// backend/routes/groups.js
 const express = require('express');
 const Group = require('../model/Group');
 const GroupMember = require('../model/GroupMember');

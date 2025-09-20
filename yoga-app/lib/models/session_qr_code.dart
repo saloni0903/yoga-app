@@ -22,14 +22,14 @@ class SessionQrCode {
 
   factory SessionQrCode.fromJson(Map<String, dynamic> j) {
     return SessionQrCode(
-      id: j['_id']?.toString() ?? j['id']?.toString() ?? '',
+      id: j['_id'] ?? '',
       token: j['token'] ?? '',
-      groupId: j['groupid']?.toString() ?? '',
-      sessionDate: DateTime.parse(j['sessiondate']),
-      expiresAt: DateTime.parse(j['expiresat']),
-      isActive: j['isactive'] ?? true,
-      usageCount: (j['usagecount'] ?? 0) as int,
-      maxUsage: j['maxusage'] is int ? j['maxusage'] : null,
+      groupId: j['group_id'] ?? '', // FIX
+      sessionDate: DateTime.parse(j['session_date']), // FIX
+      expiresAt: DateTime.parse(j['expires_at']), // FIX
+      isActive: j['is_active'] ?? true, // FIX
+      usageCount: j['usage_count'] ?? 0, // FIX
+      maxUsage: j['max_usage'], // FIX
     );
   }
 }

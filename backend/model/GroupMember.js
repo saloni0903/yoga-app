@@ -1,3 +1,4 @@
+// backend/model/Group.js
 const mongoose = require('mongoose');
 
 const groupMemberSchema = new mongoose.Schema({
