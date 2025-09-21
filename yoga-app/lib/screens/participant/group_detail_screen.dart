@@ -1,17 +1,14 @@
 // ib/screens/participant/group_detail_screen.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; 
+import 'package:provider/provider.dart';
 import '../../api_service.dart';
 import '../../models/yoga_group.dart';
 import '../qr/qr_scanner_screen.dart';
 
 class GroupDetailScreen extends StatefulWidget {
   final String groupId;
-  
-  const GroupDetailScreen({
-    super.key,
-    required this.groupId,
-  });
+
+  const GroupDetailScreen({super.key, required this.groupId});
 
   @override
   State<GroupDetailScreen> createState() => _GroupDetailScreenState();
@@ -74,17 +71,29 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(group.name, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+            Text(
+              group.name,
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 12),
-            _buildInfoRow(context, Icons.location_on_outlined, group.locationText),
+            _buildInfoRow(
+              context,
+              Icons.location_on_outlined,
+              group.locationText,
+            ),
             const SizedBox(height: 8),
-            _buildInfoRow(context, Icons.access_time_outlined, group.timingText),
+            _buildInfoRow(
+              context,
+              Icons.access_time_outlined,
+              group.timingText,
+            ),
           ],
         ),
       ),
     );
   }
-
 
   Widget _buildAttendanceCard(BuildContext context) {
     final apiService = Provider.of<ApiService>(context, listen: false);
@@ -115,10 +124,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Marking attendance...')),
                     );
-                    
+
                     // Now this line works correctly
                     await apiService.markAttendanceByQr(qrToken: qrToken);
-                    
+
                     ScaffoldMessenger.of(context).removeCurrentSnackBar();
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -131,7 +140,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     ScaffoldMessenger.of(context).removeCurrentSnackBar();
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Scan Failed: ${e.toString().replaceFirst("Exception: ", "")}'),
+                        content: Text(
+                          'Scan Failed: ${e.toString().replaceFirst("Exception: ", "")}',
+                        ),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -150,7 +161,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       children: [
         Icon(icon, color: Theme.of(context).colorScheme.primary, size: 20),
         const SizedBox(width: 12),
-        Expanded(child: Text(text, style: Theme.of(context).textTheme.bodyLarge)),
+        Expanded(
+          child: Text(text, style: Theme.of(context).textTheme.bodyLarge),
+        ),
       ],
     );
   }

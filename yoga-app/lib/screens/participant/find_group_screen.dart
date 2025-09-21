@@ -23,12 +23,18 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
     if (query.isEmpty) return;
     final apiService = Provider.of<ApiService>(context, listen: false);
     FocusScope.of(context).unfocus();
-    setState(() { _loading = true; _searched = true; });
+    setState(() {
+      _loading = true;
+      _searched = true;
+    });
     try {
       final list = await apiService.getGroups(search: query);
       if (mounted) setState(() => _results = list);
     } catch (e) {
-      if (mounted) _showError('Search failed: ${e.toString().replaceFirst("Exception: ", "")}');
+      if (mounted)
+        _showError(
+          'Search failed: ${e.toString().replaceFirst("Exception: ", "")}',
+        );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -48,7 +54,10 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
         );
       }
     } catch (e) {
-      if (mounted) _showError('Failed to join group: ${e.toString().replaceFirst("Exception: ", "")}');
+      if (mounted)
+        _showError(
+          'Failed to join group: ${e.toString().replaceFirst("Exception: ", "")}',
+        );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -74,8 +83,15 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
               onFieldSubmitted: (_) => _search(),
             ),
             const SizedBox(height: 12),
-            ElevatedButton(onPressed: _loading ? null : _search, child: const Text('Search')),
-            if (_loading) const Padding(padding: EdgeInsets.all(8.0), child: LinearProgressIndicator()),
+            ElevatedButton(
+              onPressed: _loading ? null : _search,
+              child: const Text('Search'),
+            ),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: LinearProgressIndicator(),
+              ),
             Expanded(
               child: ListView.builder(
                 itemCount: _results.length,
@@ -102,7 +118,10 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
                               children: [
                                 Text(
                                   g.name,
-                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                                 Text(g.locationText),
                               ],

@@ -10,17 +10,11 @@ import 'screens/home/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-    final apiService = ApiService();
-    await apiService.tryAutoLogin();
+  final apiService = ApiService();
+  await apiService.tryAutoLogin();
 
-  runApp(
-    ChangeNotifierProvider.value(
-      value: apiService, 
-      child: const MyApp(),
-    ),
-  );
+  runApp(ChangeNotifierProvider.value(value: apiService, child: const MyApp()));
 }
-
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -234,8 +228,8 @@ class MyApp extends StatelessWidget {
             // NOTE: You may need to fetch the full user details here.
             // For now, a placeholder user is fine for the UI to load.
             return HomeScreen(
-              user: apiService.currentUser ?? User(id: 'cached-user', fullName: 'Welcome Back!', email: 'user@example.com', role: 'participant', token: ''),
-              apiService: apiService
+              user: apiService.currentUser!,
+              apiService: apiService,
             );
           } else {
             // If not logged in, go to LoginScreen

@@ -81,7 +81,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       _maxParticipantsController.text = existing.maxParticipants.toString();
       _sessionDurationController.text = existing.sessionDuration.toString();
       _priceController.text = existing.pricePerSession.toString();
-      _currencyController.text = existing.currency ?? 'RUPEE';
+      _currencyController.text = existing.currency ?? 'INR';
       _selectedYogaStyle = existing.yogaStyle;
       _selectedDifficultyLevel = existing.difficultyLevel;
       _isActive = existing.isActive;
@@ -354,8 +354,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       TextFormField(
                         controller: _locationController,
                         decoration: const InputDecoration(
-                          labelText: 'Location (Short) *',
-                          helperText: 'e.g., "Downtown Studio", "Park Avenue"',
+                          labelText: 'City',
+                          helperText: 'e.g., "Indore", "Mumbai"',
                           prefixIcon: Icon(Icons.location_on),
                         ),
                         validator: (v) => _validateRequired(v, 'Location'),
@@ -367,9 +367,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       TextFormField(
                         controller: _locationTextController,
                         decoration: const InputDecoration(
-                          labelText: 'Location Details *',
-                          helperText:
-                              'Full address or detailed location description',
+                          labelText: 'Address *',
+                          helperText: 'Full address',
                           prefixIcon: Icon(Icons.place),
                         ),
                         validator: _validateLocationText,
@@ -606,7 +605,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       Row(
                         children: [
                           Icon(
-                            Icons.attach_money,
+                            Icons.currency_rupee,
                             color: theme.colorScheme.primary,
                           ),
                           const SizedBox(width: 8),
@@ -640,25 +639,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                               inputFormatters: [
                                 FilteringTextInputFormatter.allow(
                                   RegExp(r'^\d*\.?\d*'),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _currencyController,
-                              decoration: const InputDecoration(
-                                labelText: 'Currency *',
-                                helperText: 'e.g., USD, INR',
-                                prefixIcon: Icon(Icons.currency_exchange),
-                              ),
-                              validator: _validateCurrency,
-                              textCapitalization: TextCapitalization.characters,
-                              inputFormatters: [
-                                LengthLimitingTextInputFormatter(3),
-                                FilteringTextInputFormatter.allow(
-                                  RegExp(r'[A-Za-z]'),
                                 ),
                               ],
                             ),

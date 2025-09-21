@@ -19,7 +19,7 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
   void initState() {
     super.initState();
     // For MVP we list active groups and let user filter; optional: add a dedicated endpoint for "my groups".
-    _future = widget.api.getGroups(page: 1, limit: 20);
+    _future = widget.api.getGroups();
   }
 
   @override
@@ -58,8 +58,7 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) =>
-                          GroupDetailScreen(api: widget.api, groupId: g.id),
+                      builder: (_) => GroupDetailScreen(groupId: g.id),
                     ),
                   ),
                 ),

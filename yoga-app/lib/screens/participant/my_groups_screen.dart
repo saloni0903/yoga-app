@@ -70,17 +70,22 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
                 final group = groups[index];
                 return Card(
                   child: ListTile(
-                    title: Text(group.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text('${group.locationText}\n${group.timingText}'),
+                    title: Text(
+                      group.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      '${group.locationText}\n${group.timingText}',
+                    ),
                     isThreeLine: true,
                     trailing: const Icon(Icons.arrow_forward_ios),
                     onTap: () {
-                        Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                            builder: (_) => GroupDetailScreen(groupId: group.id),
-                            ),
-                        );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => GroupDetailScreen(groupId: group.id),
+                        ),
+                      );
                     },
                   ),
                 );

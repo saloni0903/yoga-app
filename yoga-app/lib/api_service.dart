@@ -17,8 +17,8 @@ class ApiService with ChangeNotifier {
   User? _currentUser;
   bool get isAuthenticated => _token != null;
   User? get currentUser => _currentUser;
-  
-  void _setAuth(String? token, User? user) async {
+
+  Future<void> _setAuth(String? token, User? user) async {
     _token = token;
     _currentUser = user;
     notifyListeners();
@@ -27,19 +27,30 @@ class ApiService with ChangeNotifier {
     if (token != null) {
       await prefs.setString('token', token);
     } else {
-      await prefs.remove('token');
+      await prefs.clear();
     }
   }
 
-  Future<void> tryAutoLogin() async {
+  Future<bool> tryAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
-    if (!prefs.containsKey('token')) {
-      return;
+    final storedToken = prefs.getString('token');
+    if (storedToken == null || storedToken.isEmpty) {
+      return false;
     }
-    _token = prefs.getString('token');
-    // You would also save and load user data similarly,
-    // perhaps by fetching user details from your server using the token.
-    notifyListeners();
+    _token = storedToken;
+
+    try {
+      // Use the token to fetch the full user profile.
+      final user = await getMyProfile();
+      // If successful, the user is fully authenticated.
+      _currentUser = user;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      // If fetching fails (e.g., expired token), clear the invalid token.
+      await logout();
+      return false;
+    }
   }
 
   Future<User> login(String email, String password) async {
@@ -50,21 +61,15 @@ class ApiService with ChangeNotifier {
     );
     final data = _decode(res);
     _ensureOk(res, data);
-    print("Login response JSON: $data");
 
     final user = User.fromAuthJson(data['data']);
-    final token = data['data']['token'] as String?;
-
-    _setAuth(token, user);
+    await _setAuth(user.token, user);
     return user;
   }
 
+  /// ✅ FIXED: Logout now correctly clears state and notifies listeners.
   Future<void> logout() async {
-    _token = null;
-    _currentUser = null;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
+    await _setAuth(null, null);
   }
 
   Future<User> register({
@@ -93,10 +98,35 @@ class ApiService with ChangeNotifier {
     _ensureCreated(res, data);
 
     final user = User.fromAuthJson(data['data']);
-    final token = data['data']['token'] as String?;
-
-    _setAuth(token, user);
+    await _setAuth(user.token, user);
     return user;
+  }
+
+  Future<User> getMyProfile() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/auth/profile'),
+      headers: _authHeaders(),
+    );
+    final data = _decode(res);
+    _ensureOk(res, data);
+    return User.fromJson(data['data']);
+  }
+
+  Future<User> updateMyProfile(Map<String, dynamic> profileData) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/api/auth/profile'),
+      headers: _authHeaders(),
+      body: json.encode(profileData),
+    );
+    final data = _decode(res);
+    _ensureOk(res, data);
+
+    final updatedUser = User.fromJson(data['data']);
+    // Keep the token from the original currentUser object.
+    _currentUser = updatedUser.copyWith(token: _token);
+    notifyListeners();
+
+    return updatedUser;
   }
 
   Future<List<YogaGroup>> getGroups({String? search}) async {
@@ -249,7 +279,7 @@ class ApiService with ChangeNotifier {
     final data = _decode(res);
     _ensureOk(res, data); // ensureOk is fine, we want a 200 or 201 status
   }
-  
+
   Future<SessionQrCode> qrGenerate({
     required String groupId,
     required DateTime sessionDate,
@@ -275,8 +305,8 @@ class ApiService with ChangeNotifier {
     if (_token != null && _token!.isNotEmpty) {
       headers['Authorization'] = 'Bearer $_token';
     } else if (!optional) {
-    throw Exception('Authentication token is missing for a protected route.');
-  }
+      throw Exception('Authentication token is missing for a protected route.');
+    }
     return headers;
   }
 
