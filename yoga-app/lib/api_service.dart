@@ -280,6 +280,27 @@ class ApiService with ChangeNotifier {
     _ensureOk(res, data); // ensureOk is fine, we want a 200 or 201 status
   }
 
+  Future<List<AttendanceRecord>> getAttendanceForGroup(String groupId) async {
+    // This assumes the user is authenticated, so _currentUser should not be null.
+    if (_currentUser == null) {
+      throw Exception('User not authenticated.');
+    }
+    final userId = _currentUser!.id;
+
+    // Construct the correct URI: /api/attendance/user/:user_id?group_id=:group_id
+    final uri = Uri.parse(
+      '$baseUrl/api/attendance/user/$userId',
+    ).replace(queryParameters: {'group_id': groupId});
+
+    final res = await http.get(uri, headers: _authHeaders());
+    final data = _decode(res);
+    _ensureOk(res, data);
+
+    // The backend nests the result in data -> attendance.
+    final List listJson = data['data']['attendance'];
+    return listJson.map((e) => AttendanceRecord.fromJson(e)).toList();
+  }
+
   Future<SessionQrCode> qrGenerate({
     required String groupId,
     required DateTime sessionDate,
