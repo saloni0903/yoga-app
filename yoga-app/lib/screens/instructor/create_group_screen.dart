@@ -3,18 +3,14 @@ import 'package:flutter/services.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
 import '../../models/yoga_group.dart';
+import 'package:provider/provider.dart';
 
 class CreateGroupScreen extends StatefulWidget {
-  final ApiService api;
-  final User currentUser;
-  final YogaGroup? existing;
+  // ✅ FIX: No longer requires api or currentUser.
+  // ✅ FIX: Renamed 'existing' to 'existingGroup' for clarity.
+  final YogaGroup? existingGroup;
 
-  const CreateGroupScreen({
-    super.key,
-    required this.api,
-    required this.currentUser,
-    this.existing,
-  });
+  const CreateGroupScreen({super.key, this.existingGroup});
 
   @override
   State<CreateGroupScreen> createState() => _CreateGroupScreenState();
@@ -66,11 +62,19 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.existingGroup != null) {
+      // Populate form for editing
+      _groupNameController.text = widget.existingGroup!.name;
+      _locationController.text = widget.existingGroup!.location;
+      _locationTextController.text = widget.existingGroup!.locationText;
+      _timingsController.text = widget.existingGroup!.timingText;
+      _descriptionController.text = widget.existingGroup!.description ?? '';
+    }
     _initializeForm();
   }
 
   void _initializeForm() {
-    final existing = widget.existing;
+    final existing = widget.existingGroup;
     if (existing != null) {
       // Edit mode - populate existing values
       _groupNameController.text = existing.name;
@@ -190,6 +194,19 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   Future<void> _saveGroup() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
+    final apiService = Provider.of<ApiService>(context, listen: false);
+    final currentUser = apiService.currentUser;
+
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error: Not logged in.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -209,9 +226,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                 .toList()
           : <String>[];
 
-      if (widget.existing == null) {
-        // Create new group
-        await widget.api.createGroup(
+      if (widget.existingGroup == null) {
+        // --- CREATE A NEW GROUP ---
+        await apiService.createGroup(
           groupName: _groupNameController.text.trim(),
           location: _locationController.text.trim(),
           locationText: _locationTextController.text.trim(),
@@ -228,12 +245,14 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           requirements: requirements,
           equipmentNeeded: equipment,
           isActive: _isActive,
-          instructorId: widget.currentUser.id,
+          // FIX: Use the non-nullable currentUser.id
+          instructorId: currentUser.id,
         );
       } else {
-        // Update existing group
-        await widget.api.updateGroup(
-          id: widget.existing!.id,
+        // --- UPDATE AN EXISTING GROUP ---
+        // FIX: Use the 'apiService' variable, not 'widget.api'
+        await apiService.updateGroup(
+          id: widget.existingGroup!.id,
           groupName: _groupNameController.text.trim(),
           location: _locationController.text.trim(),
           locationText: _locationTextController.text.trim(),
@@ -257,7 +276,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            widget.existing == null
+            widget.existingGroup == null
                 ? 'Group created successfully!'
                 : 'Group updated successfully!',
           ),
@@ -300,7 +319,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isEdit = widget.existing != null;
+    final isEdit = widget.existingGroup != null;
     final theme = Theme.of(context);
 
     return Scaffold(

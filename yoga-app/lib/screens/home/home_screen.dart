@@ -8,19 +8,15 @@ import '../instructor/instructor_dashboard.dart';
 class HomeScreen extends StatelessWidget {
   final User user;
   // FIX: Accept the authenticated ApiService instance
-  final ApiService apiService; 
+  final ApiService apiService;
 
-  const HomeScreen({
-    super.key, 
-    required this.user, 
-    required this.apiService,
-  });
+  const HomeScreen({super.key, required this.user, required this.apiService});
 
   @override
   Widget build(BuildContext context) {
     // FIX: Pass the authenticated ApiService instance down to the appropriate dashboard
     if (user.role == 'instructor') {
-      return InstructorDashboard(user: user, apiService: apiService);
+      return InstructorDashboard();
     }
     return ParticipantDashboard(user: user, apiService: apiService);
   }

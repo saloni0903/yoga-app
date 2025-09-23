@@ -9,30 +9,23 @@ const auth = require('../middleware/auth');
 // Get all groups
 router.get('/', async (req, res) => {
   try {
-    const { page = 1, limit = 10, search, yoga_style, difficulty_level, is_active, location } = req.query;
+    const { page = 1, limit = 10, search, instructor_id } = req.query; // Added instructor_id
     const query = {};
 
     if (search) {
       query.$or = [
         { group_name: { $regex: search, $options: 'i' } },
         { location_text: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
       ];
     }
-    if (location) {
-      query.location = { $regex: location, $options: 'i' };
-    }
-    if (yoga_style) {
-      query.yoga_style = yoga_style;
-    }
-    if (difficulty_level) {
-      query.difficulty_level = difficulty_level;
-    }
-    if (is_active !== undefined) {
-      query.is_active = is_active === 'true';
+    
+    // ✅ FIX: Data Isolation Logic
+    // If an instructor_id is provided in the query, only return groups
+    // created by that specific instructor.
+    if (instructor_id) {
+        query.instructor_id = instructor_id;
     }
 
-    // ✅ MAJOR FIX: REMOVED .populate() TO SEND instructor_id AS A SIMPLE STRING
     const groups = await Group.find(query)
       .limit(limit * 1)
       .skip((page - 1) * limit)
@@ -43,7 +36,7 @@ router.get('/', async (req, res) => {
     res.json({
       success: true,
       data: {
-        groups, // This will now be clean JSON with string IDs
+        groups,
         pagination: {
           current: parseInt(page),
           pages: Math.ceil(total / limit),
@@ -52,7 +45,6 @@ router.get('/', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get groups error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch groups',
@@ -60,6 +52,7 @@ router.get('/', async (req, res) => {
     });
   }
 });
+
 
 router.get('/my-groups', auth, async (req, res) => {
   try {

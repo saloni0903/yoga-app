@@ -36,7 +36,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['instructor', 'participant'],
+    enum: ['instructor', 'participant','admin'],
     default: 'participant',
   },
   location: {
@@ -65,6 +65,11 @@ const userSchema = new mongoose.Schema({
     conditions: [String],
     medications: [String],
   },
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected', 'suspended'],
+    default: 'approved', // Default to approved for participants and admins
+  },
   preferences: {
     notifications: {
       email: { type: Boolean, default: true },
@@ -90,7 +95,17 @@ const userSchema = new mongoose.Schema({
 });
 
 userSchema.virtual('fullName').get(function() { return `${this.firstName} ${this.lastName}`; });
-userSchema.pre('save', async function(next) { if (this.isModified('password')) { const salt = await bcrypt.genSalt(12); this.password = await bcrypt.hash(this.password, salt); } next(); });
+userSchema.pre('save', async function(next) { 
+    if (this.isModified('password')) { 
+      const salt = await bcrypt.genSalt(12); 
+      this.password = await bcrypt.hash(this.password, salt); 
+    } 
+    if (this.isNew && this.role === 'instructor') {
+      this.status = 'pending';
+    }
+    next(); 
+  }
+);
 userSchema.methods.comparePassword = async function(candidatePassword) { return bcrypt.compare(candidatePassword, this.password); };
 
 module.exports = mongoose.model('User', userSchema);

@@ -1,31 +1,33 @@
-// In lib/screens/participant/my_groups_screen.dart
+// lib/screens/participant/my_groups_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart'; // Import for text formatting
 import '../../api_service.dart';
 import '../../models/yoga_group.dart';
 import 'group_detail_screen.dart';
 
 class MyGroupsScreen extends StatefulWidget {
+  // ✅ FIX: No longer requires any parameters.
   const MyGroupsScreen({super.key});
 
   @override
-  State<MyGroupsScreen> createState() => _MyGroupsScreenState();
+  State<MyGroupsScreen> createState() => MyGroupsScreenState();
 }
 
-class _MyGroupsScreenState extends State<MyGroupsScreen> {
+class MyGroupsScreenState extends State<MyGroupsScreen> {
   late Future<List<YogaGroup>> _myGroupsFuture;
 
   @override
   void initState() {
     super.initState();
-    // Load the groups when the screen is first built
-    _loadMyGroups();
+    loadMyGroups();
   }
 
-  void _loadMyGroups() {
-    // Get the ApiService from Provider and call our new method
+  void loadMyGroups() {
+    // ✅ FIX: Get the ApiService from the Provider.
     final apiService = Provider.of<ApiService>(context, listen: false);
     setState(() {
+      // ✅ FIX: Call the correct method to get ONLY joined groups.
       _myGroupsFuture = apiService.getMyJoinedGroups();
     });
   }
@@ -33,60 +35,69 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // We use a FutureBuilder to handle the different states of our API call
+      // The AppBar is now managed by the parent ParticipantDashboard.
       body: FutureBuilder<List<YogaGroup>>(
         future: _myGroupsFuture,
         builder: (context, snapshot) {
-          // 1. Loading State
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          // 2. Error State
           if (snapshot.hasError) {
             return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text('Error: ${snapshot.error}'),
-              ),
+              child: Text('Failed to load groups: ${snapshot.error}'),
             );
           }
-          // 3. Success State
           final groups = snapshot.data ?? [];
           if (groups.isEmpty) {
             return const Center(
-              child: Text(
-                "You haven't joined any groups yet.\nGo to the Discover tab to find one!",
-                textAlign: TextAlign.center,
+              child: Padding(
+                padding: EdgeInsets.all(24.0),
+                child: Text(
+                  "You haven't joined any groups yet.\nGo to the Discover tab to find one!",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16),
+                ),
               ),
             );
           }
-          // 4. Display the list of groups
           return RefreshIndicator(
-            onRefresh: () async => _loadMyGroups(),
+            onRefresh: () async => loadMyGroups(),
             child: ListView.builder(
               padding: const EdgeInsets.all(8),
               itemCount: groups.length,
-              itemBuilder: (context, index) {
-                final group = groups[index];
+              itemBuilder: (context, i) {
+                final g = groups[i];
+                // Helper to format text nicely (e.g., "hatha" -> "Hatha")
+                final formattedStyle = toBeginningOfSentenceCase(g.yogaStyle);
+                final formattedDifficulty = toBeginningOfSentenceCase(
+                  g.difficultyLevel.replaceAll('-', ' '),
+                );
+
                 return Card(
                   child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     title: Text(
-                      group.name,
+                      g.name,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    subtitle: Text(
-                      '${group.locationText}\n${group.timingText}',
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        // ✅ FIX: Use the correct 'difficultyLevel' property.
+                        '${g.locationText}\n$formattedStyle • $formattedDifficulty',
+                      ),
                     ),
                     isThreeLine: true,
-                    trailing: const Icon(Icons.arrow_forward_ios),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => GroupDetailScreen(groupId: group.id),
-                        ),
-                      );
-                    },
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => GroupDetailScreen(groupId: g.id),
+                      ),
+                    ),
                   ),
                 );
               },

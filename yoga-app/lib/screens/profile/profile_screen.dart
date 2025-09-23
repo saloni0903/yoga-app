@@ -188,9 +188,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: const Icon(Icons.logout),
                     label: const Text('Logout'),
                     onPressed: () {
-                      // When pressed, this calls the logout method on your ApiService.
-                      // The ApiService will then notify its listeners, and the Consumer
-                      // in main.dart will handle the navigation.
+                      // This is the only action needed. It calls the logout method
+                      // on the global ApiService instance.
                       apiService.logout();
                     },
                     style: OutlinedButton.styleFrom(
@@ -200,6 +199,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           context,
                         ).colorScheme.error.withOpacity(0.5),
                       ),
+                      minimumSize: const Size.fromHeight(50),
                     ),
                   ),
                 ],

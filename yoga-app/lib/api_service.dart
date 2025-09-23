@@ -15,8 +15,10 @@ class ApiService with ChangeNotifier {
       : 'http://10.0.2.2:3000';
   String? _token;
   User? _currentUser;
-  bool get isAuthenticated => _token != null;
+
+  String? get token => _token;
   User? get currentUser => _currentUser;
+  bool get isAuthenticated => _token != null && _currentUser != null;
 
   Future<void> _setAuth(String? token, User? user) async {
     _token = token;
@@ -27,10 +29,13 @@ class ApiService with ChangeNotifier {
     if (token != null) {
       await prefs.setString('token', token);
     } else {
-      await prefs.clear();
+      await prefs.clear(); // Clear all data on logout
     }
   }
 
+  /// ✅ FIXED & IMPROVED: Attempts to log in using a stored token.
+  /// It now fetches the user's profile to ensure the token is valid and the
+  /// user data is fully loaded.
   Future<bool> tryAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
     final storedToken = prefs.getString('token');
@@ -129,10 +134,15 @@ class ApiService with ChangeNotifier {
     return updatedUser;
   }
 
-  Future<List<YogaGroup>> getGroups({String? search}) async {
+  Future<List<YogaGroup>> getGroups({
+    String? search,
+    String? instructorId,
+  }) async {
     final uri = Uri.parse('$baseUrl/api/groups').replace(
       queryParameters: {
         if (search != null && search.isNotEmpty) 'search': search,
+        if (instructorId != null && instructorId.isNotEmpty)
+          'instructor_id': instructorId,
       },
     );
     final res = await http.get(uri, headers: _authHeaders(optional: true));
@@ -143,6 +153,25 @@ class ApiService with ChangeNotifier {
         ? payload['groups']
         : [];
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
+  }
+
+  Future<SessionQrCode> qrGenerate({
+    required String groupId,
+    required DateTime sessionDate,
+    required String createdBy,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/qr/generate'),
+      headers: _authHeaders(),
+      body: json.encode({
+        'group_id': groupId,
+        'session_date': sessionDate.toIso8601String(),
+        'created_by': createdBy,
+      }),
+    );
+    final data = _decode(res);
+    _ensureCreated(res, data);
+    return SessionQrCode.fromJson(data['data']);
   }
 
   Future<YogaGroup> getGroupById(String groupId) async {
@@ -170,7 +199,7 @@ class ApiService with ChangeNotifier {
     String difficultyLevel = 'all-levels',
     int sessionDuration = 60,
     double pricePerSession = 0,
-    String currency = 'USD',
+    String currency = 'RUPEE',
     List<String> requirements = const [],
     List<String> equipmentNeeded = const [],
     bool isActive = true,
@@ -201,6 +230,7 @@ class ApiService with ChangeNotifier {
     _ensureCreated(res, _decode(res));
   }
 
+  /// ✅ NEW METHOD: Updates an existing yoga group.
   Future<void> updateGroup({
     required String id,
     String? groupName,
@@ -222,7 +252,7 @@ class ApiService with ChangeNotifier {
   }) async {
     final body = <String, dynamic>{};
 
-    // Only include fields that are not null
+    // Only include fields that are not null to avoid overwriting existing data.
     if (groupName != null) body['group_name'] = groupName;
     if (location != null) body['location'] = location;
     if (locationText != null) body['location_text'] = locationText;
@@ -299,25 +329,6 @@ class ApiService with ChangeNotifier {
     // The backend nests the result in data -> attendance.
     final List listJson = data['data']['attendance'];
     return listJson.map((e) => AttendanceRecord.fromJson(e)).toList();
-  }
-
-  Future<SessionQrCode> qrGenerate({
-    required String groupId,
-    required DateTime sessionDate,
-    required String createdBy,
-  }) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/api/qr/generate'),
-      headers: _authHeaders(),
-      body: json.encode({
-        'group_id': groupId,
-        'session_date': sessionDate.toIso8601String(),
-        'created_by': createdBy,
-      }),
-    );
-    final data = _decode(res);
-    _ensureCreated(res, data);
-    return SessionQrCode.fromJson(data['data']);
   }
 
   Map<String, String> _authHeaders({bool optional = false}) {

@@ -8,6 +8,8 @@ class User {
   final String location;
   final String? phone;
   final String? token;
+  // ✅ ADDED: The status field is now included.
+  final String status;
 
   String get fullName => '$firstName $lastName'.trim();
 
@@ -20,6 +22,8 @@ class User {
     required this.location,
     this.phone,
     this.token,
+    // ✅ ADDED: To the constructor.
+    required this.status,
   });
 
   factory User.fromAuthJson(Map<String, dynamic> json) {
@@ -33,6 +37,8 @@ class User {
       location: userJson['location'] ?? '',
       phone: userJson['phone'] as String?,
       token: json['token'] as String?,
+      // ✅ ADDED: Parse the status from the JSON, with a safe default.
+      status: userJson['status'] ?? 'approved',
     );
   }
 
@@ -45,6 +51,8 @@ class User {
       role: userJson['role'] ?? 'participant',
       location: userJson['location'] ?? '',
       phone: userJson['phone'] as String?,
+      // ✅ ADDED: Parse the status from the JSON.
+      status: userJson['status'] ?? 'approved',
     );
   }
 
@@ -57,6 +65,8 @@ class User {
     String? location,
     String? phone,
     String? token,
+    // ✅ ADDED: To the copyWith method.
+    String? status,
   }) {
     return User(
       id: id ?? this.id,
@@ -67,6 +77,7 @@ class User {
       location: location ?? this.location,
       phone: phone ?? this.phone,
       token: token ?? this.token,
+      status: status ?? this.status,
     );
   }
 }

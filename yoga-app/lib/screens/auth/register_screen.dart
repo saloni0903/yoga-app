@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../api_service.dart';
 import '../home/home_screen.dart';
+import 'package:provider/provider.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -13,7 +14,6 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final ApiService _apiService = ApiService();
 
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
@@ -63,11 +63,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _register() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
+    final apiService = Provider.of<ApiService>(context, listen: false);
+
     setState(() => _isLoading = true);
     try {
       final fullName =
           '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
-      final user = await _apiService.register(
+
+      // The register method will automatically log the user in and notify all listeners.
+      await apiService.register(
         fullName: fullName,
         email: _emailController.text.trim(),
         password: _passwordController.text,
@@ -76,26 +80,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       if (mounted) {
-        // ✅ Pass apiService forward
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                HomeScreen(user: user, apiService: _apiService),
-          ),
-        );
+        // If the registration screen is on top of the login screen, pop it.
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
       }
     } catch (e) {
-      // FIX: Add debug print to see errors in the console
-      debugPrint('Registration failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: Colors.redAccent,
-            content: Text(
-              e.toString().replaceFirst("Exception: ", ""),
-              style: const TextStyle(color: Colors.white),
-            ),
+            content: Text(e.toString().replaceFirst("Exception: ", "")),
           ),
         );
       }
@@ -124,8 +119,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: Center(
           child: SingleChildScrollView(
             // FIX: Slightly reduce horizontal padding to fix overflow
-            padding:
-                const EdgeInsets.symmetric(horizontal: 22.0, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 16),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
               child: Column(
@@ -152,20 +146,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Text(
                     'Join YES Yoga',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 24),
 
                   // Role selection
                   Text(
                     'I am a...',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   SegmentedButton<String>(
@@ -267,8 +259,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               decoration: const InputDecoration(
                                 labelText: 'Your City',
                                 helperText: 'e.g., Indore',
-                                prefixIcon:
-                                    Icon(Icons.location_city_outlined),
+                                prefixIcon: Icon(Icons.location_city_outlined),
                               ),
                               validator: _validateLocation,
                             ),
