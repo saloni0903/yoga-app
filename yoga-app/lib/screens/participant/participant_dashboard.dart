@@ -1,20 +1,11 @@
 // lib/screens/participant/participant_dashboard.dart
 import 'package:flutter/material.dart';
 import 'package:yoga_app/screens/profile/profile_screen.dart';
-import '../../api_service.dart';
-import '../../models/user.dart';
 import 'find_group_screen.dart';
 import 'my_groups_screen.dart';
 
 class ParticipantDashboard extends StatefulWidget {
-  final User user;
-  final ApiService apiService;
-
-  const ParticipantDashboard({
-    super.key,
-    required this.user,
-    required this.apiService,
-  });
+  const ParticipantDashboard({super.key});
 
   @override
   State<ParticipantDashboard> createState() => _ParticipantDashboardState();

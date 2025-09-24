@@ -233,10 +233,8 @@ class MyApp extends StatelessWidget {
           return Consumer<ApiService>(
             builder: (context, auth, child) {
               if (auth.isAuthenticated) {
-                return HomeScreen(
-                  apiService: ApiService(),
-                  user: auth.currentUser!,
-                );
+                // No parameters are needed for HomeScreen.
+                return const HomeScreen();
               } else {
                 return const LoginScreen();
               }

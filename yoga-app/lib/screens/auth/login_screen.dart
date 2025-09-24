@@ -47,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isLoading = true);
-    
+
     // FIXED: Get the ApiService instance from Provider.
     final apiService = Provider.of<ApiService>(context, listen: false);
 
@@ -66,10 +66,7 @@ class _LoginScreenState extends State<LoginScreen> {
             // FIXED: The HomeScreen can get the user from the ApiService via Provider,
             // so we don't strictly need to pass it.
             // However, passing it avoids a flicker while the Provider updates.
-            builder: (context) => HomeScreen(
-              user: user,
-              apiService: apiService,
-            ),
+            builder: (context) => HomeScreen(),
           ),
         );
       }
@@ -132,16 +129,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     'Welcome Back',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     'Continue your yoga journey',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey.shade700,
-                        ),
+                      color: Colors.grey.shade700,
+                    ),
                   ),
                   const SizedBox(height: 24),
 

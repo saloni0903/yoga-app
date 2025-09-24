@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../api_service.dart';
-import '../../models/user.dart';
 import '../../models/yoga_group.dart';
 import 'package:provider/provider.dart';
 
@@ -373,12 +372,13 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       TextFormField(
                         controller: _locationController,
                         decoration: const InputDecoration(
-                          labelText: 'City',
-                          helperText: 'e.g., "Indore", "Mumbai"',
+                          labelText: 'Full Address / Location',
+                          helperText: 'e.g., "123 Main St, City, State"',
                           prefixIcon: Icon(Icons.location_on),
                         ),
                         validator: (v) => _validateRequired(v, 'Location'),
-                        textCapitalization: TextCapitalization.words,
+                        textCapitalization: TextCapitalization.sentences,
+                        maxLines: 2,
                       ),
                       const SizedBox(height: 16),
 
@@ -386,13 +386,12 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       TextFormField(
                         controller: _locationTextController,
                         decoration: const InputDecoration(
-                          labelText: 'Address *',
-                          helperText: 'Full address',
+                          labelText: 'City *',
+                          helperText: 'e.g., "Indore, Delhi, Mumbai"',
                           prefixIcon: Icon(Icons.place),
                         ),
                         validator: _validateLocationText,
-                        maxLines: 2,
-                        textCapitalization: TextCapitalization.sentences,
+                        textCapitalization: TextCapitalization.words,
                       ),
                       const SizedBox(height: 16),
 

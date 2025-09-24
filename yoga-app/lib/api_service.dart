@@ -1,7 +1,10 @@
 // lib/api_service.dart
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsAndroid;
+
 import 'package:http/http.dart' as http;
 import 'models/user.dart';
 import 'models/yoga_group.dart';
@@ -10,9 +13,19 @@ import 'models/attendance.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService with ChangeNotifier {
-  final String baseUrl = kIsWeb
-      ? 'http://localhost:3000'
-      : 'http://10.0.2.2:3000';
+  String get baseUrl {
+    if (kIsWeb) {
+      // For web/Chrome - use localhost
+      return 'http://localhost:3000';
+    } else if (Platform.isAndroid) {
+      // 🔧 REPLACE 'YOUR_PC_IP' with your actual computer's IP address
+      return 'http://10.104.65.41:3000'; // Example: your PC's IP
+    } else {
+      // For iOS or other platforms
+      return 'http://localhost:3000';
+    }
+  }
+
   String? _token;
   User? _currentUser;
 
