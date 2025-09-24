@@ -232,14 +232,19 @@ class _LoginScreenState extends State<LoginScreen> {
                         'New to YES?',
                         style: TextStyle(color: Colors.grey.shade700),
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const RegisterScreen(),
+                      Flexible(
+                        child: TextButton(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const RegisterScreen(),
+                            ),
+                          ),
+                          child: const Text(
+                            'Register a New Account',
+                            overflow: TextOverflow.ellipsis, // Prevents overflow
                           ),
                         ),
-                        child: const Text('Register a New Account'),
                       ),
                     ],
                   ),

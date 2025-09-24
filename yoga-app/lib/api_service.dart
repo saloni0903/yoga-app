@@ -31,6 +31,23 @@ class ApiService with ChangeNotifier {
     }
   }
 
+  Future<List<AttendanceRecord>> getAttendanceHistory() async {
+    if (_currentUser == null) throw Exception('Must be logged in to get history.');
+
+    // This calls the backend route you provided: GET /api/attendance/user/:user_id
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/attendance/user/${_currentUser!.id}'),
+      headers: _authHeaders(),
+    );
+
+    final data = _decode(res);
+    _ensureOk(res, data);
+
+    // The backend returns a paginated response, we need to get the 'attendance' list from it
+    final List listJson = data['data']?['attendance'] ?? [];
+    return listJson.map((e) => AttendanceRecord.fromJson(e)).toList();
+  }
+
   Future<void> tryAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
     if (!prefs.containsKey('token')) {

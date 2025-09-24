@@ -4,6 +4,7 @@ import '../../api_service.dart';
 import '../../models/user.dart';
 import 'find_group_screen.dart';
 import 'my_groups_screen.dart';
+import 'my_progress_screen.dart';
 
 class ParticipantDashboard extends StatefulWidget {
   final User user;
@@ -24,10 +25,10 @@ class _ParticipantDashboardState extends State<ParticipantDashboard> {
   
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      const MyGroupsScreen(),
-      const FindGroupScreen(),
-      const Center(child: Text("Profile (Coming Soon)")),
+    final List<Widget> pages = const [
+      MyGroupsScreen(),
+      FindGroupScreen(),
+      MyProgressScreen(), 
     ];
 
     return Scaffold(
@@ -38,7 +39,7 @@ class _ParticipantDashboardState extends State<ParticipantDashboard> {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.groups_outlined), label: 'My Groups'),
           NavigationDestination(icon: Icon(Icons.explore_outlined), label: 'Discover'),
-          NavigationDestination(icon: Icon(Icons.person_outline), label: 'Profile'),
+          NavigationDestination(icon: Icon(Icons.calendar_month_outlined), label: 'Progress'),
         ],
       ),
       body: pages[_index],
