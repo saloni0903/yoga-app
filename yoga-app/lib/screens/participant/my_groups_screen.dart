@@ -37,7 +37,7 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
       body: FutureBuilder<List<YogaGroup>>(
         future: _myGroupsFuture,
         builder: (context, snapshot) {
-          // 1. Loading State
+          // 1. Loading State management
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -91,4 +91,4 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
       ),
     );
   }
-}
+} 
