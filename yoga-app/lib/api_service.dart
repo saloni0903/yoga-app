@@ -132,6 +132,20 @@ class ApiService with ChangeNotifier {
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
   }
 
+  Future<List<User>> getGroupMembers({required String groupId}) async {
+    // This calls the backend route: GET /api/groups/:groupId/members
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/groups/$groupId/members'),
+      headers: _authHeaders(),
+    );
+    final data = _decode(res);
+    _ensureOk(res, data);
+    debugPrint('DEBUG: Raw members JSON from server: $data');
+    // The backend returns a list of user objects
+    final List listJson = data['data'] ?? [];
+    return listJson.map((e) => User.fromMemberJson(e)).toList();
+  }
+
   Future<YogaGroup> getGroupById(String groupId) async {
     final res = await http.get(
       Uri.parse('$baseUrl/api/groups/$groupId'),

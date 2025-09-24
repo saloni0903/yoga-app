@@ -1,4 +1,7 @@
 // lib/screens/instructor/instructor_dashboard.dart
+
+
+import 'group_members_screen.dart';
 import 'package:flutter/material.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
@@ -134,6 +137,22 @@ class _GroupListItem extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            IconButton(
+              icon: const Icon(Icons.people_outline),
+              tooltip: 'View Participants',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => GroupMembersScreen(
+                      groupId: group.id,
+                      groupName: group.name,
+                      apiService: api,
+                    ),
+                  ),
+                );
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.qr_code_2),
               tooltip: 'Generate Session QR Code',
