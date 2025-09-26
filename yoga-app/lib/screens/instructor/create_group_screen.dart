@@ -4,6 +4,8 @@ import '../../api_service.dart';
 import '../../models/user.dart';
 import '../../models/yoga_group.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import 'package:geolocator/geolocator.dart';
 
 class CreateGroupScreen extends StatefulWidget {
   // ✅ FIX: No longer requires api or currentUser.
@@ -39,6 +41,44 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   String _selectedDifficultyLevel = 'all-levels';
   bool _isActive = true;
   bool _isLoading = false;
+
+  TimeOfDay? _startTime;
+  TimeOfDay? _endTime;
+
+  Future<void> _pickStartTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _startTime ?? TimeOfDay(hour: 6, minute: 30),
+    );
+    if (picked != null) {
+      setState(() => _startTime = picked);
+      _updateTimingsField();
+    }
+  }
+
+  Future<void> _pickEndTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _endTime ?? TimeOfDay(hour: 7, minute: 30),
+    );
+    if (picked != null) {
+      setState(() => _endTime = picked);
+      _updateTimingsField();
+    }
+  }
+
+  void _updateTimingsField() {
+    if (_startTime != null && _endTime != null) {
+      final formatter = DateFormat('hh:mm a');
+      final start = formatter.format(
+        DateTime(2020, 1, 1, _startTime!.hour, _startTime!.minute),
+      );
+      final end = formatter.format(
+        DateTime(2020, 1, 1, _endTime!.hour, _endTime!.minute),
+      );
+      _timingsController.text = '$start - $end';
+    }
+  }
 
   final List<String> _yogaStyles = [
     'hatha',
@@ -98,7 +138,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       _maxParticipantsController.text = '20';
       _sessionDurationController.text = '60';
       _priceController.text = '0';
-      _currencyController.text = 'RUPEE';
+      _currencyController.text = 'INR';
       _latitudeController.text = '22.7196'; // Default to Indore
       _longitudeController.text = '75.8577';
     }
@@ -123,13 +163,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     final v = value?.trim() ?? '';
     if (v.isEmpty) return 'Location text is required';
     if (v.length > 500) return 'Location text cannot exceed 500 characters';
-    return null;
-  }
-
-  String? _validateTimings(String? value) {
-    final v = value?.trim() ?? '';
-    if (v.isEmpty) return 'Timings are required';
-    if (v.length > 200) return 'Timings cannot exceed 200 characters';
     return null;
   }
 
@@ -189,6 +222,42 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     if (v.isEmpty) return 'Currency is required';
     if (v.length > 3) return 'Currency code cannot exceed 3 characters';
     return null;
+  }
+
+  String? _validateTimings(String? value) {
+    final v = value?.trim() ?? '';
+    final regex = RegExp(
+      r'^(1[0-2]|0[1-9]):[0-5][0-9] (AM|PM) - (1[0-2]|0[1-9]):[0-5][0-9] (AM|PM)$',
+    );
+    if (v.isEmpty) return 'Timings are required';
+    if (!regex.hasMatch(v)) return 'Format: HH:MM AM/PM - HH:MM AM/PM';
+    if (v.length > 200) return 'Timings cannot exceed 200 characters';
+    return null;
+  }
+
+  Future<void> _fetchLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      // Add a dialog to ask user to enable location services
+      return;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      // Show error/snackbar
+      return;
+    }
+
+    final position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+    _latitudeController.text = position.latitude.toStringAsFixed(5);
+    _longitudeController.text = position.longitude.toStringAsFixed(5);
   }
 
   Future<void> _saveGroup() async {
@@ -440,6 +509,14 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                               ],
                             ),
                           ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: Icon(Icons.my_location),
+                              label: Text('Use My Location'),
+                              onPressed: _isLoading ? null : _fetchLocation,
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -473,16 +550,61 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Timings
+                      // Start/End Time Pickers
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: Icon(Icons.access_time),
+                              label: Text(
+                                _startTime == null
+                                    ? 'Start Time'
+                                    : DateFormat('hh:mm a').format(
+                                        DateTime(
+                                          2020,
+                                          1,
+                                          1,
+                                          _startTime!.hour,
+                                          _startTime!.minute,
+                                        ),
+                                      ),
+                              ),
+                              onPressed: _pickStartTime,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: Icon(Icons.access_time),
+                              label: Text(
+                                _endTime == null
+                                    ? 'End Time'
+                                    : DateFormat('hh:mm a').format(
+                                        DateTime(
+                                          2020,
+                                          1,
+                                          1,
+                                          _endTime!.hour,
+                                          _endTime!.minute,
+                                        ),
+                                      ),
+                              ),
+                              onPressed: _pickEndTime,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
                       TextFormField(
                         controller: _timingsController,
                         decoration: const InputDecoration(
                           labelText: 'Class Timings *',
-                          helperText: 'e.g., "Mon-Fri 6:00 AM - 7:00 AM"',
+                          helperText: 'e.g., "06:30 AM - 07:30 AM"',
                           prefixIcon: Icon(Icons.access_time),
                         ),
                         validator: _validateTimings,
-                        maxLines: 2,
+                        readOnly: true,
                       ),
                       const SizedBox(height: 16),
 

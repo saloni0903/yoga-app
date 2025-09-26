@@ -29,11 +29,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _userFuture = apiService.getMyProfile();
   }
 
+  bool _controllersPopulated = false;
+
   void _populateControllers(User user) {
-    _firstNameController.text = user.firstName;
-    _lastNameController.text = user.lastName;
-    _phoneController.text = user.phone ?? '';
-    _locationController.text = user.location;
+    if (!_controllersPopulated) {
+      _firstNameController.text = user.firstName;
+      _lastNameController.text = user.lastName;
+      _phoneController.text = user.phone ?? '';
+      _locationController.text = user.location;
+      _controllersPopulated = true;
+    }
   }
 
   Future<void> _updateProfile() async {
@@ -43,13 +48,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final apiService = Provider.of<ApiService>(context, listen: false);
 
     try {
-      final updatedUser = await apiService.updateMyProfile({
+      await apiService.updateMyProfile({
         'firstName': _firstNameController.text.trim(),
         'lastName': _lastNameController.text.trim(),
         'phone': _phoneController.text.trim(),
         'location': _locationController.text.trim(),
       });
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -57,7 +61,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        _populateControllers(updatedUser);
+        // Instead of just populating controllers, refresh from API
+        setState(() {
+          _userFuture = apiService.getMyProfile();
+          _controllersPopulated = false;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -103,7 +111,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           }
 
           final user = snapshot.data!;
-          _populateControllers(user);
+          if (!_controllersPopulated) {
+            _populateControllers(user);
+          }
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
