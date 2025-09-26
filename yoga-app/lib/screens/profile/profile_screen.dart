@@ -188,9 +188,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: const Icon(Icons.logout),
                     label: const Text('Logout'),
                     onPressed: () {
-                      // This is the only action needed. It calls the logout method
-                      // on the global ApiService instance.
+                      // This calls the logout method from the ApiService
                       apiService.logout();
+                      if (mounted) {
+                        Navigator.of(
+                          context,
+                          rootNavigator: true,
+                        ).pushNamedAndRemoveUntil('/login', (route) => false);
+                      }
                     },
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Theme.of(context).colorScheme.error,

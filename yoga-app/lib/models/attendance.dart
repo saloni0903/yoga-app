@@ -15,12 +15,20 @@ class AttendanceRecord {
   });
 
   factory AttendanceRecord.fromJson(Map<String, dynamic> j) {
+    // Helper function to safely get the ID from a populated object or a plain string
+    String getGroupId(dynamic groupField) {
+      if (groupField is Map<String, dynamic>) {
+        return groupField['_id']?.toString() ?? '';
+      }
+      return groupField?.toString() ?? '';
+    }
+
     return AttendanceRecord(
       id: j['_id'] ?? '',
-      groupId: j['group_id'] ?? '', // FIX
-      sessionDate: DateTime.parse(j['session_date']), // FIX
-      type: j['attendance_type'] ?? 'present', // FIX
-      locationVerified: j['location_verified'] ?? false, // FIX
+      groupId: getGroupId(j['group_id']), // FIX: Use the helper function
+      sessionDate: DateTime.parse(j['session_date']),
+      type: j['attendance_type'] ?? 'present',
+      locationVerified: j['location_verified'] ?? false,
     );
   }
 }

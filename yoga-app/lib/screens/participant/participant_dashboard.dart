@@ -5,6 +5,7 @@ import '../../api_service.dart';
 import '../../models/user.dart';
 import 'find_group_screen.dart';
 import 'my_groups_screen.dart';
+import 'my_progress_screen.dart';
 
 class ParticipantDashboard extends StatefulWidget {
   final User user;
@@ -25,14 +26,31 @@ class _ParticipantDashboardState extends State<ParticipantDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      const MyGroupsScreen(),
-      const FindGroupScreen(),
-      const ProfileScreen(),
+    final List<Widget> pages = const [
+      MyGroupsScreen(),
+      FindGroupScreen(),
+      MyProgressScreen(),
+      ProfileScreen(),
     ];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Participant Dashboard')),
+      appBar: AppBar(
+        title: const Text('Participant Dashboard'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              widget.apiService.logout();
+              if (mounted) {
+                Navigator.of(
+                  context,
+                  rootNavigator: true,
+                ).pushNamedAndRemoveUntil('/login', (route) => false);
+              }
+            },
+          ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
@@ -44,6 +62,10 @@ class _ParticipantDashboardState extends State<ParticipantDashboard> {
           NavigationDestination(
             icon: Icon(Icons.explore_outlined),
             label: 'Discover',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.calendar_month_outlined),
+            label: 'Progress',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),

@@ -26,6 +26,29 @@ class User {
     required this.status,
   });
 
+  factory User.fromMemberJson(Map<String, dynamic> json) {
+    final userJson = json['user_id'] as Map<String, dynamic>? ?? {};
+    final firstName = userJson['firstName'] ?? '';
+    final lastName = userJson['lastName'] ?? '';
+    final email = userJson['email'] ?? '';
+    final role = userJson['role'] ?? 'participant';
+    final location = userJson['location'] ?? '';
+    final phone = userJson['phone'] as String?;
+    final status = userJson['status'] ?? 'approved';
+
+    return User(
+      id: userJson['_id'] ?? '',
+      firstName: firstName,
+      lastName: lastName,
+      email: email,
+      role: role,
+      location: location,
+      phone: phone,
+      token: '', // Member lists don't include tokens
+      status: status,
+    );
+  }
+
   factory User.fromAuthJson(Map<String, dynamic> json) {
     final userJson = json['user'] as Map<String, dynamic>? ?? {};
     return User(

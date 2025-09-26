@@ -10,9 +10,18 @@ import 'models/attendance.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService with ChangeNotifier {
-  final String baseUrl = kIsWeb
-      ? 'http://localhost:3000'
-      : 'http://10.0.2.2:3000';
+  String baseURL() {
+    if (kIsWeb) {
+      return 'http://localhost:3000'; // Web uses localhost directly
+    } else {
+      // Mobile platforms need to use the local network IP address of the machine running the backend.
+      // Replace with your machine's local IP address.
+      return 'http://10.104.65.41:3000';
+    }
+  }
+
+  String get baseUrl => baseURL();
+
   String? _token;
   User? _currentUser;
 
@@ -29,13 +38,28 @@ class ApiService with ChangeNotifier {
     if (token != null) {
       await prefs.setString('token', token);
     } else {
-      await prefs.clear(); // Clear all data on logout
+      await prefs.remove('token');
     }
   }
 
-  /// ✅ FIXED & IMPROVED: Attempts to log in using a stored token.
-  /// It now fetches the user's profile to ensure the token is valid and the
-  /// user data is fully loaded.
+  Future<List<AttendanceRecord>> getAttendanceHistory() async {
+    if (_currentUser == null)
+      throw Exception('Must be logged in to get history.');
+
+    // This calls the backend route you provided: GET /api/attendance/user/:user_id
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/attendance/user/${_currentUser!.id}'),
+      headers: _authHeaders(),
+    );
+
+    final data = _decode(res);
+    _ensureOk(res, data);
+
+    // The backend returns a paginated response, we need to get the 'attendance' list from it
+    final List listJson = data['data']?['attendance'] ?? [];
+    return listJson.map((e) => AttendanceRecord.fromJson(e)).toList();
+  }
+
   Future<bool> tryAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
     final storedToken = prefs.getString('token');
@@ -153,6 +177,20 @@ class ApiService with ChangeNotifier {
         ? payload['groups']
         : [];
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
+  }
+
+  Future<List<User>> getGroupMembers({required String groupId}) async {
+    // This calls the backend route: GET /api/groups/:groupId/members
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/groups/$groupId/members'),
+      headers: _authHeaders(),
+    );
+    final data = _decode(res);
+    _ensureOk(res, data);
+    debugPrint('DEBUG: Raw members JSON from server: $data');
+    // The backend returns a list of user objects
+    final List listJson = data['data'] ?? [];
+    return listJson.map((e) => User.fromMemberJson(e)).toList();
   }
 
   Future<SessionQrCode> qrGenerate({
