@@ -10,15 +10,26 @@ import 'models/attendance.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService with ChangeNotifier {
-  final String baseUrl = kIsWeb
-      ? 'http://localhost:3000'
-      : 'http://10.0.2.2:3000';
+  String baseURL() {
+    if (kIsWeb) {
+      return 'http://localhost:3000'; // Web uses localhost directly
+    } else {
+      // Mobile platforms need to use the local network IP address of the machine running the backend.
+      // Replace with your machine's local IP address.
+      return 'http://10.104.65.41:3000';
+    }
+  }
+
+  String get baseUrl => baseURL();
+
   String? _token;
   User? _currentUser;
-  bool get isAuthenticated => _token != null;
+
+  String? get token => _token;
   User? get currentUser => _currentUser;
-  
-  void _setAuth(String? token, User? user) async {
+  bool get isAuthenticated => _token != null && _currentUser != null;
+
+  Future<void> _setAuth(String? token, User? user) async {
     _token = token;
     _currentUser = user;
     notifyListeners();
@@ -32,7 +43,8 @@ class ApiService with ChangeNotifier {
   }
 
   Future<List<AttendanceRecord>> getAttendanceHistory() async {
-    if (_currentUser == null) throw Exception('Must be logged in to get history.');
+    if (_currentUser == null)
+      throw Exception('Must be logged in to get history.');
 
     // This calls the backend route you provided: GET /api/attendance/user/:user_id
     final res = await http.get(
@@ -48,15 +60,26 @@ class ApiService with ChangeNotifier {
     return listJson.map((e) => AttendanceRecord.fromJson(e)).toList();
   }
 
-  Future<void> tryAutoLogin() async {
+  Future<bool> tryAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
-    if (!prefs.containsKey('token')) {
-      return;
+    final storedToken = prefs.getString('token');
+    if (storedToken == null || storedToken.isEmpty) {
+      return false;
     }
-    _token = prefs.getString('token');
-    // You would also save and load user data similarly,
-    // perhaps by fetching user details from your server using the token.
-    notifyListeners();
+    _token = storedToken;
+
+    try {
+      // Use the token to fetch the full user profile.
+      final user = await getMyProfile();
+      // If successful, the user is fully authenticated.
+      _currentUser = user;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      // If fetching fails (e.g., expired token), clear the invalid token.
+      await logout();
+      return false;
+    }
   }
 
   Future<User> login(String email, String password) async {
@@ -67,21 +90,15 @@ class ApiService with ChangeNotifier {
     );
     final data = _decode(res);
     _ensureOk(res, data);
-    print("Login response JSON: $data");
 
     final user = User.fromAuthJson(data['data']);
-    final token = data['data']['token'] as String?;
-
-    _setAuth(token, user);
+    await _setAuth(user.token, user);
     return user;
   }
 
+  /// ✅ FIXED: Logout now correctly clears state and notifies listeners.
   Future<void> logout() async {
-    _token = null;
-    _currentUser = null;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
+    await _setAuth(null, null);
   }
 
   Future<User> register({
@@ -110,16 +127,46 @@ class ApiService with ChangeNotifier {
     _ensureCreated(res, data);
 
     final user = User.fromAuthJson(data['data']);
-    final token = data['data']['token'] as String?;
-
-    _setAuth(token, user);
+    await _setAuth(user.token, user);
     return user;
   }
 
-  Future<List<YogaGroup>> getGroups({String? search}) async {
+  Future<User> getMyProfile() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/auth/profile'),
+      headers: _authHeaders(),
+    );
+    final data = _decode(res);
+    _ensureOk(res, data);
+    return User.fromJson(data['data']);
+  }
+
+  Future<User> updateMyProfile(Map<String, dynamic> profileData) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/api/auth/profile'),
+      headers: _authHeaders(),
+      body: json.encode(profileData),
+    );
+    final data = _decode(res);
+    _ensureOk(res, data);
+
+    final updatedUser = User.fromJson(data['data']);
+    // Keep the token from the original currentUser object.
+    _currentUser = updatedUser.copyWith(token: _token);
+    notifyListeners();
+
+    return updatedUser;
+  }
+
+  Future<List<YogaGroup>> getGroups({
+    String? search,
+    String? instructorId,
+  }) async {
     final uri = Uri.parse('$baseUrl/api/groups').replace(
       queryParameters: {
         if (search != null && search.isNotEmpty) 'search': search,
+        if (instructorId != null && instructorId.isNotEmpty)
+          'instructor_id': instructorId,
       },
     );
     final res = await http.get(uri, headers: _authHeaders(optional: true));
@@ -144,6 +191,25 @@ class ApiService with ChangeNotifier {
     // The backend returns a list of user objects
     final List listJson = data['data'] ?? [];
     return listJson.map((e) => User.fromMemberJson(e)).toList();
+  }
+
+  Future<SessionQrCode> qrGenerate({
+    required String groupId,
+    required DateTime sessionDate,
+    required String createdBy,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/qr/generate'),
+      headers: _authHeaders(),
+      body: json.encode({
+        'group_id': groupId,
+        'session_date': sessionDate.toIso8601String(),
+        'created_by': createdBy,
+      }),
+    );
+    final data = _decode(res);
+    _ensureCreated(res, data);
+    return SessionQrCode.fromJson(data['data']);
   }
 
   Future<YogaGroup> getGroupById(String groupId) async {
@@ -171,7 +237,7 @@ class ApiService with ChangeNotifier {
     String difficultyLevel = 'all-levels',
     int sessionDuration = 60,
     double pricePerSession = 0,
-    String currency = 'USD',
+    String currency = 'RUPEE',
     List<String> requirements = const [],
     List<String> equipmentNeeded = const [],
     bool isActive = true,
@@ -202,6 +268,7 @@ class ApiService with ChangeNotifier {
     _ensureCreated(res, _decode(res));
   }
 
+  /// ✅ NEW METHOD: Updates an existing yoga group.
   Future<void> updateGroup({
     required String id,
     String? groupName,
@@ -223,7 +290,7 @@ class ApiService with ChangeNotifier {
   }) async {
     final body = <String, dynamic>{};
 
-    // Only include fields that are not null
+    // Only include fields that are not null to avoid overwriting existing data.
     if (groupName != null) body['group_name'] = groupName;
     if (location != null) body['location'] = location;
     if (locationText != null) body['location_text'] = locationText;
@@ -280,24 +347,26 @@ class ApiService with ChangeNotifier {
     final data = _decode(res);
     _ensureOk(res, data); // ensureOk is fine, we want a 200 or 201 status
   }
-  
-  Future<SessionQrCode> qrGenerate({
-    required String groupId,
-    required DateTime sessionDate,
-    required String createdBy,
-  }) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/api/qr/generate'),
-      headers: _authHeaders(),
-      body: json.encode({
-        'group_id': groupId,
-        'session_date': sessionDate.toIso8601String(),
-        'created_by': createdBy,
-      }),
-    );
+
+  Future<List<AttendanceRecord>> getAttendanceForGroup(String groupId) async {
+    // This assumes the user is authenticated, so _currentUser should not be null.
+    if (_currentUser == null) {
+      throw Exception('User not authenticated.');
+    }
+    final userId = _currentUser!.id;
+
+    // Construct the correct URI: /api/attendance/user/:user_id?group_id=:group_id
+    final uri = Uri.parse(
+      '$baseUrl/api/attendance/user/$userId',
+    ).replace(queryParameters: {'group_id': groupId});
+
+    final res = await http.get(uri, headers: _authHeaders());
     final data = _decode(res);
-    _ensureCreated(res, data);
-    return SessionQrCode.fromJson(data['data']);
+    _ensureOk(res, data);
+
+    // The backend nests the result in data -> attendance.
+    final List listJson = data['data']['attendance'];
+    return listJson.map((e) => AttendanceRecord.fromJson(e)).toList();
   }
 
   Map<String, String> _authHeaders({bool optional = false}) {
@@ -306,8 +375,8 @@ class ApiService with ChangeNotifier {
     if (_token != null && _token!.isNotEmpty) {
       headers['Authorization'] = 'Bearer $_token';
     } else if (!optional) {
-    throw Exception('Authentication token is missing for a protected route.');
-  }
+      throw Exception('Authentication token is missing for a protected route.');
+    }
     return headers;
   }
 

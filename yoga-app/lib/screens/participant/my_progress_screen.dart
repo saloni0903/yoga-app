@@ -27,7 +27,10 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
 
   Future<List<AttendanceRecord>> _fetchAttendance() {
     // Use Provider to get the ApiService instance
-    return Provider.of<ApiService>(context, listen: false).getAttendanceHistory();
+    return Provider.of<ApiService>(
+      context,
+      listen: false,
+    ).getAttendanceHistory();
   }
 
   @override
@@ -47,12 +50,11 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
           }
 
           final attendanceRecords = snapshot.data ?? [];
-          
+
           return ListView(
             padding: const EdgeInsets.all(16.0),
             children: [
-              if (user != null)
-                _buildProfileHeader(user, apiService),
+              if (user != null) _buildProfileHeader(user, apiService),
               const SizedBox(height: 24),
               _buildCalendar(context, attendanceRecords),
             ],
@@ -67,23 +69,14 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
       children: [
         CircleAvatar(
           radius: 40,
-          child: Text(user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : 'U', style: const TextStyle(fontSize: 32)),
+          child: Text(
+            user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : 'U',
+            style: const TextStyle(fontSize: 32),
+          ),
         ),
         const SizedBox(height: 12),
         Text(user.fullName, style: Theme.of(context).textTheme.headlineSmall),
         Text(user.email, style: const TextStyle(color: Colors.grey)),
-        const SizedBox(height: 20),
-        ElevatedButton(
-          onPressed: () {
-            // This calls the logout method from the ApiService
-            apiService.logout();
-            if (mounted) {
-              Navigator.of(context, rootNavigator: true)
-                  .pushNamedAndRemoveUntil('/login', (route) => false);
-            }
-          },
-          child: const Text('Logout'),
-        ),
         const Divider(height: 40),
       ],
     );
@@ -93,7 +86,13 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
     final events = {
       for (var record in records)
         // Normalize date to midnight to use as a key
-        DateTime.utc(record.sessionDate.year, record.sessionDate.month, record.sessionDate.day): ['Present']
+        DateTime.utc(
+          record.sessionDate.year,
+          record.sessionDate.month,
+          record.sessionDate.day,
+        ): [
+          'Present',
+        ],
     };
 
     return Card(

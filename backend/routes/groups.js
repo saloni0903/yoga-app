@@ -55,6 +55,7 @@ router.get('/', async (req, res) => {
       success: true,
       data: {
         groups,
+        groups,
         pagination: {
           current: parseInt(page),
           pages: Math.ceil(total / limit),
@@ -67,6 +68,7 @@ router.get('/', async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to fetch groups', error: error.message });
   }
 });
+
 
 router.get('/my-groups', auth, async (req, res) => {
   try {

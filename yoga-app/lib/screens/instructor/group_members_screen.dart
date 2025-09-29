@@ -53,7 +53,9 @@ class _GroupMembersScreenState extends State<GroupMembersScreen> {
           }
           final members = snapshot.data ?? [];
           if (members.isEmpty) {
-            return const Center(child: Text('No participants have joined this group yet.'));
+            return const Center(
+              child: Text('No participants have joined this group yet.'),
+            );
           }
 
           return ListView.builder(
@@ -62,7 +64,11 @@ class _GroupMembersScreenState extends State<GroupMembersScreen> {
               final member = members[index];
               return ListTile(
                 leading: CircleAvatar(
-                  child: Text(member.fullName.isNotEmpty ? member.fullName[0].toUpperCase() : '?'),
+                  child: Text(
+                    member.fullName.isNotEmpty
+                        ? member.fullName[0].toUpperCase()
+                        : '?',
+                  ),
                 ),
                 title: Text(member.fullName),
                 subtitle: Text(member.email),

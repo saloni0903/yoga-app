@@ -5,22 +5,15 @@ import 'package:provider/provider.dart';
 import 'api_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
-import 'models/user.dart';
 import 'screens/home/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-    final apiService = ApiService();
-    await apiService.tryAutoLogin();
+  final apiService = ApiService();
+  await apiService.tryAutoLogin();
 
-  runApp(
-    ChangeNotifierProvider.value(
-      value: apiService, 
-      child: const MyApp(),
-    ),
-  );
+  runApp(ChangeNotifierProvider.value(value: apiService, child: const MyApp()));
 }
-
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -227,20 +220,28 @@ class MyApp extends StatelessWidget {
         // Icon theme
         iconTheme: IconThemeData(color: const Color(0xFF3A4B47)),
       ),
-      home: Consumer<ApiService>(
-        builder: (context, apiService, child) {
-          if (apiService.isAuthenticated) {
-            // If logged in, go to HomeScreen
-            // NOTE: You may need to fetch the full user details here.
-            // For now, a placeholder user is fine for the UI to load.
-            return HomeScreen(
-              user: apiService.currentUser ?? User(id: 'cached-user', fullName: 'Welcome Back!', email: 'user@example.com', role: 'participant', token: ''),
-              apiService: apiService
+      home: FutureBuilder<bool>(
+        future: ApiService().tryAutoLogin(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
             );
-          } else {
-            // If not logged in, go to LoginScreen
-            return const LoginScreen();
           }
+
+          // After the initial check, the Consumer takes over for live updates.
+          return Consumer<ApiService>(
+            builder: (context, auth, child) {
+              if (auth.isAuthenticated) {
+                return HomeScreen(
+                  apiService: ApiService(),
+                  user: auth.currentUser!,
+                );
+              } else {
+                return const LoginScreen();
+              }
+            },
+          );
         },
       ),
       initialRoute: '/login',

@@ -2,6 +2,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../model/User');
+const auth = require('../middleware/auth');  
 const router = express.Router();
 
 // Register
@@ -103,38 +104,45 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Get current user profile
-router.get('/profile', async (req, res) => {
+// Get current user profile (authenticated)
+router.get('/profile', auth, (req, res) => {
+  res.json({
+    success: true,
+    data: req.user.toJSON()
+  });
+});
+
+// Update user profile (authenticated)
+router.put('/profile', auth, async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'No token provided'
-      });
+    const userId = req.user._id;
+    const {
+      firstName,
+      lastName,
+      phone,
+      location,
+    } = req.body;
+
+    const updateData = {};
+    if (firstName !== undefined) updateData.firstName = firstName;
+    if (lastName !== undefined) updateData.lastName = lastName;
+    if (phone !== undefined) updateData.phone = phone;
+    if (location !== undefined) updateData.location = location;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-    const user = await User.findById(decoded.userId);
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      data: user.toJSON()
-    });
+    res.json({ success: true, data: updatedUser });
   } catch (error) {
-    console.error('Profile error:', error);
-    res.status(401).json({
-      success: false,
-      message: 'Invalid token'
-    });
+    console.error('Update profile error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 

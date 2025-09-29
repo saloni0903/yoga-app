@@ -3,18 +3,16 @@ import 'package:flutter/services.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
 import '../../models/yoga_group.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import 'package:geolocator/geolocator.dart';
 
 class CreateGroupScreen extends StatefulWidget {
-  final ApiService api;
-  final User currentUser;
-  final YogaGroup? existing;
+  // ✅ FIX: No longer requires api or currentUser.
+  // ✅ FIX: Renamed 'existing' to 'existingGroup' for clarity.
+  final YogaGroup? existingGroup;
 
-  const CreateGroupScreen({
-    super.key,
-    required this.api,
-    required this.currentUser,
-    this.existing,
-  });
+  const CreateGroupScreen({super.key, this.existingGroup});
 
   @override
   State<CreateGroupScreen> createState() => _CreateGroupScreenState();
@@ -44,6 +42,44 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   bool _isActive = true;
   bool _isLoading = false;
 
+  TimeOfDay? _startTime;
+  TimeOfDay? _endTime;
+
+  Future<void> _pickStartTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _startTime ?? TimeOfDay(hour: 6, minute: 30),
+    );
+    if (picked != null) {
+      setState(() => _startTime = picked);
+      _updateTimingsField();
+    }
+  }
+
+  Future<void> _pickEndTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _endTime ?? TimeOfDay(hour: 7, minute: 30),
+    );
+    if (picked != null) {
+      setState(() => _endTime = picked);
+      _updateTimingsField();
+    }
+  }
+
+  void _updateTimingsField() {
+    if (_startTime != null && _endTime != null) {
+      final formatter = DateFormat('hh:mm a');
+      final start = formatter.format(
+        DateTime(2020, 1, 1, _startTime!.hour, _startTime!.minute),
+      );
+      final end = formatter.format(
+        DateTime(2020, 1, 1, _endTime!.hour, _endTime!.minute),
+      );
+      _timingsController.text = '$start - $end';
+    }
+  }
+
   final List<String> _yogaStyles = [
     'hatha',
     'vinyasa',
@@ -66,11 +102,19 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.existingGroup != null) {
+      // Populate form for editing
+      _groupNameController.text = widget.existingGroup!.name;
+      _locationController.text = widget.existingGroup!.location;
+      _locationTextController.text = widget.existingGroup!.locationText;
+      _timingsController.text = widget.existingGroup!.timingText;
+      _descriptionController.text = widget.existingGroup!.description ?? '';
+    }
     _initializeForm();
   }
 
   void _initializeForm() {
-    final existing = widget.existing;
+    final existing = widget.existingGroup;
     if (existing != null) {
       // Edit mode - populate existing values
       _groupNameController.text = existing.name;
@@ -81,7 +125,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       _maxParticipantsController.text = existing.maxParticipants.toString();
       _sessionDurationController.text = existing.sessionDuration.toString();
       _priceController.text = existing.pricePerSession.toString();
-      _currencyController.text = existing.currency ?? 'RUPEE';
+      _currencyController.text = existing.currency ?? 'INR';
       _selectedYogaStyle = existing.yogaStyle;
       _selectedDifficultyLevel = existing.difficultyLevel;
       _isActive = existing.isActive;
@@ -94,7 +138,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       _maxParticipantsController.text = '20';
       _sessionDurationController.text = '60';
       _priceController.text = '0';
-      _currencyController.text = 'RUPEE';
+      _currencyController.text = 'INR';
       _latitudeController.text = '22.7196'; // Default to Indore
       _longitudeController.text = '75.8577';
     }
@@ -119,13 +163,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     final v = value?.trim() ?? '';
     if (v.isEmpty) return 'Location text is required';
     if (v.length > 500) return 'Location text cannot exceed 500 characters';
-    return null;
-  }
-
-  String? _validateTimings(String? value) {
-    final v = value?.trim() ?? '';
-    if (v.isEmpty) return 'Timings are required';
-    if (v.length > 200) return 'Timings cannot exceed 200 characters';
     return null;
   }
 
@@ -187,8 +224,57 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     return null;
   }
 
+  String? _validateTimings(String? value) {
+    final v = value?.trim() ?? '';
+    final regex = RegExp(
+      r'^(1[0-2]|0[1-9]):[0-5][0-9] (AM|PM) - (1[0-2]|0[1-9]):[0-5][0-9] (AM|PM)$',
+    );
+    if (v.isEmpty) return 'Timings are required';
+    if (!regex.hasMatch(v)) return 'Format: HH:MM AM/PM - HH:MM AM/PM';
+    if (v.length > 200) return 'Timings cannot exceed 200 characters';
+    return null;
+  }
+
+  Future<void> _fetchLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      // Add a dialog to ask user to enable location services
+      return;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      // Show error/snackbar
+      return;
+    }
+
+    final position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+    _latitudeController.text = position.latitude.toStringAsFixed(5);
+    _longitudeController.text = position.longitude.toStringAsFixed(5);
+  }
+
   Future<void> _saveGroup() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final apiService = Provider.of<ApiService>(context, listen: false);
+    final currentUser = apiService.currentUser;
+
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error: Not logged in.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -209,9 +295,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                 .toList()
           : <String>[];
 
-      if (widget.existing == null) {
-        // Create new group
-        await widget.api.createGroup(
+      if (widget.existingGroup == null) {
+        // --- CREATE A NEW GROUP ---
+        await apiService.createGroup(
           groupName: _groupNameController.text.trim(),
           location: _locationController.text.trim(),
           locationText: _locationTextController.text.trim(),
@@ -228,12 +314,14 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           requirements: requirements,
           equipmentNeeded: equipment,
           isActive: _isActive,
-          instructorId: widget.currentUser.id,
+          // FIX: Use the non-nullable currentUser.id
+          instructorId: currentUser.id,
         );
       } else {
-        // Update existing group
-        await widget.api.updateGroup(
-          id: widget.existing!.id,
+        // --- UPDATE AN EXISTING GROUP ---
+        // FIX: Use the 'apiService' variable, not 'widget.api'
+        await apiService.updateGroup(
+          id: widget.existingGroup!.id,
           groupName: _groupNameController.text.trim(),
           location: _locationController.text.trim(),
           locationText: _locationTextController.text.trim(),
@@ -257,7 +345,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            widget.existing == null
+            widget.existingGroup == null
                 ? 'Group created successfully!'
                 : 'Group updated successfully!',
           ),
@@ -300,7 +388,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isEdit = widget.existing != null;
+    final isEdit = widget.existingGroup != null;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -354,8 +442,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       TextFormField(
                         controller: _locationController,
                         decoration: const InputDecoration(
-                          labelText: 'Location (Short) *',
-                          helperText: 'e.g., "Downtown Studio", "Park Avenue"',
+                          labelText: 'City',
+                          helperText: 'e.g., "Indore", "Mumbai"',
                           prefixIcon: Icon(Icons.location_on),
                         ),
                         validator: (v) => _validateRequired(v, 'Location'),
@@ -367,9 +455,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       TextFormField(
                         controller: _locationTextController,
                         decoration: const InputDecoration(
-                          labelText: 'Location Details *',
-                          helperText:
-                              'Full address or detailed location description',
+                          labelText: 'Address *',
+                          helperText: 'Full address',
                           prefixIcon: Icon(Icons.place),
                         ),
                         validator: _validateLocationText,
@@ -422,6 +509,14 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                               ],
                             ),
                           ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: Icon(Icons.my_location),
+                              label: Text('Use My Location'),
+                              onPressed: _isLoading ? null : _fetchLocation,
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -455,16 +550,61 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Timings
+                      // Start/End Time Pickers
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: Icon(Icons.access_time),
+                              label: Text(
+                                _startTime == null
+                                    ? 'Start Time'
+                                    : DateFormat('hh:mm a').format(
+                                        DateTime(
+                                          2020,
+                                          1,
+                                          1,
+                                          _startTime!.hour,
+                                          _startTime!.minute,
+                                        ),
+                                      ),
+                              ),
+                              onPressed: _pickStartTime,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: Icon(Icons.access_time),
+                              label: Text(
+                                _endTime == null
+                                    ? 'End Time'
+                                    : DateFormat('hh:mm a').format(
+                                        DateTime(
+                                          2020,
+                                          1,
+                                          1,
+                                          _endTime!.hour,
+                                          _endTime!.minute,
+                                        ),
+                                      ),
+                              ),
+                              onPressed: _pickEndTime,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
                       TextFormField(
                         controller: _timingsController,
                         decoration: const InputDecoration(
                           labelText: 'Class Timings *',
-                          helperText: 'e.g., "Mon-Fri 6:00 AM - 7:00 AM"',
+                          helperText: 'e.g., "06:30 AM - 07:30 AM"',
                           prefixIcon: Icon(Icons.access_time),
                         ),
                         validator: _validateTimings,
-                        maxLines: 2,
+                        readOnly: true,
                       ),
                       const SizedBox(height: 16),
 
@@ -606,7 +746,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       Row(
                         children: [
                           Icon(
-                            Icons.attach_money,
+                            Icons.currency_rupee,
                             color: theme.colorScheme.primary,
                           ),
                           const SizedBox(width: 8),
@@ -640,25 +780,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                               inputFormatters: [
                                 FilteringTextInputFormatter.allow(
                                   RegExp(r'^\d*\.?\d*'),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _currencyController,
-                              decoration: const InputDecoration(
-                                labelText: 'Currency *',
-                                helperText: 'e.g., USD, INR',
-                                prefixIcon: Icon(Icons.currency_exchange),
-                              ),
-                              validator: _validateCurrency,
-                              textCapitalization: TextCapitalization.characters,
-                              inputFormatters: [
-                                LengthLimitingTextInputFormatter(3),
-                                FilteringTextInputFormatter.allow(
-                                  RegExp(r'[A-Za-z]'),
                                 ),
                               ],
                             ),

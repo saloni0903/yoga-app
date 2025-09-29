@@ -5,13 +5,11 @@ import '../../api_service.dart';
 import '../../models/session_qr_code.dart';
 
 class QrDisplayScreen extends StatelessWidget {
-  final ApiService api;
   final SessionQrCode qrCode;
   final String groupName;
 
   const QrDisplayScreen({
     super.key,
-    required this.api,
     required this.qrCode,
     required this.groupName,
   });
