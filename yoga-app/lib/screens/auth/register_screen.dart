@@ -125,21 +125,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Header / Branding
                   Align(
                     alignment: Alignment.center,
-                    child: Container(
-                      width: 84,
-                      height: 84,
-                      decoration: BoxDecoration(
-                        color: cs.primaryContainer,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Icon(
-                        Icons.self_improvement,
-                        color: cs.onPrimaryContainer,
-                        size: 44,
-                      ),
+                    child: Image.asset(
+                      'assets/logo.png', // Path to your logo
+                      width: 100,        // You can adjust the size
+                      height: 100,       // You can adjust the size
                     ),
                   ),
                   const SizedBox(height: 16),

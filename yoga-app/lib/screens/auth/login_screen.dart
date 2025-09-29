@@ -112,18 +112,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Hero / Brand
                   Align(
                     alignment: Alignment.center,
-                    child: Container(
-                      width: 84,
-                      height: 84,
-                      decoration: BoxDecoration(
-                        color: cs.primaryContainer,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Icon(
-                        Icons.self_improvement,
-                        color: cs.onPrimaryContainer,
-                        size: 44,
-                      ),
+                    child: Image.asset(
+                      'assets/logo.png', // Path to your logo
+                      width: 150, // Adjust the width as needed
+                      height: 150, // Adjust the height as needed, or remove to maintain aspect ratio
                     ),
                   ),
                   const SizedBox(height: 20),

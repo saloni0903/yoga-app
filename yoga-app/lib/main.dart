@@ -6,6 +6,7 @@ import 'api_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'screens/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -220,31 +221,7 @@ class MyApp extends StatelessWidget {
         // Icon theme
         iconTheme: IconThemeData(color: const Color(0xFF3A4B47)),
       ),
-      home: FutureBuilder<bool>(
-        future: ApiService().tryAutoLogin(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-
-          // After the initial check, the Consumer takes over for live updates.
-          return Consumer<ApiService>(
-            builder: (context, auth, child) {
-              if (auth.isAuthenticated) {
-                return HomeScreen(
-                  apiService: ApiService(),
-                  user: auth.currentUser!,
-                );
-              } else {
-                return const LoginScreen();
-              }
-            },
-          );
-        },
-      ),
-      initialRoute: '/login',
+      home: const SplashScreen(),
       routes: {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
