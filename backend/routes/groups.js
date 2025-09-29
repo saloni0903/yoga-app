@@ -7,49 +7,65 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 
 // Get all groups
+// routes/groups.js
+
+// GET all groups (with search and geospatial query)
 router.get('/', async (req, res) => {
   try {
-    const { page = 1, limit = 10, search, instructor_id } = req.query; // Added instructor_id
-    const query = {};
+    const { search, latitude, longitude, page = 1, limit = 10, sortBy = 'created_at', order = 'desc' } = req.query;
+    let query = {};
+    let sortOptions = { [sortBy]: order === 'asc' ? 1 : -1 };
 
+    // Text search (if provided)
     if (search) {
       query.$or = [
         { group_name: { $regex: search, $options: 'i' } },
         { location_text: { $regex: search, $options: 'i' } },
       ];
     }
+
+    let groups;
+    let total;
+
+    // If latitude and longitude are provided, perform a geospatial search
     
-    // ✅ FIX: Data Isolation Logic
-    // If an instructor_id is provided in the query, only return groups
-    // created by that specific instructor.
-    if (instructor_id) {
-        query.instructor_id = instructor_id;
+    if (latitude && longitude) {
+      const lat = parseFloat(latitude);
+      const lon = parseFloat(longitude);
+
+      // Add a geospatial query condition using the '$near' operator
+      // This requires the 2dsphere index you already have in your Group model
+      query.location = {
+        $near: {
+          $geometry: {
+            type: "Point",
+            coordinates: [lon, lat] // MongoDB uses [longitude, latitude] format
+          },
+          // Optional: find groups within a 50 kilometer radius
+          $maxDistance: 50000 
+        }
+      };
+      // When doing a geo search, Mongoose doesn't use other sort options
+      sortOptions = {}; 
     }
-
-    const groups = await Group.find(query)
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
-      .sort({ created_at: -1 });
-
-    const total = await Group.countDocuments(query);
+    groups = await Group.find(query).populate('instructor_id', 'fullName').sort(sortOptions).limit(parseInt(limit)).skip((page - 1) * parseInt(limit)).lean();
+    total = await Group.countDocuments(query);
 
     res.json({
       success: true,
       data: {
         groups,
+        groups,
         pagination: {
           current: parseInt(page),
           pages: Math.ceil(total / limit),
-          total
-        }
-      }
+          total,
+        },
+      },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch groups',
-      error: error.message
-    });
+    console.error('Get groups error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch groups', error: error.message });
   }
 });
 
@@ -63,9 +79,8 @@ router.get('/my-groups', auth, async (req, res) => {
     const groupIds = memberships.map(m => m.group_id);
 
     // 3. Find all groups that match those IDs and populate the instructor's name
-    const groups = await Group.find({
-      '_id': { $in: groupIds }
-    }).populate('instructor_id', 'fullName'); // Fetches instructor's name
+    const groups = await Group.find({ '_id': { $in: groupIds } })
+      .populate('instructor_id', 'fullName');
 
     res.json({ success: true, data: { groups } });
   } catch (error) {
@@ -135,10 +150,11 @@ router.post('/', async (req, res) => {
     const groupData = {
       instructor_id,
       group_name,
-      location,
+      location: {
+        type: 'Point',
+        coordinates: [parseFloat(longitude), parseFloat(latitude)] // [lon, lat]
+      },
       location_text,
-      latitude: parseFloat(latitude),
-      longitude: parseFloat(longitude),
       timings_text,
       description,
       yoga_style,

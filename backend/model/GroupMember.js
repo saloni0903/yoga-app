@@ -1,4 +1,4 @@
-// backend/model/Group.js
+// backend/model/GroupMember.js
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 

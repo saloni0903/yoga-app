@@ -404,4 +404,25 @@ class ApiService with ChangeNotifier {
       throw Exception(data['message'] ?? 'Request failed (${res.statusCode})');
     }
   }
+
+  Future<List<YogaGroup>> getNearbyGroups({
+    required double latitude,
+    required double longitude,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/groups').replace(queryParameters: {
+      'latitude': latitude.toString(),
+      'longitude': longitude.toString(),
+    });
+
+    final res = await http.get(uri, headers: _authHeaders(optional: true));
+    final data = _decode(res);
+    _ensureOk(res, data);
+    
+    final payload = data['data'];
+    List listJson = (payload is Map && payload['groups'] is List) 
+        ? payload['groups'] 
+        : [];
+        
+    return listJson.map((e) => YogaGroup.fromJson(e)).toList();
+  }
 }
