@@ -20,9 +20,15 @@ const groupSchema = new mongoose.Schema({
     maxlength: 100,
   },
   location: {
-    type: String,
-    required: true,
-    trim: true,
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point',
+    },
+    coordinates: {
+      type: [Number],
+      required: true,
+    },
   },
   location_text: {
     type: String,
@@ -126,7 +132,8 @@ groupSchema.virtual('coordinates').get(function () {
 });
 
 // Index for geospatial queries
-groupSchema.index({ latitude: 1, longitude: 1 });
+groupSchema.index({ location: '2dsphere' });
+// groupSchema.index({ latitude: 1, longitude: 1 });
 groupSchema.index({ instructor_id: 1 });
 groupSchema.index({ is_active: 1 });
 groupSchema.index({ created_at: -1 });
