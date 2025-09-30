@@ -140,7 +140,7 @@ class ApiService with ChangeNotifier {
     _ensureOk(res, data);
     return User.fromJson(data['data']);
   }
-
+  
   Future<User> updateMyProfile(Map<String, dynamic> profileData) async {
     final res = await http.put(
       Uri.parse('$baseUrl/api/auth/profile'),
