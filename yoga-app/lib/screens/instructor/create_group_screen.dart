@@ -8,10 +8,9 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class CreateGroupScreen extends StatefulWidget {
-  // ✅ FIX: No longer requires api or currentUser.
-  // ✅ FIX: Renamed 'existing' to 'existingGroup' for clarity.
   final YogaGroup? existingGroup;
 
   const CreateGroupScreen({super.key, this.existingGroup});
@@ -25,6 +24,16 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
   final MapController _mapController = MapController();
   LatLng? _selectedLocation;
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+      ),
+    );
+  }
 
   Future<void> _openMapPicker() async {
     LatLng initialPoint = _selectedLocation ?? LatLng(
@@ -93,10 +102,29 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
     if (result != null) {
       setState(() {
+        _isLoading = true; // Show loading indicator
         _selectedLocation = result;
         _latitudeController.text = result.latitude.toStringAsFixed(5);
         _longitudeController.text = result.longitude.toStringAsFixed(5);
       });
+
+      // Now, fetch the address for the newly picked point
+      try {
+        final apiService = Provider.of<ApiService>(context, listen: false);
+        final address = await apiService.reverseGeocode(
+          latitude: result.latitude,
+          longitude: result.longitude,
+        );
+        _locationTextController.text = address;
+      } catch (e) {
+        if (mounted) {
+          _showError('Could not fetch address for the selected point.');
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false); // Hide loading indicator
+        }
+      }
     }
   }
 
@@ -314,29 +342,66 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     return null;
   }
 
-  Future<void> _fetchLocation() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      // Add a dialog to ask user to enable location services
-      return;
-    }
+Future<void> _fetchLocation() async {
+    setState(() => _isLoading = true);
+    try {
+      // PERMISSION CHECKS
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) throw Exception('Location services are disabled.');
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw Exception('Location permissions are denied');
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Location permissions are permanently denied.');
+      }
 
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return;
-    }
+      Position? position;
 
-    if (permission == LocationPermission.deniedForever) {
-      // Show error/snackbar
-      return;
-    }
+      // PLATFORM-SPECIFIC LOGIC
+      if (kIsWeb) {
+        // Web doesn't support getLastKnownPosition, so we go straight to the current position.
+        position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
+      } else {
+        // On mobile, use the fast getLastKnownPosition first.
+        Position? lastKnown = await Geolocator.getLastKnownPosition();
+        if (lastKnown != null) {
+          position = lastKnown;
+          // Update UI instantly with the last known position
+          setState(() {
+            _latitudeController.text = position!.latitude.toStringAsFixed(5);
+            _longitudeController.text = position.longitude.toStringAsFixed(5);
+          });
+        }
+        // Then, get a fresh, high-accuracy position in the background.
+        position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
+      }
 
-    final position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
-    _latitudeController.text = position.latitude.toStringAsFixed(5);
-    _longitudeController.text = position.longitude.toStringAsFixed(5);
+      // Update the UI again with the final, most accurate data and fetch the address.
+      _latitudeController.text = position.latitude.toStringAsFixed(5);
+      _longitudeController.text = position.longitude.toStringAsFixed(5);
+      
+      final apiService = Provider.of<ApiService>(context, listen: false);
+      final address = await apiService.reverseGeocode(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+      _locationTextController.text = address;
+      
+    } catch (e) {
+      if (mounted) {
+        _showError(e.toString().replaceFirst("Exception: ", ""));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _saveGroup() async {
@@ -545,47 +610,31 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       const SizedBox(height: 16),
 
                       // Coordinates Row
-// Location Picker Section
-Row(
-  crossAxisAlignment: CrossAxisAlignment.end,
-  children: [
-    Expanded(
-      child: Column(
-        children: [
-          TextFormField(
-            controller: _latitudeController,
-            decoration: const InputDecoration(labelText: 'Latitude *'),
-            validator: _validateLatitude,
-            readOnly: true,
-          ),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: _longitudeController,
-            decoration: const InputDecoration(labelText: 'Longitude *'),
-            validator: _validateLongitude,
-            readOnly: true,
-          ),
-        ],
-      ),
-    ),
-    const SizedBox(width: 16),
-    Column(
-      children: [
-        IconButton.filled(
-          tooltip: 'Fetch Current Location',
-          icon: const Icon(Icons.my_location),
-          onPressed: _isLoading ? null : _fetchLocation,
-        ),
-        const SizedBox(height: 8),
-        IconButton.filled(
-          tooltip: 'Pick on Map',
-          icon: const Icon(Icons.map),
-          onPressed: _isLoading ? null : _openMapPicker,
-        ),
-      ],
-    ),
-  ],
-),
+                      // Location Picker Section
+                      SizedBox(
+                        height: 50,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _isLoading ? null : _fetchLocation,
+                                icon: const Icon(Icons.my_location),
+                                label: const Text('Use Current Location'),
+                                style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: _isLoading ? null : _openMapPicker,
+                                icon: const Icon(Icons.map_outlined),
+                                label: const Text('Pick on Map'),
+                                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -836,8 +885,8 @@ Row(
                               controller: _priceController,
                               decoration: const InputDecoration(
                                 labelText: 'Price per Session *',
-                                helperText: 'Enter 0 for free',
-                                prefixIcon: Icon(Icons.monetization_on),
+                                helperText: 'Enter Rs. 0 for free',
+                                prefixIcon: Icon(Icons.currency_rupee),
                               ),
                               validator: _validatePrice,
                               keyboardType:

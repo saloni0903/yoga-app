@@ -15,6 +15,63 @@ class FindGroupScreen extends StatefulWidget {
 
 
 class _FindGroupScreenState extends State<FindGroupScreen> {
+  void _showGroupInfoSnackBar(YogaGroup group) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide any previous snackbar
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(group.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'JOIN',
+          textColor: Colors.white,
+          onPressed: () {
+            _joinGroup(group.id); // Use the correct _joinGroup method name
+          },
+        ),
+        backgroundColor: Theme.of(context).primaryColor,
+      ),
+    );
+  }
+
+  Widget _buildMapView() {
+    return FlutterMap(
+      mapController: _mapController,
+      options: MapOptions(
+        initialCenter: _currentPosition != null
+            ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+            : const LatLng(22.7196, 75.8577), // Default to Indore
+        initialZoom: 13.0,
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all, // This enables zoom, drag, rotate, etc.
+        ),
+      ),
+      children: [
+        TileLayer(
+          urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        ),
+        MarkerLayer(
+          markers: _groups.map((group) {
+            // Ensure group has valid coordinates before creating a marker
+            if (group.latitude == null || group.longitude == null) {
+              return null; // Return null for groups without coordinates
+            }
+            return Marker(
+              width: 80.0,
+              height: 80.0,
+              point: LatLng(group.latitude!, group.longitude!),
+              child: GestureDetector(
+                onTap: () => _showGroupInfoSnackBar(group),
+                child: Tooltip(
+                  message: group.name,
+                  child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
+                ),
+              ),
+            );
+          }).whereType<Marker>().toList(), // Filter out any null markers
+        ),
+      ],
+    );
+  }
   Position? _currentPosition;
   final MapController _mapController = MapController();
 
@@ -159,14 +216,14 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
 
           // Results List
           Expanded(
-            child: _buildResultsList(),
+            child: _buildListView(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildResultsList() {
+  Widget _buildListView() {
     if (!_searchPerformed) {
       return const Center(
         child: Text('Enter a search term to find groups.'),

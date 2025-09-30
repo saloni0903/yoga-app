@@ -407,4 +407,19 @@ class ApiService with ChangeNotifier {
         : [];
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
   }
+  Future<String> reverseGeocode({
+    required double latitude,
+    required double longitude,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/groups/location/reverse-geocode').replace(
+      queryParameters: {
+        'lat': latitude.toString(),
+        'lon': longitude.toString(),
+      },
+    );
+    final res = await http.get(uri, headers: _authHeaders(optional: true));
+    final data = _decode(res);
+    _ensureOk(res, data);
+    return data['data']['address'] ?? 'Could not fetch address';
+  }
 }

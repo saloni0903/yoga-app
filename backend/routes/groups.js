@@ -461,5 +461,25 @@ router.delete('/:id/leave', async (req, res) => {
     });
   }
 });
+// GET reverse geocode coordinates to an address
+router.get('/location/reverse-geocode', async (req, res) => {
+  const { lat, lon } = req.query;
+  if (!lat || !lon) {
+    return res.status(400).json({ success: false, message: 'Latitude and longitude are required.' });
+  }
+
+  try {
+    const reverseGeocodeUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+    const response = await axios.get(reverseGeocodeUrl, {
+      headers: { 'User-Agent': 'YogaApp/1.0' } // Required by Nominatim
+    });
+
+    const address = response.data.display_name || 'Unknown location';
+    res.json({ success: true, data: { address } });
+  } catch (error) {
+    console.error('Reverse geocoding error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch address.' });
+  }
+});
 
 module.exports = router;
