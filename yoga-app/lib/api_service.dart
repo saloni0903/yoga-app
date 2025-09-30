@@ -1,13 +1,13 @@
-// lib/api_service.dart
 import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:http/http.dart' as http;
 import 'models/user.dart';
 import 'models/yoga_group.dart';
-import 'models/session_qr_code.dart';
 import 'models/attendance.dart';
+import 'models/session_qr_code.dart';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
+// lib/api_service.dart
 
 class ApiService with ChangeNotifier {
   String baseURL() {
@@ -156,27 +156,6 @@ class ApiService with ChangeNotifier {
     notifyListeners();
 
     return updatedUser;
-  }
-
-  Future<List<YogaGroup>> getGroups({
-    String? search,
-    String? instructorId,
-  }) async {
-    final uri = Uri.parse('$baseUrl/api/groups').replace(
-      queryParameters: {
-        if (search != null && search.isNotEmpty) 'search': search,
-        if (instructorId != null && instructorId.isNotEmpty)
-          'instructor_id': instructorId,
-      },
-    );
-    final res = await http.get(uri, headers: _authHeaders(optional: true));
-    final data = _decode(res);
-    _ensureOk(res, data);
-    final payload = data['data'];
-    List listJson = (payload is Map && payload['groups'] is List)
-        ? payload['groups']
-        : [];
-    return listJson.map((e) => YogaGroup.fromJson(e)).toList();
   }
 
   Future<List<User>> getGroupMembers({required String groupId}) async {
@@ -405,24 +384,27 @@ class ApiService with ChangeNotifier {
     }
   }
 
-  Future<List<YogaGroup>> getNearbyGroups({
-    required double latitude,
-    required double longitude,
+  Future<List<YogaGroup>> getGroups({
+    String? search,
+    String? instructorId,
+    double? latitude,
+    double? longitude,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/groups').replace(queryParameters: {
-      'latitude': latitude.toString(),
-      'longitude': longitude.toString(),
-    });
-
+    final uri = Uri.parse('$baseUrl/api/groups').replace(
+      queryParameters: {
+        if (search != null && search.isNotEmpty) 'search': search,
+        if (instructorId != null && instructorId.isNotEmpty) 'instructor_id': instructorId,
+        if (latitude != null) 'latitude': latitude.toString(),
+        if (longitude != null) 'longitude': longitude.toString(),
+      },
+    );
     final res = await http.get(uri, headers: _authHeaders(optional: true));
     final data = _decode(res);
     _ensureOk(res, data);
-    
     final payload = data['data'];
-    List listJson = (payload is Map && payload['groups'] is List) 
-        ? payload['groups'] 
+    List listJson = (payload is Map && payload['groups'] is List)
+        ? payload['groups']
         : [];
-        
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
   }
 }

@@ -132,7 +132,7 @@ const seedData = async () => {
     const group1 = new Group({
       instructor_id: instructor1._id,
       group_name: 'Morning Vinyasa Flow',
-      location: 'New York, NY',
+      location: { type: 'Point', coordinates: [-73.968285, 40.785091] }, // CORRECT FORMAT
       location_text: 'Central Park, New York, NY',
       latitude: 40.785091,
       longitude: -73.968285,
@@ -148,7 +148,7 @@ const seedData = async () => {
     const group2 = new Group({
       instructor_id: instructor2._id,
       group_name: 'Evening Hatha Yoga',
-      location: 'Los Angeles, CA',
+      location: { type: 'Point', coordinates: [-118.243685, 34.052235] }, // CORRECT FORMAT
       location_text: 'Yoga Studio Downtown, 123 Main St, Los Angeles, CA',
       latitude: 34.052235,
       longitude: -118.243685,
@@ -164,7 +164,7 @@ const seedData = async () => {
     const group3 = new Group({
       instructor_id: instructor1._id,
       group_name: 'Weekend Ashtanga Intensive',
-      location: 'New York, NY',
+      location: { type: 'Point', coordinates: [-73.985949, 40.574926] }, // CORRECT FORMAT
       location_text: 'Beach Yoga Spot, Coney Island, NY',
       latitude: 40.574926,
       longitude: -73.985949,

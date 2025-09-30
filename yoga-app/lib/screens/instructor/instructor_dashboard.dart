@@ -1,14 +1,14 @@
-// lib/screens/instructor/instructor_dashboard.dart
-
-import 'group_members_screen.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
-import '../../models/yoga_group.dart';
 import 'create_group_screen.dart';
+import 'group_members_screen.dart';
+import '../../models/yoga_group.dart';
 import '../qr/qr_display_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/session_qr_code.dart';
+// lib/screens/instructor/instructor_dashboard.dart
+
 
 class InstructorDashboard extends StatefulWidget {
   const InstructorDashboard({super.key});
@@ -106,7 +106,14 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
               ),
               IconButton(
                 icon: const Icon(Icons.logout),
-                onPressed: () => apiService.logout(),
+                // onPressed: () => apiService.logout(),
+                onPressed: () {
+                  apiService.logout();
+                  if (mounted) {
+                    Navigator.of(context, rootNavigator: true)
+                        .pushNamedAndRemoveUntil('/login', (route) => false);
+                  }
+                },
                 tooltip: 'Logout',
               ),
             ],

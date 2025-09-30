@@ -1,11 +1,13 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
-import '../../models/yoga_group.dart';
-import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../../models/yoga_group.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter_map/flutter_map.dart';
 
 class CreateGroupScreen extends StatefulWidget {
   // ✅ FIX: No longer requires api or currentUser.
@@ -20,6 +22,83 @@ class CreateGroupScreen extends StatefulWidget {
 
 class _CreateGroupScreenState extends State<CreateGroupScreen> {
   final _formKey = GlobalKey<FormState>();
+
+  final MapController _mapController = MapController();
+  LatLng? _selectedLocation;
+
+  Future<void> _openMapPicker() async {
+    LatLng initialPoint = _selectedLocation ?? LatLng(
+      double.tryParse(_latitudeController.text) ?? 22.7196,
+      double.tryParse(_longitudeController.text) ?? 75.8577,
+    );
+
+    final result = await showDialog<LatLng>(
+      context: context,
+      builder: (context) {
+        LatLng tappedPoint = initialPoint; // To hold the state within the dialog
+        return StatefulBuilder(
+          builder: (context, setStateInDialog) {
+            return AlertDialog(
+              title: const Text('Select Location'),
+              contentPadding: const EdgeInsets.all(0),
+              content: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.6, // Use 60% of screen height
+                width: MediaQuery.of(context).size.width * 0.9, // Use 90% of screen width
+                child: FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: initialPoint,
+                    initialZoom: 13.0,
+                    interactionOptions: const InteractionOptions(
+                      flags: InteractiveFlag.all, // <-- ENABLES ZOOM AND DRAG
+                    ),
+                    onTap: (tapPosition, point) {
+                      setStateInDialog(() {
+                        tappedPoint = point; // Update the tapped point visually
+                      });
+                    },
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          width: 80.0,
+                          height: 80.0,
+                          point: tappedPoint,
+                          child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                FilledButton(
+                  child: const Text('Select'),
+                  onPressed: () => Navigator.of(context).pop(tappedPoint),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result != null) {
+      setState(() {
+        _selectedLocation = result;
+        _latitudeController.text = result.latitude.toStringAsFixed(5);
+        _longitudeController.text = result.longitude.toStringAsFixed(5);
+      });
+    }
+  }
 
   // Text Controllers
   final _groupNameController = TextEditingController();
@@ -466,59 +545,47 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       const SizedBox(height: 16),
 
                       // Coordinates Row
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _latitudeController,
-                              decoration: const InputDecoration(
-                                labelText: 'Latitude *',
-                                helperText: '-90 to 90',
-                                prefixIcon: Icon(Icons.my_location),
-                              ),
-                              validator: _validateLatitude,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              inputFormatters: [
-                                FilteringTextInputFormatter.allow(
-                                  RegExp(r'^-?\d*\.?\d*'),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _longitudeController,
-                              decoration: const InputDecoration(
-                                labelText: 'Longitude *',
-                                helperText: '-180 to 180',
-                                prefixIcon: Icon(Icons.location_searching),
-                              ),
-                              validator: _validateLongitude,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              inputFormatters: [
-                                FilteringTextInputFormatter.allow(
-                                  RegExp(r'^-?\d*\.?\d*'),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              icon: Icon(Icons.my_location),
-                              label: Text('Use My Location'),
-                              onPressed: _isLoading ? null : _fetchLocation,
-                            ),
-                          ),
-                        ],
-                      ),
+// Location Picker Section
+Row(
+  crossAxisAlignment: CrossAxisAlignment.end,
+  children: [
+    Expanded(
+      child: Column(
+        children: [
+          TextFormField(
+            controller: _latitudeController,
+            decoration: const InputDecoration(labelText: 'Latitude *'),
+            validator: _validateLatitude,
+            readOnly: true,
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _longitudeController,
+            decoration: const InputDecoration(labelText: 'Longitude *'),
+            validator: _validateLongitude,
+            readOnly: true,
+          ),
+        ],
+      ),
+    ),
+    const SizedBox(width: 16),
+    Column(
+      children: [
+        IconButton.filled(
+          tooltip: 'Fetch Current Location',
+          icon: const Icon(Icons.my_location),
+          onPressed: _isLoading ? null : _fetchLocation,
+        ),
+        const SizedBox(height: 8),
+        IconButton.filled(
+          tooltip: 'Pick on Map',
+          icon: const Icon(Icons.map),
+          onPressed: _isLoading ? null : _openMapPicker,
+        ),
+      ],
+    ),
+  ],
+),
                     ],
                   ),
                 ),

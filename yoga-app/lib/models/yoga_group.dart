@@ -23,8 +23,10 @@ class YogaGroup {
   // ✅ ADDED: Fields to store populated instructor details.
   final String? instructorName;
   final String? instructorEmail;
+  final double? distance;
 
   YogaGroup({
+    this.distance,
     required this.id,
     required this.name,
     required this.location,
@@ -79,6 +81,7 @@ class YogaGroup {
       difficultyLevel: (j['difficulty_level'] ?? 'all-levels').toString(),
       isActive: (j['is_active'] ?? true) == true,
       description: j['description']?.toString(),
+      distance: (j['distance'] as num?)?.toDouble(), 
       maxParticipants: (j['max_participants'] ?? 20) as int,
       sessionDuration: (j['session_duration'] ?? 60) as int,
       pricePerSession: ((j['price_per_session'] ?? 0) as num).toDouble(),

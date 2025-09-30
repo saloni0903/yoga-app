@@ -5,64 +5,139 @@ const Group = require('../model/Group');
 const GroupMember = require('../model/GroupMember');
 const router = express.Router();
 const auth = require('../middleware/auth');
+const axios = require('axios');
 
 // Get all groups
 // routes/groups.js
 
-// GET all groups (with search and geospatial query)
+// GET all groups (with advanced search, geocoding, and distance calculation)
 router.get('/', async (req, res) => {
   try {
-    const { search, latitude, longitude, page = 1, limit = 10, sortBy = 'created_at', order = 'desc' } = req.query;
-    let query = {};
-    let sortOptions = { [sortBy]: order === 'asc' ? 1 : -1 };
+    const { search, latitude, longitude, page = 1, limit = 10 } = req.query;
 
-    // Text search (if provided)
+    let searchCoords;
+
+    // Priority 1: If user provides a search term, geocode it to get coordinates.
     if (search) {
-      query.$or = [
-        { group_name: { $regex: search, $options: 'i' } },
-        { location_text: { $regex: search, $options: 'i' } },
-      ];
-    }
-
-    let groups;
-    let total;
-
-    // If latitude and longitude are provided, perform a geospatial search
-    
-    if (latitude && longitude) {
-      const lat = parseFloat(latitude);
-      const lon = parseFloat(longitude);
-
-      // Add a geospatial query condition using the '$near' operator
-      // This requires the 2dsphere index you already have in your Group model
-      query.location = {
-        $near: {
-          $geometry: {
-            type: "Point",
-            coordinates: [lon, lat] // MongoDB uses [longitude, latitude] format
-          },
-          // Optional: find groups within a 50 kilometer radius
-          $maxDistance: 50000 
+      try {
+        const geocodeUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(search)}&format=json&limit=1`;
+        const geocodeResponse = await axios.get(geocodeUrl, {
+          headers: { 'User-Agent': 'YogaApp/1.0' } // Nominatim requires a User-Agent
+        });
+        
+        if (geocodeResponse.data && geocodeResponse.data.length > 0) {
+          searchCoords = [
+            parseFloat(geocodeResponse.data[0].lon),
+            parseFloat(geocodeResponse.data[0].lat),
+          ];
         }
-      };
-      // When doing a geo search, Mongoose doesn't use other sort options
-      sortOptions = {}; 
+      } catch (e) {
+        console.error('Geocoding failed for search term:', search);
+        // If geocoding fails, we can fall back to a simple text search without location.
+        // Or, for now, we'll proceed without searchCoords.
+      }
     }
-    groups = await Group.find(query).populate('instructor_id', 'fullName').sort(sortOptions).limit(parseInt(limit)).skip((page - 1) * parseInt(limit)).lean();
-    total = await Group.countDocuments(query);
 
-    res.json({
-      success: true,
-      data: {
-        groups,
-        groups,
-        pagination: {
-          current: parseInt(page),
-          pages: Math.ceil(total / limit),
-          total,
+    // Priority 2: If no search term, use the user's provided coordinates.
+    if (!searchCoords && latitude && longitude) {
+      searchCoords = [parseFloat(longitude), parseFloat(latitude)];
+    }
+
+    // If we have coordinates, perform a geospatial query. Otherwise, do a simple text search.
+    if (searchCoords) {
+      // Use MongoDB's Aggregation Pipeline for geospatial queries with distance.
+      const pipeline = [
+        {
+          $geoNear: {
+            near: {
+              type: 'Point',
+              coordinates: searchCoords,
+            },
+            distanceField: 'distance', // This adds a 'distance' field (in meters) to each document
+            spherical: true,
+            maxDistance: 50000, // Optional: 50km radius
+          },
         },
-      },
-    });
+      ];
+      
+      // If there was a search term, add a match stage after geo-searching.
+      if (search) {
+        pipeline.push({
+          $match: {
+            $or: [
+              { group_name: { $regex: search, $options: 'i' } },
+              { location_text: { $regex: search, $options: 'i' } },
+            ],
+          },
+        });
+      }
+
+      // Add instructor population
+      pipeline.push({
+        $lookup: {
+          from: 'users', // The actual collection name for 'User' model
+          localField: 'instructor_id',
+          foreignField: '_id',
+          as: 'instructor_id'
+        }
+      }, {
+        $unwind: { // Deconstruct the instructor_id array
+          path: '$instructor_id',
+          preserveNullAndEmptyArrays: true // Keep groups even if instructor is not found
+        }
+      });
+
+      const paginatedPipeline = [
+        ...pipeline,
+        { $skip: (parseInt(page) - 1) * parseInt(limit) },
+        { $limit: parseInt(limit) }
+      ];
+
+      const countPipeline = [...pipeline, { $count: 'total' }];
+
+      const [groups, totalResult] = await Promise.all([
+        Group.aggregate(paginatedPipeline),
+        Group.aggregate(countPipeline),
+      ]);
+      
+      const total = totalResult.length > 0 ? totalResult[0].total : 0;
+      
+      res.json({
+        success: true,
+        data: {
+          groups,
+          pagination: {
+            current: parseInt(page),
+            pages: Math.ceil(total / limit),
+            total,
+          },
+        },
+      });
+
+    } else {
+      // Fallback to simple text search if no location data is available
+      let query = {};
+      if (search) {
+        query.$or = [
+          { group_name: { $regex: search, $options: 'i' } },
+          { location_text: { $regex: search, $options: 'i' } },
+        ];
+      }
+      const groups = await Group.find(query).populate('instructor_id', 'fullName').limit(parseInt(limit)).skip((page - 1) * parseInt(limit)).lean();
+      const total = await Group.countDocuments(query);
+      res.json({
+        success: true,
+        data: {
+          groups,
+          pagination: {
+            current: parseInt(page),
+            pages: Math.ceil(total / limit),
+            total,
+          },
+        },
+      });
+    }
+
   } catch (error) {
     console.error('Get groups error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch groups', error: error.message });
@@ -152,16 +227,18 @@ router.post('/', async (req, res) => {
       group_name,
       location: {
         type: 'Point',
-        coordinates: [parseFloat(longitude), parseFloat(latitude)] // [lon, lat]
+        coordinates: [parseFloat(longitude), parseFloat(latitude)], // [lon, lat]
       },
       location_text,
+      latitude: parseFloat(latitude), // <-- ADD THIS LINE
+      longitude: parseFloat(longitude), // <-- ADD THIS LINE
       timings_text,
       description,
       yoga_style,
       difficulty_level,
       session_duration: parseInt(session_duration) || 60,
       price_per_session: parseFloat(price_per_session) || 0,
-      max_participants: parseInt(max_participants) || 20
+      max_participants: parseInt(max_participants) || 20,
     };
     
     const group = new Group(groupData);
@@ -191,9 +268,20 @@ router.post('/', async (req, res) => {
 // Update group
 router.put('/:id', async (req, res) => {
   try {
+    const { latitude, longitude, ...otherDetails } = req.body;
+    const updateData = { ...otherDetails };
+
+    // If latitude and longitude are provided, construct the location object
+    if (latitude && longitude) {
+      updateData.location = {
+        type: 'Point',
+        coordinates: [parseFloat(longitude), parseFloat(latitude)],
+      };
+    }
+
     const group = await Group.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updateData, // Use the prepared updateData object
       { new: true, runValidators: true }
     ).populate('instructor_id', 'firstName lastName email');
 
@@ -211,6 +299,10 @@ router.put('/:id', async (req, res) => {
     });
   } catch (error) {
     console.error('Update group error:', error);
+    // Add specific validation error handling
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ success: false, message: 'Group validation failed', error: error.message });
+    }
     res.status(500).json({
       success: false,
       message: 'Failed to update group',
