@@ -407,7 +407,7 @@ class ApiService with ChangeNotifier {
         : [];
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
   }
-  Future<String> reverseGeocode({
+  Future<Map<String, String>> reverseGeocode({
     required double latitude,
     required double longitude,
   }) async {
@@ -420,6 +420,11 @@ class ApiService with ChangeNotifier {
     final res = await http.get(uri, headers: _authHeaders(optional: true));
     final data = _decode(res);
     _ensureOk(res, data);
-    return data['data']['address'] ?? 'Could not fetch address';
+    
+    // Return a map with both address and city
+    return {
+      'address': data['data']['address'] ?? 'Could not fetch address',
+      'city': data['data']['city'] ?? '',
+    };
   }
 }

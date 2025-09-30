@@ -21,6 +21,138 @@ class CreateGroupScreen extends StatefulWidget {
 
 class _CreateGroupScreenState extends State<CreateGroupScreen> {
   final _formKey = GlobalKey<FormState>();
+  int _currentStep = 0;
+
+  List<Step> _buildSteps() {
+    return [
+      Step(
+        title: const Text('Basic Info'),
+        content: Column(
+          children: [
+            TextFormField(
+              controller: _groupNameController,
+              decoration: const InputDecoration(labelText: 'Group Name *'),
+              validator: _validateGroupName,
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: _selectedYogaStyle,
+              decoration: const InputDecoration(labelText: 'Yoga Style'),
+              items: _yogaStyles.map((style) => DropdownMenuItem(value: style, child: Text(style.toUpperCase()))).toList(),
+              onChanged: (value) => setState(() => _selectedYogaStyle = value ?? 'hatha'),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: _selectedDifficultyLevel,
+              decoration: const InputDecoration(labelText: 'Difficulty Level'),
+              items: _difficultyLevels.map((level) => DropdownMenuItem(value: level, child: Text(level.toUpperCase()))).toList(),
+              onChanged: (value) => setState(() => _selectedDifficultyLevel = value ?? 'all-levels'),
+            ),
+          ],
+        ),
+        isActive: _currentStep >= 0,
+        state: _currentStep > 0 ? StepState.complete : StepState.indexed,
+      ),
+      Step(
+        title: const Text('Location'),
+        content: Column(
+          children: [
+            TextFormField(
+              controller: _locationController,
+              decoration: const InputDecoration(labelText: 'City *'),
+              validator: (v) => _validateRequired(v, 'City'),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _locationTextController,
+              decoration: const InputDecoration(labelText: 'Address *'),
+              validator: _validateLocationText,
+              maxLines: 2,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 50,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _fetchLocation,
+                      icon: const Icon(Icons.my_location),
+                      label: const Text('Use Current'),
+                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _isLoading ? null : _openMapPicker,
+                      icon: const Icon(Icons.map_outlined),
+                      label: const Text('Pick on Map'),
+                      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        isActive: _currentStep >= 1,
+        state: _currentStep > 1 ? StepState.complete : StepState.indexed,
+      ),
+      Step(
+        title: const Text('Schedule & Details'),
+        content: Column(
+          children: [
+             Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.access_time),
+                      label: Text(_startTime == null ? 'Start Time' : DateFormat('hh:mm a').format(DateTime(2020, 1, 1, _startTime!.hour, _startTime!.minute))),
+                      onPressed: _pickStartTime,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.access_time),
+                      label: Text(_endTime == null ? 'End Time' : DateFormat('hh:mm a').format(DateTime(2020, 1, 1, _endTime!.hour, _endTime!.minute))),
+                      onPressed: _pickEndTime,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _sessionDurationController,
+                decoration: const InputDecoration(labelText: 'Duration (minutes) *'),
+                validator: _validateSessionDuration,
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _maxParticipantsController,
+                decoration: const InputDecoration(labelText: 'Max Participants *'),
+                validator: _validateMaxParticipants,
+                keyboardType: TextInputType.number,
+              ),
+               const SizedBox(height: 16),
+               TextFormField(
+                controller: _priceController,
+                decoration: const InputDecoration(
+                  labelText: 'Price per Session *',
+                  prefixIcon: Icon(Icons.currency_rupee),
+                ),
+                validator: _validatePrice,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              ),
+          ],
+        ),
+        isActive: _currentStep >= 2,
+        state: _currentStep > 2 ? StepState.complete : StepState.indexed,
+      ),
+    ];
+  }
 
   final MapController _mapController = MapController();
   LatLng? _selectedLocation;
@@ -102,27 +234,31 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
     if (result != null) {
       setState(() {
-        _isLoading = true; // Show loading indicator
+        _isLoading = true;
         _selectedLocation = result;
         _latitudeController.text = result.latitude.toStringAsFixed(5);
         _longitudeController.text = result.longitude.toStringAsFixed(5);
       });
 
-      // Now, fetch the address for the newly picked point
       try {
         final apiService = Provider.of<ApiService>(context, listen: false);
-        final address = await apiService.reverseGeocode(
+        final locationData = await apiService.reverseGeocode(
           latitude: result.latitude,
           longitude: result.longitude,
         );
-        _locationTextController.text = address;
+        // **THIS IS THE FIX**
+        // Correctly use the map to populate both fields
+        setState(() {
+          _locationTextController.text = locationData['address'] ?? '';
+          _locationController.text = locationData['city'] ?? '';
+        });
       } catch (e) {
         if (mounted) {
           _showError('Could not fetch address for the selected point.');
         }
       } finally {
         if (mounted) {
-          setState(() => _isLoading = false); // Hide loading indicator
+          setState(() => _isLoading = false);
         }
       }
     }
@@ -342,12 +478,13 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     return null;
   }
 
-Future<void> _fetchLocation() async {
+  Future<void> _fetchLocation() async {
     setState(() => _isLoading = true);
     try {
-      // PERMISSION CHECKS
+      // 1. PERMISSION CHECKS
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) throw Exception('Location services are disabled.');
+
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -359,42 +496,40 @@ Future<void> _fetchLocation() async {
         throw Exception('Location permissions are permanently denied.');
       }
 
-      Position? position;
-
-      // PLATFORM-SPECIFIC LOGIC
+      // 2. GET LOCATION (Platform-Aware)
+      Position position;
       if (kIsWeb) {
-        // Web doesn't support getLastKnownPosition, so we go straight to the current position.
+        // On web, get current position directly.
         position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high,
         );
       } else {
-        // On mobile, use the fast getLastKnownPosition first.
+        // On mobile, try for a fast last-known position first.
         Position? lastKnown = await Geolocator.getLastKnownPosition();
         if (lastKnown != null) {
           position = lastKnown;
-          // Update UI instantly with the last known position
-          setState(() {
-            _latitudeController.text = position!.latitude.toStringAsFixed(5);
-            _longitudeController.text = position.longitude.toStringAsFixed(5);
-          });
+        } else {
+          // Fallback to current position if no last-known is available.
+          position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.medium, // Medium is faster
+          );
         }
-        // Then, get a fresh, high-accuracy position in the background.
-        position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-        );
       }
 
-      // Update the UI again with the final, most accurate data and fetch the address.
-      _latitudeController.text = position.latitude.toStringAsFixed(5);
-      _longitudeController.text = position.longitude.toStringAsFixed(5);
-      
+      // 3. REVERSE GEOCODE AND UPDATE UI
       final apiService = Provider.of<ApiService>(context, listen: false);
-      final address = await apiService.reverseGeocode(
+      final locationData = await apiService.reverseGeocode(
         latitude: position.latitude,
         longitude: position.longitude,
       );
-      _locationTextController.text = address;
-      
+
+      setState(() {
+        _latitudeController.text = position.latitude.toStringAsFixed(5);
+        _longitudeController.text = position.longitude.toStringAsFixed(5);
+        _locationTextController.text = locationData['address'] ?? '';
+        _locationController.text = locationData['city'] ?? '';
+      });
+
     } catch (e) {
       if (mounted) {
         _showError(e.toString().replaceFirst("Exception: ", ""));

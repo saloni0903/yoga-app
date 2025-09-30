@@ -462,6 +462,7 @@ router.delete('/:id/leave', async (req, res) => {
   }
 });
 // GET reverse geocode coordinates to an address
+// GET reverse geocode coordinates to an address
 router.get('/location/reverse-geocode', async (req, res) => {
   const { lat, lon } = req.query;
   if (!lat || !lon) {
@@ -469,13 +470,19 @@ router.get('/location/reverse-geocode', async (req, res) => {
   }
 
   try {
-    const reverseGeocodeUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+    const reverseGeocodeUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`;
     const response = await axios.get(reverseGeocodeUrl, {
-      headers: { 'User-Agent': 'YogaApp/1.0' } // Required by Nominatim
+      headers: { 'User-Agent': 'YogaApp/1.0' }
     });
 
-    const address = response.data.display_name || 'Unknown location';
-    res.json({ success: true, data: { address } });
+    const fullAddress = response.data.display_name || 'Unknown location';
+    const addressDetails = response.data.address;
+    
+    // Find the city from the address details, looking for 'city', 'town', or 'village'
+    const city = addressDetails.city || addressDetails.town || addressDetails.village || '';
+
+    res.json({ success: true, data: { address: fullAddress, city: city } });
+
   } catch (error) {
     console.error('Reverse geocoding error:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch address.' });

@@ -195,7 +195,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
       ),
       body: Column(
         children: [
-          // Search Bar
+          // --- SEARCH BAR ---
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: TextField(
@@ -210,13 +210,29 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
               onSubmitted: (_) => _searchGroups(),
             ),
           ),
-
-          // Loading Indicator
+          
+          // --- VIEW TOGGLE ---
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, icon: Icon(Icons.list), label: Text('List')),
+                ButtonSegment(value: true, icon: Icon(Icons.map), label: Text('Map')),
+              ],
+              selected: {_isMapView},
+              onSelectionChanged: (newSelection) {
+                setState(() {
+                  _isMapView = newSelection.first;
+                });
+              },
+            ),
+          ),
+          
           if (_isLoading) const LinearProgressIndicator(),
 
-          // Results List
+          // --- DYNAMIC VIEW (LIST OR MAP) ---
           Expanded(
-            child: _buildListView(),
+            child: _isMapView ? _buildMapView() : _buildListView(),
           ),
         ],
       ),
