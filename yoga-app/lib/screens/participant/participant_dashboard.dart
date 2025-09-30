@@ -1,6 +1,7 @@
 // lib/screens/participant/participant_dashboard.dart
 import 'package:flutter/material.dart';
 import 'package:yoga_app/screens/profile/profile_screen.dart';
+import 'package:yoga_app/screens/participant/dashboard_home_tab.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
 import 'find_group_screen.dart';
@@ -27,6 +28,7 @@ class _ParticipantDashboardState extends State<ParticipantDashboard> {
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = const [
+      DashboardHomeTab(), 
       MyGroupsScreen(),
       FindGroupScreen(),
       MyProgressScreen(),
@@ -55,23 +57,32 @@ class _ParticipantDashboardState extends State<ParticipantDashboard> {
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.groups_outlined),
-            label: 'My Groups',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            label: 'Discover',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined),
-            label: 'Progress',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            label: 'Profile',
-          ),
-        ],
+        NavigationDestination( // <-- New Home Destination
+          icon: Icon(Icons.home_outlined),
+          selectedIcon: Icon(Icons.home),
+          label: 'Home',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.groups_outlined),
+          selectedIcon: Icon(Icons.groups),
+          label: 'My Groups',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.explore_outlined),
+          selectedIcon: Icon(Icons.explore),
+          label: 'Discover',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.calendar_month_outlined),
+          selectedIcon: Icon(Icons.calendar_month),
+          label: 'Progress',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.person_outline),
+          selectedIcon: Icon(Icons.person),
+          label: 'Profile',
+        ),
+      ],
       ),
       body: pages[_index],
     );
