@@ -390,6 +390,7 @@ class ApiService with ChangeNotifier {
     String? instructorId,
     double? latitude,
     double? longitude,
+    required String languageCode,
   }) async {
     final uri = Uri.parse('$baseUrl/api/groups').replace(
       queryParameters: {
@@ -397,6 +398,7 @@ class ApiService with ChangeNotifier {
         if (instructorId != null && instructorId.isNotEmpty) 'instructor_id': instructorId,
         if (latitude != null) 'latitude': latitude.toString(),
         if (longitude != null) 'longitude': longitude.toString(),
+      'lang': languageCode,
       },
     );
     final res = await http.get(uri, headers: _authHeaders(optional: true));

@@ -1,6 +1,8 @@
 //  lib/screens/auth/login_screen.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:yoga_app/providers/language_provider.dart';
+import 'package:yoga_app/generated/app_localizations.dart';
 import 'package:provider/provider.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
@@ -100,6 +102,35 @@ class _LoginScreenState extends State<LoginScreen> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
+      appBar: AppBar(
+        actions: [
+          Consumer<LanguageProvider>(
+            builder: (context, provider, child) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: ToggleButtons(
+                  isSelected: [
+                    provider.locale.languageCode == 'en',
+                    provider.locale.languageCode == 'hi',
+                  ],
+                  onPressed: (index) {
+                    if (index == 0) {
+                      provider.setLocale(const Locale('en'));
+                    } else {
+                      provider.setLocale(const Locale('hi'));
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  children: const [
+                    Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('EN')),
+                    Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('HI')),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -121,7 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 20),
 
                   Text(
-                    'Welcome Back',
+                    AppLocalizations.of(context)!.welcomeBack,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.w700,
@@ -129,7 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Continue your yoga journey',
+                    AppLocalizations.of(context)!.loginScreenTitle,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.grey.shade700,

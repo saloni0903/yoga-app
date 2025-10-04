@@ -6,6 +6,8 @@ import '../../models/yoga_group.dart';
 import '../qr/qr_display_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:yoga_app/providers/language_provider.dart';
+import 'package:yoga_app/generated/app_localizations.dart';
 import '../../models/session_qr_code.dart';
 import '../profile/profile_screen.dart';
 // lib/screens/instructor/instructor_dashboard.dart
@@ -33,9 +35,11 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
   }
 
   void _loadGroups() {
+    final langProvider = Provider.of<LanguageProvider>(context, listen: false);
     setState(() {
       _groupsFuture = apiService.getGroups(
         instructorId: apiService.currentUser?.id,
+        languageCode: langProvider.locale.languageCode,
       );
     });
   }
@@ -57,7 +61,7 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
         if (currentUser.status != 'approved') {
           return Scaffold(
             appBar: AppBar(
-              title: const Text('Account Pending'),
+              title: Text(AppLocalizations.of(context)!.accountPending),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.logout),
@@ -79,13 +83,13 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'Status: ${currentUser.status.toUpperCase()}',
+                      '${AppLocalizations.of(context)!.status}: ${currentUser.status.toUpperCase()}',
                       style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Your instructor account is awaiting approval from the Aayush department. You will be able to create and manage groups once your account is approved.',
+                    Text(
+                      AppLocalizations.of(context)!.accountPendingMessage,
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 16, color: Colors.black54),
                     ),
@@ -99,7 +103,7 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
         // The rest of the dashboard for approved instructors.
         return Scaffold(
           appBar: AppBar(
-            title: const Text('My Groups'),
+          title: Text(AppLocalizations.of(context)!.myGroups),
             actions: [
               IconButton(
                 icon: const Icon(Icons.account_circle_outlined),
@@ -131,7 +135,7 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
           ),
           floatingActionButton: FloatingActionButton.extended(
             icon: const Icon(Icons.add),
-            label: const Text('New Group'),
+            label: Text(AppLocalizations.of(context)!.newGroupButton),
             onPressed: () async {
               final bool? groupWasCreated = await Navigator.push<bool>(
                 context,
@@ -153,8 +157,8 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
               }
               final groups = snapshot.data ?? [];
               if (groups.isEmpty) {
-                return const Center(
-                  child: Text('No groups found. Tap + to create one!'),
+                return Center(
+                  child: Text(AppLocalizations.of(context)!.noGroupsFound),
                 );
               }
               return RefreshIndicator(

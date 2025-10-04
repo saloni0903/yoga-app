@@ -1,0 +1,13 @@
+{
+  "welcomeBack": "Welcome Back",
+  "loginScreenTitle": "Continue your yoga journey",
+  "emailLabel": "Email",
+  "passwordLabel": "Password",
+  "loginButton": "Login",
+  "accountPending": "Account Pending",
+  "status": "Status",
+  "accountPendingMessage": "Your instructor account is awaiting approval from the Aayush department. You will be able to create and manage groups once your account is approved.",
+  "myGroups": "My Groups",
+  "newGroupButton": "New Group",
+  "noGroupsFound": "No groups found. Tap + to create one!"
+}

@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:yoga_app/generated/app_localizations.dart';
+import 'providers/language_provider.dart';
 import 'api_service.dart';
 import 'models/user.dart'; 
 import 'screens/auth/login_screen.dart';
@@ -15,14 +17,24 @@ Future<void> main() async {
   final apiService = ApiService();
   await apiService.tryAutoLogin();
 
-  runApp(ChangeNotifierProvider.value(value: apiService, child: const MyApp()));
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ApiService()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
+
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final languageProvider = Provider.of<LanguageProvider>(context);
     final seed = const Color(0xFF2E7D6E); // Calm green-teal for wellness
     final surfaceTint = const Color(0xFF204D45);
 
@@ -36,6 +48,9 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       title: 'YES Yoga App',
+      locale: languageProvider.locale,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.light,
       theme: base.copyWith(

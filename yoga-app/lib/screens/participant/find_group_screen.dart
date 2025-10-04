@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:yoga_app/providers/language_provider.dart';
 
 class FindGroupScreen extends StatefulWidget {
   const FindGroupScreen({super.key});
@@ -136,6 +137,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
   Future<void> _searchGroups() async {
     final query = _searchController.text.trim();
     final apiService = Provider.of<ApiService>(context, listen: false);
+    final langCode = Provider.of<LanguageProvider>(context, listen: false).locale.languageCode;
 
     FocusScope.of(context).unfocus();
     setState(() {
@@ -149,6 +151,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
         search: query,
         latitude: _currentPosition?.latitude,
         longitude: _currentPosition?.longitude,
+        languageCode: langCode,
       );
       if (mounted) setState(() => _groups = results);
     } catch (e) {
