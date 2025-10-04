@@ -7,6 +7,7 @@ import '../qr/qr_display_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/session_qr_code.dart';
+import '../profile/profile_screen.dart';
 // lib/screens/instructor/instructor_dashboard.dart
 
 
@@ -100,6 +101,16 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
           appBar: AppBar(
             title: const Text('My Groups'),
             actions: [
+              IconButton(
+                icon: const Icon(Icons.account_circle_outlined),
+                tooltip: 'My Profile',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                  );
+                },
+              ),
               IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: _loadGroups,

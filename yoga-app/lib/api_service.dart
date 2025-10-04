@@ -142,8 +142,9 @@ class ApiService with ChangeNotifier {
   }
   
   Future<User> updateMyProfile(Map<String, dynamic> profileData) async {
+    if (_currentUser == null) throw Exception('Not authenticated.');
     final res = await http.put(
-      Uri.parse('$baseUrl/api/auth/profile'),
+      Uri.parse('$baseUrl/api/users/${_currentUser!.id}'),
       headers: _authHeaders(),
       body: json.encode(profileData),
     );

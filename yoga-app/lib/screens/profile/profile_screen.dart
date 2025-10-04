@@ -13,34 +13,34 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  late Future<User> _userFuture;
-
+  
+  // Text editing controllers to manage the form fields
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _locationController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isEditing = false; // To toggle between view and edit mode
 
   @override
-  void initState() {
-    super.initState();
-    final apiService = Provider.of<ApiService>(context, listen: false);
-    _userFuture = apiService.getMyProfile();
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _phoneController.dispose();
+    _locationController.dispose();
+    super.dispose();
   }
-
-  bool _controllersPopulated = false;
-
+  
+  // Function to populate the form fields with user data
   void _populateControllers(User user) {
-    if (!_controllersPopulated) {
-      _firstNameController.text = user.firstName;
-      _lastNameController.text = user.lastName;
-      _phoneController.text = user.phone ?? '';
-      _locationController.text = user.location;
-      _controllersPopulated = true;
-    }
+    _firstNameController.text = user.firstName;
+    _lastNameController.text = user.lastName;
+    _phoneController.text = user.phone ?? '';
+    _locationController.text = user.location;
   }
-
+  
+  // Function to handle the profile update API call
   Future<void> _updateProfile() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
@@ -61,19 +61,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        // Instead of just populating controllers, refresh from API
-        setState(() {
-          _userFuture = apiService.getMyProfile();
-          _controllersPopulated = false;
-        });
+        // Turn off editing mode after saving
+        setState(() => _isEditing = false);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Update failed: ${e.toString().replaceFirst("Exception: ", "")}',
-            ),
+            content: Text('Update failed: ${e.toString().replaceFirst("Exception: ", "")}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -84,145 +79,121 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   @override
-  void dispose() {
-    _firstNameController.dispose();
-    _lastNameController.dispose();
-    _phoneController.dispose();
-    _locationController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final apiService = Provider.of<ApiService>(context, listen: false);
+    // We use a Consumer here so the UI updates if the profile changes
+    return Consumer<ApiService>(
+      builder: (context, apiService, child) {
+        final user = apiService.currentUser;
+        if (user == null) {
+          return const Scaffold(body: Center(child: Text('Not logged in.')));
+        }
+        
+        // Populate controllers with the latest user data
+        _populateControllers(user);
 
-    return Scaffold(
-      body: FutureBuilder<User>(
-        future: _userFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: Text('Could not load profile.'));
-          }
-
-          final user = snapshot.data!;
-          if (!_controllersPopulated) {
-            _populateControllers(user);
-          }
-
-          return SingleChildScrollView(
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('My Profile'),
+            actions: [
+              // Toggle between "Edit" and "Cancel" buttons
+              if (_isEditing)
+                TextButton(
+                  onPressed: () => setState(() => _isEditing = false),
+                  child: const Text('Cancel'),
+                )
+              else
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: 'Edit Profile',
+                  onPressed: () => setState(() => _isEditing = true),
+                ),
+            ],
+          ),
+          body: SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
             child: Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Hello,',
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  Text(
-                    user.fullName,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                  Center(
+                    child: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 50,
+                          backgroundColor: Colors.grey.shade200,
+                          child: Text(
+                            '${user.firstName[0]}${user.lastName[0]}',
+                            style: Theme.of(context).textTheme.headlineLarge,
+                          ),
+                        ),
+                        if (_isEditing)
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: CircleAvatar(
+                              radius: 18,
+                              backgroundColor: Theme.of(context).colorScheme.primary,
+                              child: IconButton(
+                                icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                                onPressed: () { /* TODO: Implement image picking */ },
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    user.email,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.grey.shade600,
-                    ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Text(user.fullName, style: Theme.of(context).textTheme.headlineSmall),
+                  ),
+                  Center(
+                    child: Text(user.email, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey.shade600)),
                   ),
                   const Divider(height: 40),
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _firstNameController,
-                          decoration: const InputDecoration(
-                            labelText: 'First Name',
-                          ),
-                          validator: (v) =>
-                              v!.isEmpty ? 'First name cannot be empty' : null,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _lastNameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Last Name',
-                          ),
-                          validator: (v) =>
-                              v!.isEmpty ? 'Last name cannot be empty' : null,
-                        ),
-                      ),
-                    ],
+                  TextFormField(
+                    controller: _firstNameController,
+                    enabled: _isEditing,
+                    decoration: const InputDecoration(labelText: 'First Name'),
+                    validator: (v) => v!.isEmpty ? 'First name is required' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _lastNameController,
+                    enabled: _isEditing,
+                    decoration: const InputDecoration(labelText: 'Last Name'),
+                     validator: (v) => v!.isEmpty ? 'Last name is required' : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _phoneController,
-                    decoration: const InputDecoration(labelText: 'Phone'),
+                    enabled: _isEditing,
+                    decoration: const InputDecoration(labelText: 'Phone Number'),
                     keyboardType: TextInputType.phone,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _locationController,
-                    decoration: const InputDecoration(
-                      labelText: 'City/Location',
-                    ),
-                    validator: (v) =>
-                        v!.isEmpty ? 'Location cannot be empty' : null,
+                    enabled: _isEditing,
+                    decoration: const InputDecoration(labelText: 'City/Location'),
+                    validator: (v) => v!.isEmpty ? 'Location is required' : null,
                   ),
                   const SizedBox(height: 32),
-                  FilledButton.icon(
-                    onPressed: _isLoading ? null : _updateProfile,
-                    icon: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save),
-                    label: Text(_isLoading ? 'Saving...' : 'Save Changes'),
-                  ),
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Logout'),
-                    onPressed: () {
-                      // This calls the logout method from the ApiService
-                      apiService.logout();
-                      if (mounted) {
-                        Navigator.of(
-                          context,
-                          rootNavigator: true,
-                        ).pushNamedAndRemoveUntil('/login', (route) => false);
-                      }
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.error,
-                      side: BorderSide(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.error.withOpacity(0.5),
-                      ),
-                      minimumSize: const Size.fromHeight(50),
+                  // Only show the Save button when in editing mode
+                  if (_isEditing)
+                    ElevatedButton.icon(
+                      onPressed: _isLoading ? null : _updateProfile,
+                      icon: _isLoading
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.save_alt_rounded),
+                      label: Text(_isLoading ? 'Saving...' : 'Save Changes'),
                     ),
-                  ),
                 ],
               ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
