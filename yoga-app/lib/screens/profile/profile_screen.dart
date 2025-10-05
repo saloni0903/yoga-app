@@ -1,8 +1,10 @@
-// lib/screens/profile/profile_screen.dart
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:yoga_app/screens/about_screen.dart';
+import 'package:yoga_app/screens/about_screen.dart';
+// lib/screens/profile/profile_screen.dart
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -188,6 +190,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           : const Icon(Icons.save_alt_rounded),
                       label: Text(_isLoading ? 'Saving...' : 'Save Changes'),
                     ),
+                  if (!_isEditing) ...[
+                    const Divider(height: 32),
+                    ListTile(
+                      leading: const Icon(Icons.info_outline),
+                      title: const Text('About App'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const AboutScreen()),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.red),
+                      title: const Text('Logout', style: TextStyle(color: Colors.red)),
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Confirm Logout'),
+                            content: const Text('Are you sure you want to log out?'),
+                            actions: [
+                              TextButton(
+                                child: const Text('Cancel'),
+                                onPressed: () => Navigator.of(ctx).pop(),
+                              ),
+                              FilledButton(
+                                child: const Text('Logout'),
+                                onPressed: () {
+                                  apiService.logout();
+                                  if (mounted) {
+                                    Navigator.of(context, rootNavigator: true)
+                                      .pushNamedAndRemoveUntil('/login', (route) => false);
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -197,3 +241,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
+
+                  
+                

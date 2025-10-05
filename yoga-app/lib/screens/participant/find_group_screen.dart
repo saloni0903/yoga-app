@@ -108,8 +108,8 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
     setState(() => _isLoading = true);
     try {
       _currentPosition = await Geolocator.getCurrentPosition();
-      // Optional: perform an initial search for nearby groups on load
-      // _searchGroups(); 
+      // Perform an initial search for nearby groups on load
+      _searchGroups(isInitialLoad: true); 
     } catch (e) {
       _showError(e.toString());
     } finally {
@@ -133,8 +133,10 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
     );
   }
 
-  Future<void> _searchGroups() async {
+  Future<void> _searchGroups({bool isInitialLoad = false}) async {
     final query = _searchController.text.trim();
+    // Allow search if it's the initial load, even with an empty query
+    if (query.isEmpty && !isInitialLoad) return;
     final apiService = Provider.of<ApiService>(context, listen: false);
 
     FocusScope.of(context).unfocus();
@@ -174,7 +176,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context, true); // Pop with a result to indicate success
+        // We do NOT navigate after joining. The user stays on the find screen.
       }
     } catch (e) {
       if (mounted) {
@@ -190,9 +192,9 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Find a Yoga Group'),
-      ),
+      // appBar: AppBar(
+      //   title: const Text('Find a Yoga Group'),
+      // ),
       body: Column(
         children: [
           // --- SEARCH BAR ---

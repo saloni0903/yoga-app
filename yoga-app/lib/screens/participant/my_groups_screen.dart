@@ -1,10 +1,12 @@
-// lib/screens/participant/my_groups_screen.dart
+import '../../api_service.dart';
+import 'group_detail_screen.dart';
+import '../../models/yoga_group.dart';
+import '../../utils/date_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart'; // Import for text formatting
-import '../../api_service.dart';
-import '../../models/yoga_group.dart';
-import 'group_detail_screen.dart';
+// lib/screens/participant/my_groups_screen.dart
+
 
 class MyGroupsScreen extends StatefulWidget {
   // ✅ FIX: No longer requires any parameters.
@@ -68,11 +70,12 @@ class MyGroupsScreenState extends State<MyGroupsScreen> {
               itemCount: groups.length,
               itemBuilder: (context, i) {
                 final g = groups[i];
-                // Helper to format text nicely (e.g., "hatha" -> "Hatha")
                 final formattedStyle = toBeginningOfSentenceCase(g.yogaStyle);
                 final formattedDifficulty = toBeginningOfSentenceCase(
                   g.difficultyLevel.replaceAll('-', ' '),
                 );
+
+                final nextSessionText = DateHelper.getNextSessionText(g.timingText);
 
                 return Card(
                   child: ListTile(
@@ -86,9 +89,19 @@ class MyGroupsScreenState extends State<MyGroupsScreen> {
                     ),
                     subtitle: Padding(
                       padding: const EdgeInsets.only(top: 4.0),
-                      child: Text(
-                        // ✅ FIX: Use the correct 'difficultyLevel' property.
-                        '${g.locationText}\n$formattedStyle • $formattedDifficulty',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('${g.locationText}\n$formattedStyle • $formattedDifficulty'),
+                          const SizedBox(height: 6),
+                          Text(
+                            nextSessionText,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     isThreeLine: true,

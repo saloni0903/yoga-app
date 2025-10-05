@@ -1,14 +1,15 @@
-// lib/main.dart
-
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'api_service.dart';
 import 'models/user.dart'; 
+import 'screens/splash_screen.dart';
+import 'package:flutter/material.dart';
+import 'screens/home/home_screen.dart';
+import 'package:provider/provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
-import 'screens/home/home_screen.dart';
-import 'screens/splash_screen.dart';
 import 'screens/profile/profile_screen.dart';
+import 'package:yoga_app/screens/qr/qr_scanner_screen.dart';
+// lib/main.dart
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -227,6 +228,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
+        '/qr-scanner': (context) => const QrScannerScreen(),
       },
     );
   }

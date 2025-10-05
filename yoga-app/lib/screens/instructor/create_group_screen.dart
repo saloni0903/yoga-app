@@ -22,6 +22,35 @@ class CreateGroupScreen extends StatefulWidget {
 class _CreateGroupScreenState extends State<CreateGroupScreen> {
   final _formKey = GlobalKey<FormState>();
   int _currentStep = 0;
+  DateTime? _startDate;
+  DateTime? _endDate;
+  String _repeatRule = 'weekly';
+
+  final List<String> _selectedDays = [];
+
+  // Text Controllers
+  final _groupNameController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _locationTextController = TextEditingController();
+  final _timingsController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _latitudeController = TextEditingController();
+  final _longitudeController = TextEditingController();
+  final _maxParticipantsController = TextEditingController();
+  final _sessionDurationController = TextEditingController();
+  final _priceController = TextEditingController();
+  final _currencyController = TextEditingController();
+  final _requirementsController = TextEditingController();
+  final _equipmentController = TextEditingController();
+
+  // Dropdown Values
+  String _selectedYogaStyle = 'hatha';
+  String _selectedDifficultyLevel = 'all-levels';
+  bool _isActive = true;
+  bool _isLoading = false;
+
+  TimeOfDay? _startTime;
+  TimeOfDay? _endTime;
 
   List<Step> _buildSteps() {
     return [
@@ -122,13 +151,13 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _sessionDurationController,
-                decoration: const InputDecoration(labelText: 'Duration (minutes) *'),
-                validator: _validateSessionDuration,
-                keyboardType: TextInputType.number,
-              ),
+              // const SizedBox(height: 16),
+              // TextFormField(
+              //   controller: _sessionDurationController,
+              //   decoration: const InputDecoration(labelText: 'Duration (minutes) *'),
+              //   validator: _validateSessionDuration,
+              //   keyboardType: TextInputType.number,
+              // ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _maxParticipantsController,
@@ -167,6 +196,29 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     );
   }
 
+  Future<void> _pickDate(bool isStartDate) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: (isStartDate ? _startDate : _endDate) ?? now,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365 * 2)), // Allow scheduling up to 2 years in advance
+    );
+
+    if (picked != null) {
+      setState(() {
+        if (isStartDate) {
+          _startDate = picked;
+          // Ensure end date is not before start date
+          if (_endDate != null && _endDate!.isBefore(_startDate!)) {
+            _endDate = _startDate;
+          }
+        } else {
+          _endDate = picked;
+        }
+      });
+    }
+  }
   Future<void> _openMapPicker() async {
     LatLng initialPoint = _selectedLocation ?? LatLng(
       double.tryParse(_latitudeController.text) ?? 22.7196,
@@ -264,30 +316,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     }
   }
 
-  // Text Controllers
-  final _groupNameController = TextEditingController();
-  final _locationController = TextEditingController();
-  final _locationTextController = TextEditingController();
-  final _timingsController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final _latitudeController = TextEditingController();
-  final _longitudeController = TextEditingController();
-  final _maxParticipantsController = TextEditingController();
-  final _sessionDurationController = TextEditingController();
-  final _priceController = TextEditingController();
-  final _currencyController = TextEditingController();
-  final _requirementsController = TextEditingController();
-  final _equipmentController = TextEditingController();
-
-  // Dropdown Values
-  String _selectedYogaStyle = 'hatha';
-  String _selectedDifficultyLevel = 'all-levels';
-  bool _isActive = true;
-  bool _isLoading = false;
-
-  TimeOfDay? _startTime;
-  TimeOfDay? _endTime;
-
   Future<void> _pickStartTime() async {
     final picked = await showTimePicker(
       context: context,
@@ -311,15 +339,22 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   }
 
   void _updateTimingsField() {
-    if (_startTime != null && _endTime != null) {
-      final formatter = DateFormat('hh:mm a');
-      final start = formatter.format(
-        DateTime(2020, 1, 1, _startTime!.hour, _startTime!.minute),
-      );
-      final end = formatter.format(
-        DateTime(2020, 1, 1, _endTime!.hour, _endTime!.minute),
-      );
-      _timingsController.text = '$start - $end';
+    // This will now build a string like "Mon, Wed, Fri at 7:00 AM"
+    if (_startTime != null && _selectedDays.isNotEmpty) {
+      // Sort the days to a consistent order (Mon, Tue, Wed...)
+      const dayOrder = {"Mon": 1, "Tue": 2, "Wed": 3, "Thu": 4, "Fri": 5, "Sat": 6, "Sun": 7};
+      _selectedDays.sort((a, b) => dayOrder[a]!.compareTo(dayOrder[b]!));
+
+      final daysString = _selectedDays.join(', ');
+      final timeString = DateFormat('h:mm a').format(DateTime(2020, 1, 1, _startTime!.hour, _startTime!.minute));
+      
+      setState(() {
+        _timingsController.text = '$daysString at $timeString';
+      });
+    } else {
+      setState(() {
+         _timingsController.text = '';
+      });
     }
   }
 
@@ -366,7 +401,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       _timingsController.text = existing.timingText;
       _descriptionController.text = existing.description ?? '';
       _maxParticipantsController.text = existing.maxParticipants.toString();
-      _sessionDurationController.text = existing.sessionDuration.toString();
+      // _sessionDurationController.text = existing.sessionDuration.toString();
       _priceController.text = existing.pricePerSession.toString();
       _currencyController.text = existing.currency ?? 'INR';
       _selectedYogaStyle = existing.yogaStyle;
@@ -379,7 +414,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     } else {
       // Create mode - set defaults
       _maxParticipantsController.text = '20';
-      _sessionDurationController.text = '60';
+      // _sessionDurationController.text = '60';
       _priceController.text = '0';
       _currencyController.text = 'INR';
       _latitudeController.text = '22.7196'; // Default to Indore
@@ -539,6 +574,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     }
   }
 
+  // lib/screens/instructor/create_group_screen.dart
+
   Future<void> _saveGroup() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
@@ -546,32 +583,32 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     final currentUser = apiService.currentUser;
 
     if (currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error: Not logged in.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError('Error: Not logged in.');
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
+      // --- Automatically calculate duration in minutes ---
+      int durationInMinutes = 0;
+      if (_startTime != null && _endTime != null) {
+        final startDateTime = DateTime(2025, 1, 1, _startTime!.hour, _startTime!.minute);
+        final endDateTime = DateTime(2025, 1, 1, _endTime!.hour, _endTime!.minute);
+        durationInMinutes = endDateTime.difference(startDateTime).inMinutes;
+        if (durationInMinutes <= 0) {
+          throw Exception('End time must be after start time.');
+        }
+      } else {
+        throw Exception('Start and End times are required.');
+      }
+
       final requirements = _requirementsController.text.trim().isNotEmpty
-          ? _requirementsController.text
-                .split(',')
-                .map((e) => e.trim())
-                .where((e) => e.isNotEmpty)
-                .toList()
+          ? _requirementsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
           : <String>[];
 
       final equipment = _equipmentController.text.trim().isNotEmpty
-          ? _equipmentController.text
-                .split(',')
-                .map((e) => e.trim())
-                .where((e) => e.isNotEmpty)
-                .toList()
+          ? _equipmentController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
           : <String>[];
 
       if (widget.existingGroup == null) {
@@ -587,18 +624,16 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           maxParticipants: int.parse(_maxParticipantsController.text.trim()),
           yogaStyle: _selectedYogaStyle,
           difficultyLevel: _selectedDifficultyLevel,
-          sessionDuration: int.parse(_sessionDurationController.text.trim()),
+          sessionDuration: durationInMinutes, // Use calculated duration
           pricePerSession: double.parse(_priceController.text.trim()),
           currency: _currencyController.text.trim(),
           requirements: requirements,
           equipmentNeeded: equipment,
           isActive: _isActive,
-          // FIX: Use the non-nullable currentUser.id
           instructorId: currentUser.id,
         );
       } else {
         // --- UPDATE AN EXISTING GROUP ---
-        // FIX: Use the 'apiService' variable, not 'widget.api'
         await apiService.updateGroup(
           id: widget.existingGroup!.id,
           groupName: _groupNameController.text.trim(),
@@ -611,7 +646,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           maxParticipants: int.parse(_maxParticipantsController.text.trim()),
           yogaStyle: _selectedYogaStyle,
           difficultyLevel: _selectedDifficultyLevel,
-          sessionDuration: int.parse(_sessionDurationController.text.trim()),
+          sessionDuration: durationInMinutes, // Use calculated duration
           pricePerSession: double.parse(_priceController.text.trim()),
           currency: _currencyController.text.trim(),
           requirements: requirements,
@@ -623,25 +658,13 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            widget.existingGroup == null
-                ? 'Group created successfully!'
-                : 'Group updated successfully!',
-          ),
+          content: Text(widget.existingGroup == null ? 'Group created successfully!' : 'Group updated successfully!'),
           backgroundColor: Colors.green,
         ),
       );
       Navigator.pop(context, true);
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Save failed: ${e.toString().replaceFirst('Exception: ', '')}',
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) _showError('Save failed: ${e.toString().replaceFirst('Exception: ', '')}');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -657,7 +680,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     _latitudeController.dispose();
     _longitudeController.dispose();
     _maxParticipantsController.dispose();
-    _sessionDurationController.dispose();
+    // _sessionDurationController.dispose();
     _priceController.dispose();
     _currencyController.dispose();
     _requirementsController.dispose();
@@ -786,10 +809,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(
-                            Icons.schedule,
-                            color: theme.colorScheme.primary,
-                          ),
+                          Icon(Icons.schedule, color: theme.colorScheme.primary),
                           const SizedBox(width: 8),
                           Text(
                             'Schedule & Duration',
@@ -800,80 +820,79 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-
-                      // Start/End Time Pickers
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              icon: Icon(Icons.access_time),
-                              label: Text(
-                                _startTime == null
-                                    ? 'Start Time'
-                                    : DateFormat('hh:mm a').format(
-                                        DateTime(
-                                          2020,
-                                          1,
-                                          1,
-                                          _startTime!.hour,
-                                          _startTime!.minute,
-                                        ),
-                                      ),
-                              ),
-                              onPressed: _pickStartTime,
+                      const Text('Select Class Days *',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8.0,
+                        runSpacing: 4.0,
+                        children: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) {
+                          final isSelected = _selectedDays.contains(day);
+                          return FilterChip(
+                            label: Text(day),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  _selectedDays.add(day);
+                                } else {
+                                  _selectedDays.remove(day);
+                                }
+                                _updateTimingsField();
+                              });
+                            },
+                            selectedColor: theme.colorScheme.primary,
+                            labelStyle: TextStyle(
+                              color: isSelected ? theme.colorScheme.onPrimary : null,
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              icon: Icon(Icons.access_time),
-                              label: Text(
-                                _endTime == null
-                                    ? 'End Time'
-                                    : DateFormat('hh:mm a').format(
-                                        DateTime(
-                                          2020,
-                                          1,
-                                          1,
-                                          _endTime!.hour,
-                                          _endTime!.minute,
-                                        ),
-                                      ),
-                              ),
-                              onPressed: _pickEndTime,
-                            ),
-                          ),
-                        ],
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text('Select Class Time *',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(50),
+                          backgroundColor: theme.colorScheme.secondaryContainer,
+                          foregroundColor: theme.colorScheme.onSecondaryContainer,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.access_time),
+                        label: Text(
+                          _startTime == null
+                              ? 'Select a Start Time'
+                              : 'Starts at ${DateFormat('h:mm a').format(DateTime(2020, 1, 1, _startTime!.hour, _startTime!.minute))}',
+                        ),
+                        onPressed: _pickStartTime,
                       ),
                       const SizedBox(height: 12),
-
                       TextFormField(
                         controller: _timingsController,
                         decoration: const InputDecoration(
-                          labelText: 'Class Timings *',
-                          helperText: 'e.g., "06:30 AM - 07:30 AM"',
-                          prefixIcon: Icon(Icons.access_time),
+                          labelText: 'Generated Schedule *',
+                          helperText: 'Auto-generated from your selections',
+                          prefixIcon: Icon(Icons.event_repeat),
                         ),
-                        validator: _validateTimings,
                         readOnly: true,
+                        validator: (v) => _validateRequired(v, 'Schedule'),
                       ),
                       const SizedBox(height: 16),
-
-                      // Session Duration and Max Participants Row
                       Row(
                         children: [
                           Expanded(
                             child: TextFormField(
-                              controller: _sessionDurationController,
+                              // controller: _sessionDurationController,
                               decoration: const InputDecoration(
                                 labelText: 'Duration (minutes) *',
-                                helperText: '15-180 min',
                                 prefixIcon: Icon(Icons.timer),
                               ),
-                              validator: _validateSessionDuration,
+                              // validator: _validateSessionDuration,
                               keyboardType: TextInputType.number,
                               inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly,
+                                FilteringTextInputFormatter.digitsOnly
                               ],
                             ),
                           ),
@@ -883,13 +902,12 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                               controller: _maxParticipantsController,
                               decoration: const InputDecoration(
                                 labelText: 'Max Participants *',
-                                helperText: '1-100',
                                 prefixIcon: Icon(Icons.people),
                               ),
                               validator: _validateMaxParticipants,
                               keyboardType: TextInputType.number,
                               inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly,
+                                FilteringTextInputFormatter.digitsOnly
                               ],
                             ),
                           ),
