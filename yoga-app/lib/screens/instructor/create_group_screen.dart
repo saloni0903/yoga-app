@@ -24,6 +24,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   int _currentStep = 0;
   DateTime? _startDate;
   DateTime? _endDate;
+  TimeOfDay? _startTime;
+  TimeOfDay? _endTime;
+  String _recurrenceRule = 'NONE';
   String _repeatRule = 'weekly';
 
   final List<String> _selectedDays = [];
@@ -48,9 +51,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   String _selectedDifficultyLevel = 'all-levels';
   bool _isActive = true;
   bool _isLoading = false;
-
-  TimeOfDay? _startTime;
-  TimeOfDay? _endTime;
 
   List<Step> _buildSteps() {
     return [
@@ -340,16 +340,17 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
   void _updateTimingsField() {
     // This will now build a string like "Mon, Wed, Fri at 7:00 AM"
-    if (_startTime != null && _selectedDays.isNotEmpty) {
+    if (_startTime != null && _endTime != null && _selectedDays.isNotEmpty) {
       // Sort the days to a consistent order (Mon, Tue, Wed...)
       const dayOrder = {"Mon": 1, "Tue": 2, "Wed": 3, "Thu": 4, "Fri": 5, "Sat": 6, "Sun": 7};
       _selectedDays.sort((a, b) => dayOrder[a]!.compareTo(dayOrder[b]!));
 
       final daysString = _selectedDays.join(', ');
-      final timeString = DateFormat('h:mm a').format(DateTime(2020, 1, 1, _startTime!.hour, _startTime!.minute));
-      
+      final startTimeString = DateFormat('h:mm a').format(DateTime(2020, 1, 1, _startTime!.hour, _startTime!.minute));
+      final endTimeString = DateFormat('h:mm a').format(DateTime(2020, 1, 1, _endTime!.hour, _endTime!.minute));
+
       setState(() {
-        _timingsController.text = '$daysString at $timeString';
+        _timingsController.text = '$daysString from $startTimeString to $endTimeString';
       });
     } else {
       setState(() {
@@ -411,6 +412,24 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       _equipmentController.text = (existing.equipmentNeeded ?? []).join(', ');
       _latitudeController.text = existing.latitude?.toString() ?? '';
       _longitudeController.text = existing.longitude?.toString() ?? '';
+      _recurrenceRule = existing.schedule.recurrence;
+      
+      _startTime = TimeOfDay(
+        hour: int.parse(existing.schedule.startTime.split(':')[0]),
+        minute: int.parse(existing.schedule.startTime.split(':')[1]),
+      );
+      _endTime = TimeOfDay(
+        hour: int.parse(existing.schedule.endTime.split(':')[0]),
+        minute: int.parse(existing.schedule.endTime.split(':')[1]),
+      );
+      _startDate = existing.schedule.startDate;
+      _endDate = existing.schedule.endDate;
+      
+      // Map full day names from backend to short day names for UI
+      const dayMap = {"Monday": "Mon", "Tuesday": "Tue", "Wednesday": "Wed", "Thursday": "Thu", "Friday": "Fri", "Saturday": "Sat", "Sunday": "Sun"};
+      _selectedDays.addAll(existing.schedule.days.map((day) => dayMap[day]!));
+
+
     } else {
       // Create mode - set defaults
       _maxParticipantsController.text = '20';
@@ -574,101 +593,125 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     }
   }
 
-  // lib/screens/instructor/create_group_screen.dart
+ Future<void> _saveGroup() async {
+  if (!(_formKey.currentState?.validate() ?? false)) return;
 
-  Future<void> _saveGroup() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+  if (_startTime == null || _endTime == null || _startDate == null || _endDate == null || _selectedDays.isEmpty) {
+    _showError('Please complete all schedule fields: days, times, and date range.');
+    return;
+  }
+  if (_endDate!.isBefore(_startDate!)) {
+    _showError('End date cannot be before the start date.');
+    return;
+  }
+
+  setState(() => _isLoading = true);
+
+  try {
+    // Automatically calculate duration in minutes
+    final startDateTime = DateTime(2025, 1, 1, _startTime!.hour, _startTime!.minute);
+    final endDateTime = DateTime(2025, 1, 1, _endTime!.hour, _endTime!.minute);
+    int durationInMinutes = endDateTime.difference(startDateTime).inMinutes;
+    if (durationInMinutes <= 0) {
+      durationInMinutes += 1440; // Add 24 hours for overnight sessions
+    }
+
+    // Map short day names back to full names for the backend
+    const dayMap = {"Mon": "Monday", "Tue": "Tuesday", "Wed": "Wednesday", "Thu": "Thursday", "Fri": "Friday", "Sat": "Saturday", "Sun": "Sunday"};
+    final fullDayNames = _selectedDays.map((day) => dayMap[day]!).toList();
+
+    // CONSTRUCT THE SCHEDULE OBJECT
+    final scheduleObject = Schedule(
+      startTime: '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}',
+      endTime: '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}',
+      days: fullDayNames,
+      startDate: _startDate!,
+      endDate: _endDate!,
+      recurrence: _recurrenceRule,
+    );
 
     final apiService = Provider.of<ApiService>(context, listen: false);
-    final currentUser = apiService.currentUser;
 
-    if (currentUser == null) {
-      _showError('Error: Not logged in.');
-      return;
-    }
+    // Common data from controllers
+    final commonData = {
+      'groupName': _groupNameController.text.trim(),
+      'location': _locationController.text.trim(),
+      'locationText': _locationTextController.text.trim(),
+      'latitude': double.parse(_latitudeController.text.trim()),
+      'longitude': double.parse(_longitudeController.text.trim()),
+      'description': _descriptionController.text.trim(),
+      'maxParticipants': int.parse(_maxParticipantsController.text.trim()),
+      'yogaStyle': _selectedYogaStyle,
+      'difficultyLevel': _selectedDifficultyLevel,
+      'sessionDuration': durationInMinutes,
+      'pricePerSession': double.parse(_priceController.text.trim()),
+      'currency': _currencyController.text.trim(),
+      'requirements': _requirementsController.text.trim().split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
+      'equipmentNeeded': _equipmentController.text.trim().split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
+      'isActive': _isActive,
+    };
 
-    setState(() => _isLoading = true);
-
-    try {
-      // --- Automatically calculate duration in minutes ---
-      int durationInMinutes = 0;
-      if (_startTime != null && _endTime != null) {
-        final startDateTime = DateTime(2025, 1, 1, _startTime!.hour, _startTime!.minute);
-        final endDateTime = DateTime(2025, 1, 1, _endTime!.hour, _endTime!.minute);
-        durationInMinutes = endDateTime.difference(startDateTime).inMinutes;
-        if (durationInMinutes <= 0) {
-          throw Exception('End time must be after start time.');
-        }
-      } else {
-        throw Exception('Start and End times are required.');
-      }
-
-      final requirements = _requirementsController.text.trim().isNotEmpty
-          ? _requirementsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
-          : <String>[];
-
-      final equipment = _equipmentController.text.trim().isNotEmpty
-          ? _equipmentController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList()
-          : <String>[];
-
-      if (widget.existingGroup == null) {
-        // --- CREATE A NEW GROUP ---
-        await apiService.createGroup(
-          groupName: _groupNameController.text.trim(),
-          location: _locationController.text.trim(),
-          locationText: _locationTextController.text.trim(),
-          latitude: double.parse(_latitudeController.text.trim()),
-          longitude: double.parse(_longitudeController.text.trim()),
-          timingsText: _timingsController.text.trim(),
-          description: _descriptionController.text.trim(),
-          maxParticipants: int.parse(_maxParticipantsController.text.trim()),
-          yogaStyle: _selectedYogaStyle,
-          difficultyLevel: _selectedDifficultyLevel,
-          sessionDuration: durationInMinutes, // Use calculated duration
-          pricePerSession: double.parse(_priceController.text.trim()),
-          currency: _currencyController.text.trim(),
-          requirements: requirements,
-          equipmentNeeded: equipment,
-          isActive: _isActive,
-          instructorId: currentUser.id,
-        );
-      } else {
-        // --- UPDATE AN EXISTING GROUP ---
-        await apiService.updateGroup(
-          id: widget.existingGroup!.id,
-          groupName: _groupNameController.text.trim(),
-          location: _locationController.text.trim(),
-          locationText: _locationTextController.text.trim(),
-          latitude: double.parse(_latitudeController.text.trim()),
-          longitude: double.parse(_longitudeController.text.trim()),
-          timingsText: _timingsController.text.trim(),
-          description: _descriptionController.text.trim(),
-          maxParticipants: int.parse(_maxParticipantsController.text.trim()),
-          yogaStyle: _selectedYogaStyle,
-          difficultyLevel: _selectedDifficultyLevel,
-          sessionDuration: durationInMinutes, // Use calculated duration
-          pricePerSession: double.parse(_priceController.text.trim()),
-          currency: _currencyController.text.trim(),
-          requirements: requirements,
-          equipmentNeeded: equipment,
-          isActive: _isActive,
-        );
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(widget.existingGroup == null ? 'Group created successfully!' : 'Group updated successfully!'),
-          backgroundColor: Colors.green,
-        ),
+    if (widget.existingGroup == null) {
+      // --- CREATE A NEW GROUP ---
+      // Pass the scheduleObject directly here, along with other data
+      await apiService.createGroup(
+        schedule: scheduleObject, // <-- FIX: Pass the object directly
+        // Pass the rest of the data
+        groupName: commonData['groupName'] as String,
+        location: commonData['location'] as String,
+        locationText: commonData['locationText'] as String,
+        latitude: commonData['latitude'] as double,
+        longitude: commonData['longitude'] as double,
+        description: commonData['description'] as String,
+        maxParticipants: commonData['maxParticipants'] as int,
+        yogaStyle: commonData['yogaStyle'] as String,
+        difficultyLevel: commonData['difficultyLevel'] as String,
+        sessionDuration: commonData['sessionDuration'] as int,
+        pricePerSession: commonData['pricePerSession'] as double,
+        currency: commonData['currency'] as String,
+        requirements: commonData['requirements'] as List<String>,
+        equipmentNeeded: commonData['equipmentNeeded'] as List<String>,
+        isActive: commonData['isActive'] as bool,
       );
-      Navigator.pop(context, true);
-    } catch (e) {
-      if (mounted) _showError('Save failed: ${e.toString().replaceFirst('Exception: ', '')}');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    } else {
+      // --- UPDATE AN EXISTING GROUP ---
+      // Pass the scheduleObject directly here too
+      await apiService.updateGroup(
+        id: widget.existingGroup!.id,
+        schedule: scheduleObject, // <-- FIX: Pass the object directly
+        // Pass the rest of the data
+        groupName: commonData['groupName'] as String,
+        location: commonData['location'] as String,
+        locationText: commonData['locationText'] as String,
+        latitude: commonData['latitude'] as double,
+        longitude: commonData['longitude'] as double,
+        description: commonData['description'] as String,
+        maxParticipants: commonData['maxParticipants'] as int,
+        yogaStyle: commonData['yogaStyle'] as String,
+        difficultyLevel: commonData['difficultyLevel'] as String,
+        sessionDuration: commonData['sessionDuration'] as int,
+        pricePerSession: commonData['pricePerSession'] as double,
+        currency: commonData['currency'] as String,
+        requirements: commonData['requirements'] as List<String>,
+        equipmentNeeded: commonData['equipmentNeeded'] as List<String>,
+        isActive: commonData['isActive'] as bool,
+      );
     }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(widget.existingGroup == null ? 'Group created successfully!' : 'Group updated successfully!'),
+        backgroundColor: Colors.green,
+      ),
+    );
+    Navigator.pop(context, true);
+  } catch (e) {
+    if (mounted) _showError('Save failed: ${e.toString().replaceFirst('Exception: ', '')}');
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
   }
+}
 
   @override
   void dispose() {
@@ -848,6 +891,43 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                           );
                         }).toList(),
                       ),
+
+                      const SizedBox(height: 20),
+                      const Text('Select Class Date Range *',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: theme.colorScheme.secondaryContainer,
+                                foregroundColor: theme.colorScheme.onSecondaryContainer,
+                              ),
+                              icon: const Icon(Icons.calendar_today),
+                              label: Text(_startDate == null
+                                  ? 'Start Date'
+                                  : DateFormat('dd MMM yyyy').format(_startDate!)),
+                              onPressed: () => _pickDate(true), // For Start Date
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: theme.colorScheme.secondaryContainer,
+                                foregroundColor: theme.colorScheme.onSecondaryContainer,
+                              ),
+                              icon: const Icon(Icons.event),
+                              label: Text(_endDate == null
+                                  ? 'End Date'
+                                  : DateFormat('dd MMM yyyy').format(_endDate!)),
+                              onPressed: () => _pickDate(false), // For End Date
+                            ),
+                          ),
+                        ],
+                      ),
+        
                       const SizedBox(height: 20),
                       const Text('Select Class Time *',
                           style: TextStyle(fontWeight: FontWeight.bold)),
@@ -867,6 +947,23 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                               : 'Starts at ${DateFormat('h:mm a').format(DateTime(2020, 1, 1, _startTime!.hour, _startTime!.minute))}',
                         ),
                         onPressed: _pickStartTime,
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(50),
+                          backgroundColor: theme.colorScheme.secondaryContainer,
+                          foregroundColor: theme.colorScheme.onSecondaryContainer,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.access_time),
+                        label: Text(
+                          _endTime == null
+                              ? 'Select an End Time'
+                              : 'Ends at ${DateFormat('h:mm a').format(DateTime(2020, 1, 1, _endTime!.hour, _endTime!.minute))}',
+                        ),
+                        onPressed: _pickEndTime,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(

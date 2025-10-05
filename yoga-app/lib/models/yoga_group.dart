@@ -1,4 +1,45 @@
+import 'package:intl/intl.dart';
 // lib/models/yoga_group.dart
+
+class Schedule {
+  final String startTime; // "HH:mm"
+  final String endTime;   // "HH:mm"
+  final List<String> days; // ["Monday", "Friday"]
+  final DateTime startDate;
+  final DateTime endDate;
+  final String recurrence;
+
+  Schedule({
+    required this.startTime,
+    required this.endTime,
+    required this.days,
+    required this.startDate,
+    required this.endDate,
+    required this.recurrence,
+  });
+
+  factory Schedule.fromJson(Map<String, dynamic> j) {
+    return Schedule(
+      startTime: j['startTime'] ?? '00:00',
+      endTime: j['endTime'] ?? '00:00',
+      days: List<String>.from(j['days'] ?? []),
+      startDate: DateTime.tryParse(j['startDate'] ?? '') ?? DateTime.now(),
+      endDate: DateTime.tryParse(j['endDate'] ?? '') ?? DateTime.now(),
+      recurrence: j['recurrence'] ?? 'NONE',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'startTime': startTime,
+      'endTime': endTime,
+      'days': days,
+      'startDate': startDate.toIso8601String(),
+      'endDate': endDate.toIso8601String(),
+      'recurrence': recurrence,
+    };
+  }
+}
 
 class YogaGroup {
   final String id;
@@ -7,7 +48,24 @@ class YogaGroup {
   final String locationText;
   final double? latitude;
   final double? longitude;
-  final String timingText;
+  final Schedule schedule;
+  // ✨ NEW: A getter to create a user-friendly timing string from the schedule.
+  // This solves all the 'timingText' errors across the app.
+  String get timingText {
+    if (schedule.days.isEmpty || schedule.startTime.isEmpty) {
+      return 'No schedule set';
+    }
+    // Sort the days to a consistent order (Mon, Tue, Wed...)
+    const dayOrder = {"Monday": 1, "Tuesday": 2, "Wednesday": 3, "Thursday": 4, "Friday": 5, "Saturday": 6, "Sunday": 7};
+    final sortedDays = List<String>.from(schedule.days)..sort((a, b) => dayOrder[a]!.compareTo(dayOrder[b]!));
+    
+    final shortDays = sortedDays.map((d) => d.substring(0, 3)).join(', ');
+    
+    final startTime = DateFormat('h:mm a').format(DateTime.parse('2025-01-01T${schedule.startTime}:00'));
+    
+    return '$shortDays at $startTime';
+  }
+  
   final String yogaStyle;
   final String difficultyLevel;
   final bool isActive;
@@ -20,7 +78,6 @@ class YogaGroup {
   final List<String> equipmentNeeded;
   final int? memberCount;
   final String instructorId;
-  // ✅ ADDED: Fields to store populated instructor details.
   final String? instructorName;
   final String? instructorEmail;
   final double? distance;
@@ -33,7 +90,7 @@ class YogaGroup {
     required this.locationText,
     this.latitude,
     this.longitude,
-    required this.timingText,
+    required this.schedule,
     required this.yogaStyle,
     required this.difficultyLevel,
     required this.isActive,
@@ -46,7 +103,6 @@ class YogaGroup {
     this.equipmentNeeded = const [],
     this.memberCount,
     required this.instructorId,
-    // ✅ ADDED: To constructor.
     this.instructorName,
     this.instructorEmail,
   });
@@ -54,34 +110,30 @@ class YogaGroup {
   factory YogaGroup.fromJson(Map<String, dynamic> j) {
     String? tempInstructorName;
     String? tempInstructorEmail;
-
-    // ✅ FIXED: This helper now extracts the full instructor details when available.
     String getInstructorId(dynamic instructorField) {
       if (instructorField is Map) {
-        // When the backend populates the instructor, it's an object.
         tempInstructorName =
             '${instructorField['firstName'] ?? ''} ${instructorField['lastName'] ?? ''}'
                 .trim();
         tempInstructorEmail = instructorField['email']?.toString();
         return instructorField['_id']?.toString() ?? '';
       }
-      // Otherwise, it's just a string ID.
       return instructorField?.toString() ?? '';
     }
 
     return YogaGroup(
       id: (j['_id'] ?? j['id'] ?? '').toString(),
       name: (j['group_name'] ?? '').toString(),
-      location: (j['location'] ?? '').toString(),
+      location: (j['location'] is Map ? (j['location']['coordinates']?.toString() ?? '') : (j['location'] ?? '')).toString(),
       locationText: (j['location_text'] ?? '').toString(),
       latitude: (j['latitude'] as num?)?.toDouble(),
       longitude: (j['longitude'] as num?)?.toDouble(),
-      timingText: (j['timings_text'] ?? '').toString(),
+      schedule: Schedule.fromJson(j['schedule'] ?? {}),
       yogaStyle: (j['yoga_style'] ?? 'hatha').toString(),
       difficultyLevel: (j['difficulty_level'] ?? 'all-levels').toString(),
       isActive: (j['is_active'] ?? true) == true,
       description: j['description']?.toString(),
-      distance: (j['distance'] as num?)?.toDouble(), 
+      distance: (j['distance'] as num?)?.toDouble(),
       maxParticipants: (j['max_participants'] ?? 20) as int,
       sessionDuration: (j['session_duration'] ?? 60) as int,
       pricePerSession: ((j['price_per_session'] ?? 0) as num).toDouble(),
@@ -90,7 +142,6 @@ class YogaGroup {
       equipmentNeeded: List<String>.from(j['equipment_needed'] ?? []),
       instructorId: getInstructorId(j['instructor_id']),
       memberCount: j['memberCount'] as int?,
-      // ✅ ADDED: Assign the extracted details.
       instructorName: tempInstructorName,
       instructorEmail: tempInstructorEmail,
     );
