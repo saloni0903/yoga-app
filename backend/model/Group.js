@@ -48,12 +48,6 @@ const groupSchema = new mongoose.Schema({
     min: -180,
     max: 180,
   },
-  timings_text: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 200,
-  },
   is_active: {
     type: Boolean,
     default: true,
@@ -110,6 +104,21 @@ const groupSchema = new mongoose.Schema({
   updated_at: {
     type: Date,
     default: Date.now,
+  },
+  schedule: {
+    type: {
+      startTime: { type: String, required: true },
+      endTime: { type: String, required: true },
+      days: { 
+        type: [String], 
+        required: true, 
+        enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] 
+      },
+      startDate: { type: Date, required: true },
+      endDate: { type: Date, required: true },
+      recurrence: { type: String, default: 'NONE' }, // ✅ ADD THIS LINE
+    },
+    required: false,
   },
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },

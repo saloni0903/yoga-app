@@ -1,15 +1,13 @@
-import '../../api_service.dart';
+import 'package:intl/intl.dart'; 
 import 'group_detail_screen.dart';
 import '../../models/yoga_group.dart';
 import '../../utils/date_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart'; // Import for text formatting
+import '../../api_service.dart'; // Make sure this is correctly imported
 // lib/screens/participant/my_groups_screen.dart
 
-
 class MyGroupsScreen extends StatefulWidget {
-  // ✅ FIX: No longer requires any parameters.
   const MyGroupsScreen({super.key});
 
   @override
@@ -22,26 +20,24 @@ class MyGroupsScreenState extends State<MyGroupsScreen> {
   @override
   void initState() {
     super.initState();
-    loadMyGroups();
-  }
-
-  void loadMyGroups() {
-    // ✅ FIX: Get the ApiService from the Provider.
-    final apiService = Provider.of<ApiService>(context, listen: false);
-    setState(() {
-      // ✅ FIX: Call the correct method to get ONLY joined groups.
-      _myGroupsFuture = apiService.getMyJoinedGroups();
+    // Use addPostFrameCallback to ensure context is available for Provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      loadMyGroups();
     });
   }
 
+  void loadMyGroups() {
+    final apiService = Provider.of<ApiService>(context, listen: false);
+    setState(() {
+      _myGroupsFuture = apiService.getMyJoinedGroups();
+    });
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // The AppBar is now managed by the parent ParticipantDashboard.
       body: FutureBuilder<List<YogaGroup>>(
         future: _myGroupsFuture,
         builder: (context, snapshot) {
-          // 1. Loading State management
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -75,7 +71,7 @@ class MyGroupsScreenState extends State<MyGroupsScreen> {
                   g.difficultyLevel.replaceAll('-', ' '),
                 );
 
-                final nextSessionText = DateHelper.getNextSessionText(g.timingText);
+                final nextSessionText = DateHelper.getNextSessionTextFromSchedule(g.schedule);
 
                 return Card(
                   child: ListTile(
@@ -92,7 +88,7 @@ class MyGroupsScreenState extends State<MyGroupsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('${g.locationText}\n$formattedStyle • $formattedDifficulty'),
+                          Text('${g.locationText}\n${g.timingText}'),
                           const SizedBox(height: 6),
                           Text(
                             nextSessionText,

@@ -197,29 +197,34 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create new group
-router.post('/', async (req, res) => {
+// ADD THIS NEW VERSION
+router.post('/', auth, async (req, res) => { // Added auth middleware
   try {
     const {
       group_name,
-      location,
       location_text,
       latitude,
       longitude,
-      timings_text,
+      schedule, // <-- MODIFIED: expecting schedule object
       description,
       yoga_style,
       difficulty_level,
       session_duration,
       price_per_session,
       max_participants,
-      instructor_id
+      // instructor_id is now taken from auth token
     } = req.body;
 
+    const instructor_id = req.user.id; // Get instructor from auth token
+
     if (!instructor_id) {
-      return res.status(400).json({ success: false, message: 'instructor_id is required' });
+      return res.status(400).json({ success: false, message: 'Instructor ID is required and you must be logged in.' });
     }
     if (!latitude || !longitude) {
-      return res.status(400).json({ success: false, message: 'latitude and longitude are required' });
+      return res.status(400).json({ success: false, message: 'Latitude and longitude are required' });
+    }
+    if (!schedule || !schedule.startTime || !schedule.days || !schedule.startDate) {
+        return res.status(400).json({ success: false, message: 'A valid schedule object is required.' });
     }
 
     const groupData = {
@@ -227,12 +232,12 @@ router.post('/', async (req, res) => {
       group_name,
       location: {
         type: 'Point',
-        coordinates: [parseFloat(longitude), parseFloat(latitude)], // [lon, lat]
+        coordinates: [parseFloat(longitude), parseFloat(latitude)],
       },
       location_text,
-      latitude: parseFloat(latitude), // <-- ADD THIS LINE
-      longitude: parseFloat(longitude), // <-- ADD THIS LINE
-      timings_text,
+      latitude: parseFloat(latitude),
+      longitude: parseFloat(longitude),
+      schedule,
       description,
       yoga_style,
       difficulty_level,
@@ -251,7 +256,6 @@ router.post('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Create group error:', error);
-    // Provide a more helpful error message for validation failures
     if (error.name === 'ValidationError') {
       return res.status(400).json({ success: false, message: 'Group validation failed', error: error.message });
     }
@@ -266,9 +270,9 @@ router.post('/', async (req, res) => {
 // All other routes (PUT, DELETE, /join, etc.) remain the same.
 // ... (paste the rest of your original groups.js file here) ...
 // Update group
-router.put('/:id', async (req, res) => {
+router.put('/:id', auth, async (req, res) => { // Added auth middleware
   try {
-    const { latitude, longitude, ...otherDetails } = req.body;
+    const { latitude, longitude, schedule, ...otherDetails } = req.body;
     const updateData = { ...otherDetails };
 
     // If latitude and longitude are provided, construct the location object
@@ -277,11 +281,16 @@ router.put('/:id', async (req, res) => {
         type: 'Point',
         coordinates: [parseFloat(longitude), parseFloat(latitude)],
       };
+      updateData.latitude = parseFloat(latitude);
+      updateData.longitude = parseFloat(longitude);
+    }
+    if (schedule) {
+        updateData.schedule = schedule;
     }
 
     const group = await Group.findByIdAndUpdate(
       req.params.id,
-      updateData, // Use the prepared updateData object
+      { $set: updateData }, // Use $set for safer updates
       { new: true, runValidators: true }
     ).populate('instructor_id', 'firstName lastName email');
 
@@ -308,6 +317,47 @@ router.put('/:id', async (req, res) => {
       message: 'Failed to update group',
       error: error.message
     });
+  }
+});
+
+// ADD THIS NEW ROUTE
+router.get('/:id/sessions', async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.id);
+
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+    if (!group.schedule || !group.schedule.startDate || !group.schedule.endDate || !group.schedule.days) {
+      return res.status(400).json({ success: false, message: 'Group does not have a valid schedule.' });
+    }
+
+    const { startDate, endDate, days, startTime } = group.schedule;
+    const sessions = [];
+    
+    const dayNameToNum = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
+    const scheduledDays = days.map(d => dayNameToNum[d]);
+    
+    let currentDate = new Date(startDate);
+    const finalDate = new Date(endDate);
+    
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+
+    while (currentDate <= finalDate) {
+      if (scheduledDays.includes(currentDate.getDay())) {
+        const sessionDate = new Date(currentDate);
+        // Set the time from the schedule, preserving the date's timezone offset
+        sessionDate.setHours(startHour, startMinute, 0, 0);
+        sessions.push(sessionDate.toISOString());
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    res.json({ success: true, data: { sessions } });
+
+  } catch (error) {
+    console.error('Get sessions error:', error);
+    res.status(500).json({ success: false, message: 'Failed to calculate sessions', error: error.message });
   }
 });
 

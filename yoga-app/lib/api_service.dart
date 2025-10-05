@@ -209,15 +209,15 @@ class ApiService with ChangeNotifier {
     required String locationText,
     required double latitude,
     required double longitude,
-    required String timingsText,
-    required String instructorId,
+    required Schedule schedule,
+    // required String instructorId,
     String? description,
     int maxParticipants = 20,
     String yogaStyle = 'hatha',
     String difficultyLevel = 'all-levels',
     int sessionDuration = 60,
     double pricePerSession = 0,
-    String currency = 'RUPEE',
+    String currency = 'INR',
     List<String> requirements = const [],
     List<String> equipmentNeeded = const [],
     bool isActive = true,
@@ -231,8 +231,8 @@ class ApiService with ChangeNotifier {
         'location_text': locationText,
         'latitude': latitude,
         'longitude': longitude,
-        'timings_text': timingsText,
-        'instructor_id': instructorId,
+        'schedule': schedule.toJson(),
+        // 'instructor_id': instructorId,
         'description': description,
         'max_participants': maxParticipants,
         'yoga_style': yogaStyle,
@@ -256,7 +256,7 @@ class ApiService with ChangeNotifier {
     String? locationText,
     double? latitude,
     double? longitude,
-    String? timingsText,
+    Schedule? schedule,
     String? description,
     int? maxParticipants,
     String? yogaStyle,
@@ -276,7 +276,7 @@ class ApiService with ChangeNotifier {
     if (locationText != null) body['location_text'] = locationText;
     if (latitude != null) body['latitude'] = latitude;
     if (longitude != null) body['longitude'] = longitude;
-    if (timingsText != null) body['timings_text'] = timingsText;
+    if (schedule != null) body['schedule'] = schedule.toJson;
     if (description != null) body['description'] = description;
     if (maxParticipants != null) body['max_participants'] = maxParticipants;
     if (yogaStyle != null) body['yoga_style'] = yogaStyle;
