@@ -4,7 +4,7 @@ require('dotenv').config();
 
 const connectDB = async () => {
   try {
-    const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/yoga_app';
+    const mongoURI = process.env.MONGODB_URI;
     
     // Connection options
     const options = {
