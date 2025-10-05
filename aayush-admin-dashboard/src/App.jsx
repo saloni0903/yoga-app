@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LogOut, Users, BarChart3, Calendar, TrendingUp } from 'lucide-react';
 
-const API_URL = 'http://localhost:3000';
+const API_URL = 'https://yoga-app-7drp.onrender.com';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);

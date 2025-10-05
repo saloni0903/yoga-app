@@ -10,17 +10,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 // lib/api_service.dart
 
 class ApiService with ChangeNotifier {
-  String baseURL() {
-    if (kIsWeb) {
-      return 'http://localhost:3000'; // Web uses localhost directly
-    } else {
-      // Mobile platforms need to use the local network IP address of the machine running the backend.
-      // Replace with your machine's local IP address.
-      return 'http://10.104.65.41:3000';
-    }
-  }
+  // Local dev
+  // String baseURL() {
+  //   if (kIsWeb) {
+  //     return 'http://localhost:3000'; // Web uses localhost directly
+  //   } else {
+  //     // Mobile platforms need to use the local network IP address of the machine running the backend.
+  //     // Replace with your machine's local IP address.
+  //     return 'http://10.104.65.41:3000';
+  //   }
+  // }
 
-  String get baseUrl => baseURL();
+  // Deployed
+  String get baseUrl => 'https://yoga-app-7drp.onrender.com';
 
   String? _token;
   User? _currentUser;
@@ -276,7 +278,7 @@ class ApiService with ChangeNotifier {
     if (locationText != null) body['location_text'] = locationText;
     if (latitude != null) body['latitude'] = latitude;
     if (longitude != null) body['longitude'] = longitude;
-    if (schedule != null) body['schedule'] = schedule.toJson;
+    if (schedule != null) body['schedule'] = schedule.toJson();
     if (description != null) body['description'] = description;
     if (maxParticipants != null) body['max_participants'] = maxParticipants;
     if (yogaStyle != null) body['yoga_style'] = yogaStyle;

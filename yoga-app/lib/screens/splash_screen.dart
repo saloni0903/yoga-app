@@ -1,10 +1,10 @@
-// lib/screens/splash_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:yoga_app/api_service.dart';
-import 'package:yoga_app/screens/auth/login_screen.dart';
 import 'package:yoga_app/screens/home/home_screen.dart';
+import 'package:yoga_app/screens/auth/login_screen.dart';
+// lib/screens/splash_screen.dart
+
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -53,7 +53,7 @@ class _SplashScreenState extends State<SplashScreen> {
     return Scaffold(
       body: Center(
         child: Image.asset(
-          'assets/logo.png', // Path to your logo
+          'assets/images/logo.png', // Path to your logo
           width: 150, // Adjust size as needed
         ),
       ),

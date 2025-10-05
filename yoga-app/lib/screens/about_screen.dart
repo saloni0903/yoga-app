@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:package_info_plus/package_info_plus.dart'; // Add this package to pubspec.yaml
-// lib/screens/about_screen.dart
-
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -10,41 +7,106 @@ class AboutScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('About Yoga App'),
+        title: const Text('About YES'),
+        backgroundColor: Colors.white,
+        elevation: 1,
+        foregroundColor: Colors.black87,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Icon(Icons.spa, size: 80, color: Colors.teal),
-            const SizedBox(height: 20),
-            Text(
-              'Yoga Connect',
-              style: Theme.of(context).textTheme.headlineMedium,
+            // Spacer to push content from the top
+            const Spacer(flex: 2),
+
+            // App Logo
+            Image.asset(
+              'assets/images/logo.png', // Make sure this is your correct filename
+              height: 100,
             ),
-            const SizedBox(height: 10),
-            FutureBuilder<PackageInfo>(
-              future: PackageInfo.fromPlatform(),
-              builder: (context, snapshot) {
-                if (snapshot.hasData) {
-                  return Text(
-                    'Version: ${snapshot.data!.version}',
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-            const Divider(height: 40),
+            const SizedBox(height: 16),
+
+            // App Name & Version
             const Text(
-              'Your go-to application for discovering and joining local yoga groups. Mark your attendance, track your progress, and stay connected with your yoga community.',
+              'YES (Yoga Essentials and Suryanamaskar)',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, height: 1.5),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
             ),
-            const Spacer(),
-            const Text('© 2025 Your Company Name'),
-            const SizedBox(height: 20),
+            const SizedBox(height: 4),
+
+            // App Description
+            const Text(
+              'An initiative by the Ministry of Ayush to make the practice of yoga more accessible. This platform connects certified instructors with enthusiasts, fostering a community dedicated to wellness.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                height: 1.5,
+                color: Colors.black54,
+              ),
+            ),
+
+            // Spacer to push the footer to the bottom
+            const Spacer(flex: 3),
+          
+            
+            // Collaboration Logos (Smaller)
+            const Text(
+              'In Collaboration With',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset(
+                  'assets/images/ayush_logo.jpg', // Ensure filename is correct
+                  height: 45, // Smaller logo
+                ),
+                const SizedBox(width: 24),
+                Image.asset(
+                  'assets/images/sgsits.png', // Ensure filename is correct
+                  height: 45, // Smaller logo
+                ),
+              ],
+            ),
+            const Divider(height: 32),
+
+            // "Developed By" section at the absolute bottom
+            const Text(
+              'Developed By',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'The students of SGSITS, Indore',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Version 1.0.0', // Updated version
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),

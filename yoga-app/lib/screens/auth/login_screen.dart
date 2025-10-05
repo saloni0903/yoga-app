@@ -1,11 +1,11 @@
-//  lib/screens/auth/login_screen.dart
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'register_screen.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
 import '../home/home_screen.dart';
-import 'register_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter/foundation.dart';
+//  lib/screens/auth/login_screen.dart
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -113,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Align(
                     alignment: Alignment.center,
                     child: Image.asset(
-                      'assets/logo.png', // Path to your logo
+                      'assets/images/logo.png', // Path to your logo
                       width: 150, // Adjust the width as needed
                       height: 150, // Adjust the height as needed, or remove to maintain aspect ratio
                     ),

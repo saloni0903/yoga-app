@@ -1,9 +1,9 @@
-// lib/screens/auth/register_screen.dart
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import '../../api_service.dart';
 import '../home/home_screen.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/foundation.dart';
+// lib/screens/auth/register_screen.dart
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -128,7 +128,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Align(
                     alignment: Alignment.center,
                     child: Image.asset(
-                      'assets/logo.png', // Path to your logo
+                      'assets/images/logo.png', // Path to your logo
                       width: 100,        // You can adjust the size
                       height: 100,       // You can adjust the size
                     ),

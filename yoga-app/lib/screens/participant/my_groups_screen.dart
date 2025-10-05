@@ -20,16 +20,14 @@ class MyGroupsScreenState extends State<MyGroupsScreen> {
   @override
   void initState() {
     super.initState();
-    // Use addPostFrameCallback to ensure context is available for Provider
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      loadMyGroups();
-    });
+    // Start the API call immediately and directly.
+    _myGroupsFuture = Provider.of<ApiService>(context, listen: false).getMyJoinedGroups();
   }
 
+  // This function is now only used for the pull-to-refresh action.
   void loadMyGroups() {
-    final apiService = Provider.of<ApiService>(context, listen: false);
     setState(() {
-      _myGroupsFuture = apiService.getMyJoinedGroups();
+      _myGroupsFuture = Provider.of<ApiService>(context, listen: false).getMyJoinedGroups();
     });
   }
   @override
