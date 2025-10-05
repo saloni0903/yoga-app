@@ -69,7 +69,7 @@ class _ParticipantDashboardState extends State<ParticipantDashboard> {
                 );
               },
               child: CircleAvatar(
-                backgroundColor: Colors.grey.shade200,
+                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                 child: Text(
                   (widget.user.firstName.isNotEmpty)
                       ? widget.user.firstName[0].toUpperCase()

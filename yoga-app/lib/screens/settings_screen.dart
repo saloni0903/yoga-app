@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:yoga_app/api_service.dart';
+import 'package:yoga_app/theme_provider.dart';
 import 'package:yoga_app/screens/about_screen.dart';
 import 'package:yoga_app/screens/profile/profile_screen.dart';
+
+
 // lib/screens/settings/settings_screen.dart
 
 
@@ -12,6 +15,7 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final apiService = Provider.of<ApiService>(context, listen: false);
+    final themeProvider = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
       body: ListView(
@@ -31,9 +35,9 @@ class SettingsScreen extends StatelessWidget {
             leading: const Icon(Icons.dark_mode_outlined),
             title: const Text('Dark Mode'),
             trailing: Switch(
-              value: true, // This is a dummy value for now
+              value: themeProvider.themeMode == ThemeMode.dark,
               onChanged: (value) {
-                // TODO: Implement theme switching logic
+                themeProvider.toggleTheme(value);
               },
             ),
           ),

@@ -123,7 +123,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       children: [
                         CircleAvatar(
                           radius: 50,
-                          backgroundColor: Colors.grey.shade200,
+                          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                           child: Text(
                             '${user.firstName[0]}${user.lastName[0]}',
                             style: Theme.of(context).textTheme.headlineLarge,
