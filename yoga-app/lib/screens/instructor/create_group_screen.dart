@@ -340,16 +340,17 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
   void _updateTimingsField() {
     // This will now build a string like "Mon, Wed, Fri at 7:00 AM"
-    if (_startTime != null && _selectedDays.isNotEmpty) {
+    if (_startTime != null && _endTime != null && _selectedDays.isNotEmpty) {
       // Sort the days to a consistent order (Mon, Tue, Wed...)
       const dayOrder = {"Mon": 1, "Tue": 2, "Wed": 3, "Thu": 4, "Fri": 5, "Sat": 6, "Sun": 7};
       _selectedDays.sort((a, b) => dayOrder[a]!.compareTo(dayOrder[b]!));
 
       final daysString = _selectedDays.join(', ');
-      final timeString = DateFormat('h:mm a').format(DateTime(2020, 1, 1, _startTime!.hour, _startTime!.minute));
-      
+      final startTimeString = DateFormat('h:mm a').format(DateTime(2020, 1, 1, _startTime!.hour, _startTime!.minute));
+      final endTimeString = DateFormat('h:mm a').format(DateTime(2020, 1, 1, _endTime!.hour, _endTime!.minute));
+
       setState(() {
-        _timingsController.text = '$daysString at $timeString';
+        _timingsController.text = '$daysString from $startTimeString to $endTimeString';
       });
     } else {
       setState(() {
@@ -669,6 +670,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+  
 
   @override
   void dispose() {
@@ -867,6 +869,23 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                               : 'Starts at ${DateFormat('h:mm a').format(DateTime(2020, 1, 1, _startTime!.hour, _startTime!.minute))}',
                         ),
                         onPressed: _pickStartTime,
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(50),
+                          backgroundColor: theme.colorScheme.secondaryContainer,
+                          foregroundColor: theme.colorScheme.onSecondaryContainer,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: const Icon(Icons.access_time),
+                        label: Text(
+                          _endTime == null
+                              ? 'Select an End Time'
+                              : 'Ends at ${DateFormat('h:mm a').format(DateTime(2020, 1, 1, _endTime!.hour, _endTime!.minute))}',
+                        ),
+                        onPressed: _pickEndTime,
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
