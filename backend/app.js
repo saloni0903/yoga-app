@@ -33,6 +33,10 @@ app.get('/health', (req, res) => {
   });
 });
 
+app.get('/', (req, res) => {
+  res.json({ success: true, message: 'Yoga backend running!', environment: process.env.NODE_ENV || 'development' });
+});
+
 // API routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
