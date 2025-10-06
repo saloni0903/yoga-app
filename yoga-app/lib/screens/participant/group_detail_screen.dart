@@ -355,7 +355,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     ),
                     title: Text(DateFormat.yMMMMd().format(record.sessionDate)),
                     subtitle: Text(
-                      'Status: ${toBeginningOfSentenceCase(record.type)}',
+                      'Status: ${toBeginningOfSentenceCase(record.attendanceType)}',
                     ),
                   );
                 },

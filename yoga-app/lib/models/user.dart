@@ -10,6 +10,9 @@ class User {
   final String? token;
   // ✅ ADDED: The status field is now included.
   final String status;
+  final int totalMinutesPracticed;
+  final int totalSessionsAttended;
+  final int currentStreak;
 
   String get fullName => '$firstName $lastName'.trim();
 
@@ -24,6 +27,9 @@ class User {
     this.token,
     // ✅ ADDED: To the constructor.
     required this.status,
+    required this.totalMinutesPracticed,
+    required this.totalSessionsAttended,
+    required this.currentStreak,
   });
 
   factory User.fromMemberJson(Map<String, dynamic> json) {
@@ -46,6 +52,9 @@ class User {
       phone: phone,
       token: '', // Member lists don't include tokens
       status: status,
+      totalMinutesPracticed: 0, // Default value
+      totalSessionsAttended: 0, // Default value
+      currentStreak: 0,
     );
   }
 
@@ -62,6 +71,9 @@ class User {
       token: json['token'] as String?,
       // ✅ ADDED: Parse the status from the JSON, with a safe default.
       status: userJson['status'] ?? 'approved',
+      totalMinutesPracticed: userJson['totalMinutesPracticed'] ?? 0, // Default value
+      totalSessionsAttended: userJson['totalSessionsAttended'] ?? 0, // Default value
+      currentStreak: userJson['currentStreak'] ?? 0,
     );
   }
 
@@ -76,6 +88,9 @@ class User {
       phone: userJson['phone'] as String?,
       // ✅ ADDED: Parse the status from the JSON.
       status: userJson['status'] ?? 'approved',
+      totalMinutesPracticed: userJson['totalMinutesPracticed'] ?? 0,
+      totalSessionsAttended: userJson['totalSessionsAttended'] ?? 0,
+      currentStreak: userJson['currentStreak'] ?? 0,
     );
   }
 
@@ -90,6 +105,9 @@ class User {
     String? token,
     // ✅ ADDED: To the copyWith method.
     String? status,
+    int? totalMinutesPracticed,
+    int? totalSessionsAttended,
+    int? currentStreak,
   }) {
     return User(
       id: id ?? this.id,
@@ -101,6 +119,9 @@ class User {
       phone: phone ?? this.phone,
       token: token ?? this.token,
       status: status ?? this.status,
+      totalMinutesPracticed: totalMinutesPracticed ?? this.totalMinutesPracticed,
+      totalSessionsAttended: totalSessionsAttended ?? this.totalSessionsAttended,
+      currentStreak: currentStreak ?? this.currentStreak,
     );
   }
 }

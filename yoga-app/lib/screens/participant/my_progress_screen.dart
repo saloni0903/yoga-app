@@ -57,6 +57,18 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
               if (user != null) _buildProfileHeader(user, apiService),
               const SizedBox(height: 24),
               _buildCalendar(context, attendanceRecords),
+              const SizedBox(height: 16), // Adds some space below the calendar
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.circle, color: Colors.green[400], size: 12),
+                  const SizedBox(width: 8),
+                  Text(
+                    'A green dot signifies a day with marked attendance.',
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                ],
+              ),
             ],
           );
         },
