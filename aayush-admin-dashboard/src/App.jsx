@@ -1,5 +1,13 @@
 import { useState, useEffect } from 'react';
-import { LogOut, Users, BarChart3, Calendar, TrendingUp } from 'lucide-react';
+import { 
+  LogOut, 
+  Users, 
+  BarChart3, 
+  Calendar, 
+  TrendingUp, 
+  Eye, 
+  EyeOff 
+} from 'lucide-react';
 
 const API_URL = 'https://yoga-app-7drp.onrender.com';
 
@@ -8,6 +16,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [stats, setStats] = useState({
     totalParticipants: 0,
@@ -155,8 +164,8 @@ export default function App() {
               <div className="inline-block p-3 bg-teal-100 rounded-full mb-4">
                 <Users className="w-8 h-8 text-teal-600" />
               </div>
-              <h1 className="text-3xl font-bold text-gray-800 mb-2">Aayush Admin</h1>
-              <p className="text-gray-500">Yoga Platform Management</p>
+              <h1 className="text-3xl font-bold text-gray-800 mb-2">YES</h1>
+              <p className="text-gray-500">Yoga Platform</p>
             </div>
             
             <div>
@@ -174,19 +183,34 @@ export default function App() {
                 />
               </div>
               
-              <div className="mb-6">
+              {/* Password with toggle */}
+              <div className="mb-6 relative">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Password
                 </label>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'} // 👈 toggle logic
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleLogin(e)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition pr-10"
                   required
                   disabled={loading}
                 />
+
+                {/* 👁️ Toggle Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-12 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
               </div>
               
               <button
@@ -194,7 +218,7 @@ export default function App() {
                 disabled={loading}
                 className="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Logging in...' : 'Login to Dashboard'}
+                {loading ? 'Logging in...' : 'Login'}
               </button>
             </div>
             
@@ -217,7 +241,7 @@ export default function App() {
             <div className="p-2 bg-teal-100 rounded-lg">
               <Users className="w-6 h-6 text-teal-600" />
             </div>
-            <h2 className="text-xl font-bold text-gray-800">Aayush Admin</h2>
+            <h2 className="text-xl font-bold text-gray-800">YES</h2>
           </div>
         </div>
         

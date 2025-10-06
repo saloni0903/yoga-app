@@ -1,7 +1,7 @@
 // hooks/useInstructors.js
 import { useState, useEffect } from 'react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = 'https://yoga-app-7drp.onrender.com';
 
 export function useInstructors() {
   const [instructors, setInstructors] = useState([]);
