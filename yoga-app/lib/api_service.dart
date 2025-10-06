@@ -27,6 +27,8 @@ class ApiService with ChangeNotifier {
   String? _token;
   User? _currentUser;
 
+  List<AttendanceRecord> recentAttendance = [];
+
   String? get token => _token;
   User? get currentUser => _currentUser;
   bool get isAuthenticated => _token != null && _currentUser != null;
@@ -62,6 +64,45 @@ class ApiService with ChangeNotifier {
     return listJson.map((e) => AttendanceRecord.fromJson(e)).toList();
   }
 
+  Future<void> fetchDashboardData() async {
+    if (_currentUser == null) return; // Don't fetch if not logged in
+
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/api/dashboard'),
+        headers: _authHeaders(),
+      );
+
+      final data = _decode(res);
+      _ensureOk(res, data);
+
+      final dashboardData = data['data'];
+      final statsData = dashboardData['stats'] as Map<String, dynamic>?;
+      final attendanceList = dashboardData['recentAttendance'] as List?;
+
+      if (statsData != null) {
+        // Update the existing currentUser with new stats from the dashboard
+        _currentUser = _currentUser?.copyWith(
+          totalMinutesPracticed: statsData['totalMinutesPracticed'],
+          totalSessionsAttended: statsData['totalSessionsAttended'],
+          currentStreak: statsData['currentStreak'],
+        );
+      }
+
+      if (attendanceList != null) {
+        // Store the recent attendance history
+        recentAttendance = attendanceList.map((e) => AttendanceRecord.fromJson(e)).toList();
+      }
+
+      // Notify all widgets listening to ApiService that data has changed
+      notifyListeners();
+
+    } catch (e) {
+      print('Failed to fetch dashboard data: $e');
+      // Optionally re-throw or handle the error
+    }
+  }
+
   Future<bool> tryAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
     final storedToken = prefs.getString('token');
@@ -75,6 +116,7 @@ class ApiService with ChangeNotifier {
       final user = await getMyProfile();
       // If successful, the user is fully authenticated.
       _currentUser = user;
+      await fetchDashboardData();
       notifyListeners();
       return true;
     } catch (e) {
@@ -95,7 +137,9 @@ class ApiService with ChangeNotifier {
 
     final user = User.fromAuthJson(data['data']);
     await _setAuth(user.token, user);
-    return user;
+    await fetchDashboardData(); // Fetch dashboard data after manual login
+    return _currentUser!;
+    // return user;
   }
 
   /// ✅ FIXED: Logout now correctly clears state and notifies listeners.
