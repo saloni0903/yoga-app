@@ -30,6 +30,8 @@
 	<string>Main</string>
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs camera access to scan session QR codes for attendance.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>This app needs to access your motion data to count your steps.</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
