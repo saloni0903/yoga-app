@@ -26,6 +26,7 @@ dependencies:
   package_info_plus: 9.0.0
 
 dev_dependencies:
+  flutter_launcher_icons: ^0.10.0
   flutter_test:
     sdk: flutter
   http: ^1.2.1
@@ -36,3 +37,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon.png"
