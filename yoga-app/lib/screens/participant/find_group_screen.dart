@@ -1,3 +1,6 @@
+// lib/screens/participant/find_group_screen.dart
+// REPLACE THE ENTIRE FILE WITH THIS CORRECTED VERSION
+
 import '../../api_service.dart';
 import '../../models/yoga_group.dart';
 import 'package:flutter/material.dart';
@@ -13,67 +16,16 @@ class FindGroupScreen extends StatefulWidget {
   State<FindGroupScreen> createState() => _FindGroupScreenState();
 }
 
-
 class _FindGroupScreenState extends State<FindGroupScreen> {
-  void _showGroupInfoSnackBar(YogaGroup group) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar(); // Hide any previous snackbar
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(group.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: 'JOIN',
-          textColor: Colors.white,
-          onPressed: () {
-            _joinGroup(group.id); // Use the correct _joinGroup method name
-          },
-        ),
-        backgroundColor: Theme.of(context).primaryColor,
-      ),
-    );
-  }
+  // --- ALL VARIABLES AND METHODS ARE NOW CORRECTLY INSIDE THE CLASS ---
 
-  Widget _buildMapView() {
-    return FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(
-        initialCenter: _currentPosition != null
-            ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
-            : const LatLng(22.7196, 75.8577), // Default to Indore
-        initialZoom: 13.0,
-        interactionOptions: const InteractionOptions(
-          flags: InteractiveFlag.all, // This enables zoom, drag, rotate, etc.
-        ),
-      ),
-      children: [
-        TileLayer(
-          urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        ),
-        MarkerLayer(
-          markers: _groups.map((group) {
-            // Ensure group has valid coordinates before creating a marker
-            if (group.latitude == null || group.longitude == null) {
-              return null; // Return null for groups without coordinates
-            }
-            return Marker(
-              width: 80.0,
-              height: 80.0,
-              point: LatLng(group.latitude!, group.longitude!),
-              child: GestureDetector(
-                onTap: () => _showGroupInfoSnackBar(group),
-                child: Tooltip(
-                  message: group.name,
-                  child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
-                ),
-              ),
-            );
-          }).whereType<Marker>().toList(), // Filter out any null markers
-        ),
-      ],
-    );
-  }
   Position? _currentPosition;
   final MapController _mapController = MapController();
+  final _searchController = TextEditingController();
+  List<YogaGroup> _groups = [];
+  bool _isLoading = false;
+  bool _searchPerformed = false;
+  bool _isMapView = false;
 
   @override
   void initState() {
@@ -86,14 +38,17 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
     LocationPermission permission;
 
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!mounted) return;
     if (!serviceEnabled) {
       _showError('Location services are disabled.');
       return;
     }
 
     permission = await Geolocator.checkPermission();
+    if (!mounted) return;
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
+      if (!mounted) return;
       if (permission == LocationPermission.denied) {
         _showError('Location permissions are denied');
         return;
@@ -101,27 +56,22 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
     }
 
     if (permission == LocationPermission.deniedForever) {
-      _showError('Location permissions are permanently denied, we cannot request permissions.');
+      _showError(
+          'Location permissions are permanently denied, we cannot request permissions.');
       return;
     }
 
-    setState(() => _isLoading = true);
+    if (mounted) setState(() => _isLoading = true);
     try {
       _currentPosition = await Geolocator.getCurrentPosition();
-      // Perform an initial search for nearby groups on load
-      _searchGroups(isInitialLoad: true); 
+      if (!mounted) return;
+      await _searchGroups(isInitialLoad: true);
     } catch (e) {
-      _showError(e.toString());
+      if (mounted) _showError(e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
-  final _searchController = TextEditingController();
-  List<YogaGroup> _groups = [];
-  bool _isLoading = false;
-  bool _searchPerformed = false;
-  bool _isMapView = false; // To toggle between list and map
 
   void _showError(String message) {
     if (!mounted) return;
@@ -135,15 +85,16 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
 
   Future<void> _searchGroups({bool isInitialLoad = false}) async {
     final query = _searchController.text.trim();
-    // Allow search if it's the initial load, even with an empty query
     if (query.isEmpty && !isInitialLoad) return;
+    
+    if (!mounted) return;
     final apiService = Provider.of<ApiService>(context, listen: false);
 
     FocusScope.of(context).unfocus();
     setState(() {
       _isLoading = true;
       _searchPerformed = true;
-      _groups = []; // Clear previous results
+      _groups = [];
     });
 
     try {
@@ -155,9 +106,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
       if (mounted) setState(() => _groups = results);
     } catch (e) {
       if (mounted) {
-        _showError(
-          'Search failed: ${e.toString().replaceFirst("Exception: ", "")}',
-        );
+        _showError('Search failed: ${e.toString().replaceFirst("Exception: ", "")}');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -165,6 +114,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
   }
 
   Future<void> _joinGroup(String groupId) async {
+    if (!mounted) return;
     final apiService = Provider.of<ApiService>(context, listen: false);
     setState(() => _isLoading = true);
     try {
@@ -176,68 +126,70 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        // We do NOT navigate after joining. The user stays on the find screen.
       }
     } catch (e) {
       if (mounted) {
-        _showError(
-          'Failed to join group: ${e.toString().replaceFirst("Exception: ", "")}',
-        );
+        _showError('Failed to join group: ${e.toString().replaceFirst("Exception: ", "")}');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      // appBar: AppBar(
-      //   title: const Text('Find a Yoga Group'),
-      // ),
-      body: Column(
-        children: [
-          // --- SEARCH BAR ---
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: 'Search by location or group name',
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: _isLoading ? null : _searchGroups,
+  void _showGroupInfoSnackBar(YogaGroup group) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(group.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'JOIN',
+          textColor: Colors.white,
+          onPressed: () {
+            _joinGroup(group.id);
+          },
+        ),
+        backgroundColor: Theme.of(context).primaryColor,
+      ),
+    );
+  }
+
+  Widget _buildMapView() {
+    return FlutterMap(
+      mapController: _mapController,
+      options: MapOptions(
+        initialCenter: _currentPosition != null
+            ? LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+            : const LatLng(22.7196, 75.8577),
+        initialZoom: 13.0,
+        interactionOptions: const InteractionOptions(
+          flags: InteractiveFlag.all,
+        ),
+      ),
+      children: [
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        ),
+        MarkerLayer(
+          markers: _groups.map((group) {
+            if (group.latitude == null || group.longitude == null) {
+              return null;
+            }
+            return Marker(
+              width: 80.0,
+              height: 80.0,
+              point: LatLng(group.latitude!, group.longitude!),
+              child: GestureDetector(
+                onTap: () => _showGroupInfoSnackBar(group),
+                child: Tooltip(
+                  message: group.name,
+                  child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
                 ),
               ),
-              onSubmitted: (_) => _searchGroups(),
-            ),
-          ),
-          
-          // --- VIEW TOGGLE ---
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
-            child: SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, icon: Icon(Icons.list), label: Text('List')),
-                ButtonSegment(value: true, icon: Icon(Icons.map), label: Text('Map')),
-              ],
-              selected: {_isMapView},
-              onSelectionChanged: (newSelection) {
-                setState(() {
-                  _isMapView = newSelection.first;
-                });
-              },
-            ),
-          ),
-          
-          if (_isLoading) const LinearProgressIndicator(),
-
-          // --- DYNAMIC VIEW (LIST OR MAP) ---
-          Expanded(
-            child: _isMapView ? _buildMapView() : _buildListView(),
-          ),
-        ],
-      ),
+            );
+          }).whereType<Marker>().toList(),
+        ),
+      ],
     );
   }
 
@@ -270,7 +222,6 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(group.locationText),
-                // Text(group.instructorName),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
@@ -286,4 +237,47 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
       },
     );
   }
-}
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                labelText: 'Search by location or group name',
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.search),
+                  onPressed: _isLoading ? null : _searchGroups,
+                ),
+              ),
+              onSubmitted: (_) => _searchGroups(),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, icon: Icon(Icons.list), label: Text('List')),
+                ButtonSegment(value: true, icon: Icon(Icons.map), label: Text('Map')),
+              ],
+              selected: {_isMapView},
+              onSelectionChanged: (newSelection) {
+                setState(() {
+                  _isMapView = newSelection.first;
+                });
+              },
+            ),
+          ),
+          if (_isLoading) const LinearProgressIndicator(),
+          Expanded(
+            child: _isMapView ? _buildMapView() : _buildListView(),
+          ),
+        ],
+      ),
+    );
+  }
+} // THIS IS THE FINAL CLOSING BRACE FOR THE CLASS

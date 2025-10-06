@@ -1,7 +1,7 @@
 import 'api_service.dart';
 import 'models/user.dart'; 
 import 'theme_provider.dart';
-import 'screens/splash_screen.dart';
+// import 'screens/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'screens/home/home_screen.dart';
 import 'package:provider/provider.dart';
@@ -20,15 +20,43 @@ Future<void> main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: apiService),
-        ChangeNotifierProvider(create: (_) => ThemeProvider()), // Add ThemeProvider
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
-      child: const MyApp(),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MyApp(themeProvider: themeProvider);
+        },
+      ),
     ),
   );
 }
 
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final apiService = Provider.of<ApiService>(context);
+
+    if (apiService.currentUser == null && apiService.token != null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    
+    if (apiService.isAuthenticated) {
+      return HomeScreen(
+        apiService: apiService,
+        user: apiService.currentUser!,
+      );
+    } else {
+      return const LoginScreen();
+    }
+  }
+}
+
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+
+  final ThemeProvider themeProvider;
+  const MyApp({super.key, required this.themeProvider});
 
   @override
   Widget build(BuildContext context) {
@@ -241,18 +269,14 @@ class MyApp extends StatelessWidget {
       ),
     );
   
-    final themeProvider = Provider.of<ThemeProvider>(context);
 
     return MaterialApp(
       title: 'YES Yoga App',
       debugShowCheckedModeBanner: false,
-      
-      // Connects to the ThemeProvider
-      themeMode: themeProvider.themeMode, 
-      theme: lightTheme,      // Use the 'lightTheme' variable
-      darkTheme: darkTheme,   // Use the 'darkTheme' variable
-
-      home: const SplashScreen(),
+      themeMode: themeProvider.themeMode,
+      theme: darkTheme,
+      darkTheme: darkTheme,
+      home: const AuthWrapper(),
       routes: {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),

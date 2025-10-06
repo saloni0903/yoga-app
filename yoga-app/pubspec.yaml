@@ -29,12 +29,13 @@ dependencies:
 
 
 dev_dependencies:
-  flutter_launcher_icons: ^0.10.0
+  flutter_launcher_icons: ^0.13.1
   flutter_test:
     sdk: flutter
   http: ^1.2.1
   qr_flutter: ^4.1.0
   flutter_lints: ^5.0.0
+  flutter_native_splash: ^2.4.0
 
 flutter:
   uses-material-design: true
@@ -44,4 +45,10 @@ flutter:
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/images/app_icon.png"
+  image_path: "assets/images/logo.png"
+
+flutter_native_splash:
+  color: "#0E1513"
+  image: assets/images/logo.png
+  android: true
+  ios: true
