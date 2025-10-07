@@ -189,7 +189,7 @@ export default function App() {
                 YES
               </h1>
               <p className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                Yoga Excellence Studio • Admin Portal
+                Yoga Essentials and Suryanamaskara • Admin Portal
               </p>
             </div>
             
@@ -256,7 +256,7 @@ export default function App() {
                     </svg>
                     Logging in...
                   </span>
-                ) : 'Sign In to Dashboard'}
+                ) : 'Login'}
               </button>
             </form>
             
