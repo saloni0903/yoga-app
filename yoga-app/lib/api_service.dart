@@ -116,7 +116,7 @@ class ApiService with ChangeNotifier {
       final user = await getMyProfile();
       // If successful, the user is fully authenticated.
       _currentUser = user;
-      await fetchDashboardData();
+      // await fetchDashboardData();
       notifyListeners();
       return true;
     } catch (e) {
@@ -137,7 +137,7 @@ class ApiService with ChangeNotifier {
 
     final user = User.fromAuthJson(data['data']);
     await _setAuth(user.token, user);
-    await fetchDashboardData(); // Fetch dashboard data after manual login
+    // await fetchDashboardData(); // Fetch dashboard data after manual login
     return _currentUser!;
     // return user;
   }
@@ -151,6 +151,7 @@ class ApiService with ChangeNotifier {
     required String fullName,
     required String email,
     required String password,
+    required String phone,
     required String role,
     required String location,
   }) async {
@@ -164,6 +165,7 @@ class ApiService with ChangeNotifier {
         'firstName': firstName,
         'lastName': lastName,
         'email': email,
+        'phone': phone,
         'password': password,
         'role': role,
         'location': location,

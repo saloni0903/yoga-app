@@ -11,15 +11,12 @@ import 'screens/profile/profile_screen.dart';
 import 'package:yoga_app/screens/qr/qr_scanner_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  final apiService = ApiService();
-  await apiService.tryAutoLogin();
-
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider.value(value: apiService),
+        ChangeNotifierProvider(create: (_) => ApiService()), // Create it here
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: Consumer<ThemeProvider>(
@@ -31,27 +28,55 @@ Future<void> main() async {
   );
 }
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final apiService = Provider.of<ApiService>(context);
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
 
-    if (apiService.currentUser == null && apiService.token != null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-    
-    if (apiService.isAuthenticated) {
-      return HomeScreen(
-        apiService: apiService,
-        user: apiService.currentUser!,
-      );
-    } else {
-      return const LoginScreen();
-    }
+class _AuthWrapperState extends State<AuthWrapper> {
+  late Future<void> _autoLoginFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    // Start the auto-login process when this widget is first created.
+    _autoLoginFuture = Provider.of<ApiService>(context, listen: false).tryAutoLogin();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: _autoLoginFuture,
+      builder: (context, snapshot) {
+        // While the auto-login is running, show a loading circle.
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        
+        // After the attempt, use the Consumer to check the result.
+        return Consumer<ApiService>(
+          builder: (context, apiService, child) {
+            if (apiService.isAuthenticated) {
+              return HomeScreen(
+                apiService: apiService,
+                user: apiService.currentUser!,
+              );
+            } else {
+              return const LoginScreen();
+            }
+          },
+        );
+      },
+    );
   }
 }
+
 
 class MyApp extends StatelessWidget {
 
@@ -274,7 +299,7 @@ class MyApp extends StatelessWidget {
       title: 'YES Yoga App',
       debugShowCheckedModeBanner: false,
       themeMode: themeProvider.themeMode,
-      theme: darkTheme,
+      theme: lightTheme, // <-- THIS IS THE FIX
       darkTheme: darkTheme,
       home: const AuthWrapper(),
       routes: {

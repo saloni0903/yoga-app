@@ -1,4 +1,4 @@
-import 'dart:async';
+// lib/screens/participant/dashboard_home_tab.dart
 import 'package:flutter/material.dart';
 import 'package:pedometer/pedometer.dart';
 import 'package:provider/provider.dart';
@@ -6,7 +6,6 @@ import 'package:yoga_app/api_service.dart';
 import 'package:yoga_app/widgets/streak_dialog.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-// STEP 1: Converted to a StatefulWidget to manage live data.
 class DashboardHomeTab extends StatefulWidget {
   const DashboardHomeTab({super.key});
 
@@ -15,63 +14,26 @@ class DashboardHomeTab extends StatefulWidget {
 }
 
 class _DashboardHomeTabState extends State<DashboardHomeTab> {
-  // STEP 2: Added state variables for the step counter.
-  StreamSubscription<StepCount>? _stepCountStream;
-  String _steps = '...'; 
-  bool _permissionPermanentlyDenied = false;
+  // ✨ We only need to store the result of the permission check now.
+  late Future<PermissionStatus> _permissionStatusFuture;
 
   @override
   void initState() {
     super.initState();
-    // STEP 3: Start listening for steps as soon as the widget is created.
-    initPlatformState();
+    // ✨ Request permission once when the widget is created.
+    _permissionStatusFuture = Permission.activityRecognition.request();
   }
-
-  @override
-  void dispose() {
-    // STEP 4: Stop the stream listener when the widget is removed to save resources.
-    _stepCountStream?.cancel();
-    super.dispose();
-  }
-
-  /// STEP 5: The core logic to initialize the pedometer stream.
-  void initPlatformState() async {
-    var status = await Permission.activityRecognition.request();
-
-    if (status.isGranted) {
-      _permissionPermanentlyDenied = false;
-      _stepCountStream = Pedometer.stepCountStream.listen(
-        (StepCount stepCountValue) {
-          if (mounted) setState(() => _steps = stepCountValue.steps.toString());
-        },
-        onError: (error) {
-          print('Pedometer Error: $error');
-          if (mounted) setState(() => _steps = 'Sensor Error');
-        },
-        cancelOnError: true,
-      );
-    } else if (status.isPermanentlyDenied) {
-      if (mounted) {
-        setState(() {
-          _steps = 'Open Settings';
-          _permissionPermanentlyDenied = true;
-        });
-      }
-    } else {
-      // Handle temporary denial.
-      if (mounted) setState(() => _steps = 'Permission Denied');
-    }
-  }
-
+  
   String getGreeting() {
     final hour = DateTime.now().hour;
-    if (5 < hour && hour < 12) return 'Good morning';
-    if (12 < hour && hour < 17) return 'Good afternoon';
+    if (hour > 5 && hour < 12) return 'Good morning';
+    if (hour >= 12 && hour < 17) return 'Good afternoon';
     return 'Good evening';
   }
 
   @override
   Widget build(BuildContext context) {
+    // We use a Consumer here so the dashboard only rebuilds if the user data actually changes.
     return Consumer<ApiService>(
       builder: (context, apiService, child) {
         final user = apiService.currentUser;
@@ -79,13 +41,13 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
         final textTheme = theme.textTheme;
 
         return RefreshIndicator(
-          onRefresh: () => apiService.fetchDashboardData(),
-          
-          // Your existing ListView becomes the child
+          // 🚨 Make sure you have a real implementation for this in api_service.dart
+          // or remove it for now.
+          onRefresh: () async { /* await apiService.fetchDashboardData(); */ },
           child: ListView(
             padding: const EdgeInsets.all(16.0),
             children: [
-              // Welcome Header
+              // Welcome Header (This will NOT rebuild with every step)
               Text(
                 '${getGreeting()}, ${user?.firstName ?? 'User'}',
                 style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
@@ -97,12 +59,11 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
               ),
               const SizedBox(height: 24),
 
-              // --- ADDED STEP COUNTER CARD ---
+              // ✨ Step Counter Card now handles its own state efficiently.
               _buildStepCounterCard(textTheme, theme),
               const SizedBox(height: 16),
-              // --- END OF ADDED WIDGET ---
 
-              // Your existing "Yoga overview" card
+              // Yoga Overview Card (This will NOT rebuild with every step)
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -114,18 +75,9 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          _buildStatColumn(
-                            '${user?.totalMinutesPracticed ?? 0}',
-                            'Minutes',
-                          ),
-                          _buildStatColumn(
-                            '${user?.totalSessionsAttended ?? 0}',
-                            'Sessions',
-                          ),
-                          _buildStatColumn(
-                            '${user?.currentStreak ?? 0} days',
-                            'Streak',
-                          ),
+                          _buildStatColumn('${user?.totalMinutesPracticed ?? 0}', 'Minutes'),
+                          _buildStatColumn('${user?.totalSessionsAttended ?? 0}', 'Sessions'),
+                          _buildStatColumn('${user?.currentStreak ?? 0} days', 'Streak'),
                         ],
                       ),
                     ],
@@ -134,7 +86,7 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
               ),
               const SizedBox(height: 16),
 
-              // Your existing "Daily Attendance Streak" card
+              // Attendance Streak Card (This will NOT rebuild with every step)
               Card(
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
@@ -178,13 +130,13 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
                 ),
               ),
             ],
-          )
+          ),
         );
       },
     );
   }
-
-  /// A widget to build the statistics column.
+  
+  // A helper widget for stats
   Widget _buildStatColumn(String value, String label) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -196,45 +148,90 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
     );
   }
 
+  // ✨ This widget now perfectly manages the pedometer stream state.
   Widget _buildStepCounterCard(TextTheme textTheme, ThemeData theme) {
     return Card(
-      child: InkWell(
-        // NEW: If permission is permanently denied, tapping this card will open app settings.
-        onTap: _permissionPermanentlyDenied ? openAppSettings : null,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              Icon(
-                Icons.directions_walk,
-                size: 40,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Steps Today',
-                    style: textTheme.titleLarge,
-                  ),
-                  Text(
-                    _steps,
-                    style: textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: _permissionPermanentlyDenied 
-                          ? Colors.grey // Dim the text if there's an issue
-                          : theme.colorScheme.primary,
-                    ),
-                  ),
-                ],
-              ),
-              if (_permissionPermanentlyDenied) ...[
-                const Spacer(),
-                const Icon(Icons.settings, color: Colors.grey),
-              ],
-            ],
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Icon(Icons.directions_walk, size: 40, color: theme.colorScheme.primary),
+            const SizedBox(width: 16),
+            // We use a FutureBuilder to handle the permission request.
+            FutureBuilder<PermissionStatus>(
+              future: _permissionStatusFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const CircularProgressIndicator();
+                }
+
+                final status = snapshot.data;
+                if (status == PermissionStatus.granted) {
+                  // If permission is granted, use StreamBuilder to listen for steps.
+                  return StreamBuilder<StepCount>(
+                    stream: Pedometer.stepCountStream,
+                    builder: (context, snapshot) {
+                      String steps = '...';
+                      if (snapshot.hasData) {
+                        steps = snapshot.data!.steps.toString();
+                      } else if (snapshot.hasError) {
+                        steps = 'Sensor Error';
+                      }
+                      return _buildStepText(textTheme, theme, steps);
+                    },
+                  );
+                } else if (status == PermissionStatus.permanentlyDenied) {
+                  return _buildPermissionDeniedText(textTheme, true);
+                } else {
+                  return _buildPermissionDeniedText(textTheme, false);
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper to build the step count text UI
+  Widget _buildStepText(TextTheme textTheme, ThemeData theme, String steps) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Steps Today', style: textTheme.titleLarge),
+        Text(
+          steps,
+          style: textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.primary,
           ),
+        ),
+      ],
+    );
+  }
+
+  // Helper to build the permission denied UI
+  Widget _buildPermissionDeniedText(TextTheme textTheme, bool isPermanent) {
+    return Expanded(
+      child: InkWell(
+        onTap: isPermanent ? openAppSettings : () => setState(() {
+          _permissionStatusFuture = Permission.activityRecognition.request();
+        }),
+        child: Row(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Permission Denied', style: textTheme.titleLarge),
+                Text(
+                  isPermanent ? 'Tap to open settings' : 'Tap to request again',
+                  style: textTheme.bodyMedium,
+                ),
+              ],
+            ),
+            const Spacer(),
+            Icon(isPermanent ? Icons.settings : Icons.refresh, color: Colors.grey),
+          ],
         ),
       ),
     );

@@ -1,3 +1,5 @@
+// lib/screens/participant/participant_dashboard.dart
+
 import 'my_groups_screen.dart';
 import '../../api_service.dart';
 import '../../models/user.dart';
@@ -8,8 +10,6 @@ import 'package:provider/provider.dart';
 import 'package:yoga_app/screens/settings_screen.dart';
 import 'package:yoga_app/screens/profile/profile_screen.dart';
 import 'package:yoga_app/screens/participant/dashboard_home_tab.dart';
-
-// lib/screens/participant/participant_dashboard.dart
 
 class ParticipantDashboard extends StatefulWidget {
   final User user;
@@ -28,7 +28,10 @@ class ParticipantDashboard extends StatefulWidget {
 class _ParticipantDashboardState extends State<ParticipantDashboard> {
   int _index = 0;
 
-   final List<String> _pageTitles = const [
+  // ✨ 1. Define the list here
+  late final List<Widget> _pages;
+
+  final List<String> _pageTitles = const [
     'Home',
     'My Groups',
     'Discover',
@@ -36,17 +39,21 @@ class _ParticipantDashboardState extends State<ParticipantDashboard> {
     'Settings',
   ];
 
+  // ✨ 2. Initialize the list only ONCE in initState
   @override
-  Widget build(BuildContext context) {
-    final List<Widget> pages = [
+  void initState() {
+    super.initState();
+    _pages = [
       const DashboardHomeTab(),
       const MyGroupsScreen(),
       const FindGroupScreen(),
       const MyProgressScreen(),
       const SettingsScreen(),
     ];
+  }
 
-    // This PopScope widget intercepts the back button press
+  @override
+  Widget build(BuildContext context) {
     return PopScope(
       canPop: _index == 0,
       onPopInvoked: (didPop) {
@@ -63,7 +70,6 @@ class _ParticipantDashboardState extends State<ParticipantDashboard> {
             padding: const EdgeInsets.only(left: 12.0),
             child: GestureDetector(
               onTap: () {
-                // Navigate to the ProfileScreen directly
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const ProfileScreen()),
                 );
@@ -79,15 +85,12 @@ class _ParticipantDashboardState extends State<ParticipantDashboard> {
               ),
             ),
           ),
-          // MAKE TITLE DYNAMIC
           title: Text(_pageTitles[_index]),
           actions: [
-            // REPLACE LOGOUT WITH QR SCANNER
             IconButton(
               icon: const Icon(Icons.qr_code_scanner),
               tooltip: 'Mark Attendance',
               onPressed: () {
-                // Navigate to the QR Scanner screen
                 Navigator.of(context).pushNamed('/qr-scanner');
               },
             ),
@@ -124,7 +127,7 @@ class _ParticipantDashboardState extends State<ParticipantDashboard> {
             ),
           ],
         ),
-        body: _index < pages.length ? pages[_index] : pages[0],
+        body: _index < _pages.length ? _pages[_index] : _pages[0],
       ),
     );
   }

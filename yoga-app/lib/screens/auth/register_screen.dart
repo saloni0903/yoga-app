@@ -20,6 +20,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _locationController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _phoneController = TextEditingController();
 
   String _selectedRole = 'participant';
   bool _isLoading = false;
@@ -60,6 +62,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return null;
   }
 
+  String? _validatePhone(String? value) {
+    final v = value?.trim() ?? '';
+    if (v.isEmpty) return 'Phone number is required';
+    if (v.length != 10) return 'Phone number must be 10 digits';
+    if (int.tryParse(v) == null) return 'Invalid phone number';
+    return null;
+  }
+
+  String? _validateConfirmPassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please confirm your password';
+    }
+    if (value != _passwordController.text) {
+      return 'Passwords do not match';
+    }
+    return null;
+  }
+
   Future<void> _register() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
@@ -74,6 +94,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       await apiService.register(
         fullName: fullName,
         email: _emailController.text.trim(),
+        phone: _phoneController.text.trim(),
         password: _passwordController.text,
         role: _selectedRole,
         location: _locationController.text.trim(),
@@ -106,6 +127,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _locationController.dispose();
+    _confirmPasswordController.dispose();
+    _phoneController.dispose(); 
     super.dispose();
   }
 
@@ -222,6 +245,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
+                              controller: _phoneController,
+                              keyboardType: TextInputType.phone,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                labelText: 'Phone Number',
+                                prefixIcon: Icon(Icons.phone_outlined),
+                                helperText:
+                                    'Must be of 10 digits',
+
+                              ),
+                              validator: _validatePhone,
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
                               controller: _passwordController,
                               obscureText: _obscurePw,
                               textInputAction: TextInputAction.next,
@@ -241,6 +278,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                               ),
                               validator: _validatePassword,
+                            ),
+                            const SizedBox(height: 16), // This is the end of the Password field
+
+                            // ▼▼▼ ADD THIS CONFIRM PASSWORD FIELD ▼▼▼
+                            TextFormField(
+                              controller: _confirmPasswordController,
+                              obscureText: _obscurePw,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                labelText: 'Confirm Password',
+                                prefixIcon: Icon(Icons.lock_outline),
+                              ),
+                              validator: _validateConfirmPassword,
                             ),
                             const SizedBox(height: 16),
                             TextFormField(
