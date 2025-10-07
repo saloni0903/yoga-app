@@ -69,6 +69,26 @@ router.post('/mark', async (req, res) => {
   }
 });
 
+// Get attendance records filtered by participant and group
+router.get('/participant/:participantId/group/:groupId', async (req, res) => {
+  try {
+    const { participantId, groupId } = req.params;
+    const attendanceRecords = await Attendance.find({
+      user_id: participantId,
+      group_id: groupId
+    }).sort({ session_date: 1 }); // Sort by ascending date for progress
+
+    res.json({
+      success: true,
+      data: attendanceRecords
+    });
+  } catch (err) {
+    console.error('Get participant group attendance error:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch attendance for participant and group', error: err.message });
+  }
+});
+
+
 // Get attendance for a specific session
 router.get('/session/:group_id/:session_date', async (req, res) => {
   try {

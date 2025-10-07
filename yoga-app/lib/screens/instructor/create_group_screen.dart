@@ -67,15 +67,32 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             DropdownButtonFormField<String>(
               value: _selectedYogaStyle,
               decoration: InputDecoration(labelText: 'Yoga Style'),
-              items: _yogaStyles.map((style) => DropdownMenuItem(value: style, child: Text(style.toUpperCase()))).toList(),
-              onChanged: (value) => setState(() => _selectedYogaStyle = value ?? 'hatha'),
+              items: _yogaStyles
+                  .map(
+                    (style) => DropdownMenuItem(
+                      value: style,
+                      child: Text(style.toUpperCase()),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) =>
+                  setState(() => _selectedYogaStyle = value ?? 'hatha'),
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _selectedDifficultyLevel,
               decoration: InputDecoration(labelText: 'Difficulty Level'),
-              items: _difficultyLevels.map((level) => DropdownMenuItem(value: level, child: Text(level.toUpperCase()))).toList(),
-              onChanged: (value) => setState(() => _selectedDifficultyLevel = value ?? 'all-levels'),
+              items: _difficultyLevels
+                  .map(
+                    (level) => DropdownMenuItem(
+                      value: level,
+                      child: Text(level.toUpperCase()),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(
+                () => _selectedDifficultyLevel = value ?? 'all-levels',
+              ),
             ),
           ],
         ),
@@ -108,7 +125,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       onPressed: _isLoading ? null : _fetchLocation,
                       icon: const Icon(Icons.my_location),
                       label: const Text('Use Current'),
-                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -117,7 +136,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       onPressed: _isLoading ? null : _openMapPicker,
                       icon: const Icon(Icons.map_outlined),
                       label: const Text('Pick on Map'),
-                      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                      ),
                     ),
                   ),
                 ],
@@ -132,49 +153,75 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         title: const Text('Schedule & Details'),
         content: Column(
           children: [
-             Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.access_time),
-                      label: Text(_startTime == null ? 'Start Time' : DateFormat('hh:mm a').format(DateTime(2020, 1, 1, _startTime!.hour, _startTime!.minute))),
-                      onPressed: _pickStartTime,
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.access_time),
+                    label: Text(
+                      _startTime == null
+                          ? 'Start Time'
+                          : DateFormat('hh:mm a').format(
+                              DateTime(
+                                2020,
+                                1,
+                                1,
+                                _startTime!.hour,
+                                _startTime!.minute,
+                              ),
+                            ),
                     ),
+                    onPressed: _pickStartTime,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.access_time),
-                      label: Text(_endTime == null ? 'End Time' : DateFormat('hh:mm a').format(DateTime(2020, 1, 1, _endTime!.hour, _endTime!.minute))),
-                      onPressed: _pickEndTime,
-                    ),
-                  ),
-                ],
-              ),
-              // const SizedBox(height: 16),
-              // TextFormField(
-              //   controller: _sessionDurationController,
-              //   decoration: InputDecoration(labelText: 'Duration (minutes) *'),
-              //   validator: _validateSessionDuration,
-              //   keyboardType: TextInputType.number,
-              // ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _maxParticipantsController,
-                decoration: InputDecoration(labelText: 'Max Participants *'),
-                validator: _validateMaxParticipants,
-                keyboardType: TextInputType.number,
-              ),
-               const SizedBox(height: 16),
-               TextFormField(
-                controller: _priceController,
-                decoration: InputDecoration(
-                  labelText: 'Price per Session *',
-                  prefixIcon: Icon(Icons.currency_rupee),
                 ),
-                validator: _validatePrice,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.access_time),
+                    label: Text(
+                      _endTime == null
+                          ? 'End Time'
+                          : DateFormat('hh:mm a').format(
+                              DateTime(
+                                2020,
+                                1,
+                                1,
+                                _endTime!.hour,
+                                _endTime!.minute,
+                              ),
+                            ),
+                    ),
+                    onPressed: _pickEndTime,
+                  ),
+                ),
+              ],
+            ),
+            // const SizedBox(height: 16),
+            // TextFormField(
+            //   controller: _sessionDurationController,
+            //   decoration: InputDecoration(labelText: 'Duration (minutes) *'),
+            //   validator: _validateSessionDuration,
+            //   keyboardType: TextInputType.number,
+            // ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _maxParticipantsController,
+              decoration: InputDecoration(labelText: 'Max Participants *'),
+              validator: _validateMaxParticipants,
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _priceController,
+              decoration: InputDecoration(
+                labelText: 'Price per Session *',
+                prefixIcon: Icon(Icons.currency_rupee),
               ),
+              validator: _validatePrice,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+            ),
           ],
         ),
         isActive: _currentStep >= 2,
@@ -189,10 +236,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.redAccent,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
     );
   }
 
@@ -202,7 +246,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       context: context,
       initialDate: (isStartDate ? _startDate : _endDate) ?? now,
       firstDate: now,
-      lastDate: now.add(const Duration(days: 365 * 2)), // Allow scheduling up to 2 years in advance
+      lastDate: now.add(
+        const Duration(days: 365 * 2),
+      ), // Allow scheduling up to 2 years in advance
     );
 
     if (picked != null) {
@@ -219,24 +265,32 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       });
     }
   }
+
   Future<void> _openMapPicker() async {
-    LatLng initialPoint = _selectedLocation ?? LatLng(
-      double.tryParse(_latitudeController.text) ?? 22.7196,
-      double.tryParse(_longitudeController.text) ?? 75.8577,
-    );
+    LatLng initialPoint =
+        _selectedLocation ??
+        LatLng(
+          double.tryParse(_latitudeController.text) ?? 22.7196,
+          double.tryParse(_longitudeController.text) ?? 75.8577,
+        );
 
     final result = await showDialog<LatLng>(
       context: context,
       builder: (context) {
-        LatLng tappedPoint = initialPoint; // To hold the state within the dialog
+        LatLng tappedPoint =
+            initialPoint; // To hold the state within the dialog
         return StatefulBuilder(
           builder: (context, setStateInDialog) {
             return AlertDialog(
               title: const Text('Select Location'),
               contentPadding: const EdgeInsets.all(0),
               content: SizedBox(
-                height: MediaQuery.of(context).size.height * 0.6, // Use 60% of screen height
-                width: MediaQuery.of(context).size.width * 0.9, // Use 90% of screen width
+                height:
+                    MediaQuery.of(context).size.height *
+                    0.6, // Use 60% of screen height
+                width:
+                    MediaQuery.of(context).size.width *
+                    0.9, // Use 90% of screen width
                 child: FlutterMap(
                   mapController: _mapController,
                   options: MapOptions(
@@ -253,7 +307,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      urlTemplate:
+                          'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                     ),
                     MarkerLayer(
                       markers: [
@@ -261,7 +316,11 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                           width: 80.0,
                           height: 80.0,
                           point: tappedPoint,
-                          child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
+                          child: const Icon(
+                            Icons.location_pin,
+                            color: Colors.red,
+                            size: 40,
+                          ),
                         ),
                       ],
                     ),
@@ -342,19 +401,32 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     // This will now build a string like "Mon, Wed, Fri at 7:00 AM"
     if (_startTime != null && _endTime != null && _selectedDays.isNotEmpty) {
       // Sort the days to a consistent order (Mon, Tue, Wed...)
-      const dayOrder = {"Mon": 1, "Tue": 2, "Wed": 3, "Thu": 4, "Fri": 5, "Sat": 6, "Sun": 7};
+      const dayOrder = {
+        "Mon": 1,
+        "Tue": 2,
+        "Wed": 3,
+        "Thu": 4,
+        "Fri": 5,
+        "Sat": 6,
+        "Sun": 7,
+      };
       _selectedDays.sort((a, b) => dayOrder[a]!.compareTo(dayOrder[b]!));
 
       final daysString = _selectedDays.join(', ');
-      final startTimeString = DateFormat('h:mm a').format(DateTime(2020, 1, 1, _startTime!.hour, _startTime!.minute));
-      final endTimeString = DateFormat('h:mm a').format(DateTime(2020, 1, 1, _endTime!.hour, _endTime!.minute));
+      final startTimeString = DateFormat(
+        'h:mm a',
+      ).format(DateTime(2020, 1, 1, _startTime!.hour, _startTime!.minute));
+      final endTimeString = DateFormat(
+        'h:mm a',
+      ).format(DateTime(2020, 1, 1, _endTime!.hour, _endTime!.minute));
 
       setState(() {
-        _timingsController.text = '$daysString from $startTimeString to $endTimeString';
+        _timingsController.text =
+            '$daysString from $startTimeString to $endTimeString';
       });
     } else {
       setState(() {
-         _timingsController.text = '';
+        _timingsController.text = '';
       });
     }
   }
@@ -413,7 +485,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       _latitudeController.text = existing.latitude?.toString() ?? '';
       _longitudeController.text = existing.longitude?.toString() ?? '';
       _recurrenceRule = existing.schedule.recurrence;
-      
+
       _startTime = TimeOfDay(
         hour: int.parse(existing.schedule.startTime.split(':')[0]),
         minute: int.parse(existing.schedule.startTime.split(':')[1]),
@@ -424,12 +496,18 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       );
       _startDate = existing.schedule.startDate;
       _endDate = existing.schedule.endDate;
-      
+
       // Map full day names from backend to short day names for UI
-      const dayMap = {"Monday": "Mon", "Tuesday": "Tue", "Wednesday": "Wed", "Thursday": "Thu", "Friday": "Fri", "Saturday": "Sat", "Sunday": "Sun"};
+      const dayMap = {
+        "Monday": "Mon",
+        "Tuesday": "Tue",
+        "Wednesday": "Wed",
+        "Thursday": "Thu",
+        "Friday": "Fri",
+        "Saturday": "Sat",
+        "Sunday": "Sun",
+      };
       _selectedDays.addAll(existing.schedule.days.map((day) => dayMap[day]!));
-
-
     } else {
       // Create mode - set defaults
       _maxParticipantsController.text = '20';
@@ -583,7 +661,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         _locationTextController.text = locationData['address'] ?? '';
         _locationController.text = locationData['city'] ?? '';
       });
-
     } catch (e) {
       if (mounted) {
         _showError(e.toString().replaceFirst("Exception: ", ""));
@@ -593,125 +670,170 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     }
   }
 
- Future<void> _saveGroup() async {
-  if (!(_formKey.currentState?.validate() ?? false)) return;
+  Future<void> _saveGroup() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
-  if (_startTime == null || _endTime == null || _startDate == null || _endDate == null || _selectedDays.isEmpty) {
-    _showError('Please complete all schedule fields: days, times, and date range.');
-    return;
-  }
-  if (_endDate!.isBefore(_startDate!)) {
-    _showError('End date cannot be before the start date.');
-    return;
-  }
-
-  setState(() => _isLoading = true);
-
-  try {
-    // Automatically calculate duration in minutes
-    final startDateTime = DateTime(2025, 1, 1, _startTime!.hour, _startTime!.minute);
-    final endDateTime = DateTime(2025, 1, 1, _endTime!.hour, _endTime!.minute);
-    int durationInMinutes = endDateTime.difference(startDateTime).inMinutes;
-    if (durationInMinutes <= 0) {
-      durationInMinutes += 1440; // Add 24 hours for overnight sessions
+    if (_startTime == null ||
+        _endTime == null ||
+        _startDate == null ||
+        _endDate == null ||
+        _selectedDays.isEmpty) {
+      _showError(
+        'Please complete all schedule fields: days, times, and date range.',
+      );
+      return;
+    }
+    if (_endDate!.isBefore(_startDate!)) {
+      _showError('End date cannot be before the start date.');
+      return;
     }
 
-    // Map short day names back to full names for the backend
-    const dayMap = {"Mon": "Monday", "Tue": "Tuesday", "Wed": "Wednesday", "Thu": "Thursday", "Fri": "Friday", "Sat": "Saturday", "Sun": "Sunday"};
-    final fullDayNames = _selectedDays.map((day) => dayMap[day]!).toList();
+    setState(() => _isLoading = true);
 
-    // CONSTRUCT THE SCHEDULE OBJECT
-    final scheduleObject = Schedule(
-      startTime: '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}',
-      endTime: '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}',
-      days: fullDayNames,
-      startDate: _startDate!,
-      endDate: _endDate!,
-      recurrence: _recurrenceRule,
-    );
-
-    final apiService = Provider.of<ApiService>(context, listen: false);
-
-    // Common data from controllers
-    final commonData = {
-      'groupName': _groupNameController.text.trim(),
-      'location': _locationController.text.trim(),
-      'locationText': _locationTextController.text.trim(),
-      'latitude': double.parse(_latitudeController.text.trim()),
-      'longitude': double.parse(_longitudeController.text.trim()),
-      'description': _descriptionController.text.trim(),
-      'maxParticipants': int.parse(_maxParticipantsController.text.trim()),
-      'yogaStyle': _selectedYogaStyle,
-      'difficultyLevel': _selectedDifficultyLevel,
-      'sessionDuration': durationInMinutes,
-      'pricePerSession': double.parse(_priceController.text.trim()),
-      'currency': _currencyController.text.trim(),
-      'requirements': _requirementsController.text.trim().split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
-      'equipmentNeeded': _equipmentController.text.trim().split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
-      'isActive': _isActive,
-    };
-
-    if (widget.existingGroup == null) {
-      // --- CREATE A NEW GROUP ---
-      // Pass the scheduleObject directly here, along with other data
-      await apiService.createGroup(
-        schedule: scheduleObject, // <-- FIX: Pass the object directly
-        // Pass the rest of the data
-        groupName: commonData['groupName'] as String,
-        location: commonData['location'] as String,
-        locationText: commonData['locationText'] as String,
-        latitude: commonData['latitude'] as double,
-        longitude: commonData['longitude'] as double,
-        description: commonData['description'] as String,
-        maxParticipants: commonData['maxParticipants'] as int,
-        yogaStyle: commonData['yogaStyle'] as String,
-        difficultyLevel: commonData['difficultyLevel'] as String,
-        sessionDuration: commonData['sessionDuration'] as int,
-        pricePerSession: commonData['pricePerSession'] as double,
-        currency: commonData['currency'] as String,
-        requirements: commonData['requirements'] as List<String>,
-        equipmentNeeded: commonData['equipmentNeeded'] as List<String>,
-        isActive: commonData['isActive'] as bool,
+    try {
+      // Automatically calculate duration in minutes
+      final startDateTime = DateTime(
+        2025,
+        1,
+        1,
+        _startTime!.hour,
+        _startTime!.minute,
       );
-    } else {
-      // --- UPDATE AN EXISTING GROUP ---
-      // Pass the scheduleObject directly here too
-      await apiService.updateGroup(
-        id: widget.existingGroup!.id,
-        schedule: scheduleObject, // <-- FIX: Pass the object directly
-        // Pass the rest of the data
-        groupName: commonData['groupName'] as String,
-        location: commonData['location'] as String,
-        locationText: commonData['locationText'] as String,
-        latitude: commonData['latitude'] as double,
-        longitude: commonData['longitude'] as double,
-        description: commonData['description'] as String,
-        maxParticipants: commonData['maxParticipants'] as int,
-        yogaStyle: commonData['yogaStyle'] as String,
-        difficultyLevel: commonData['difficultyLevel'] as String,
-        sessionDuration: commonData['sessionDuration'] as int,
-        pricePerSession: commonData['pricePerSession'] as double,
-        currency: commonData['currency'] as String,
-        requirements: commonData['requirements'] as List<String>,
-        equipmentNeeded: commonData['equipmentNeeded'] as List<String>,
-        isActive: commonData['isActive'] as bool,
+      final endDateTime = DateTime(
+        2025,
+        1,
+        1,
+        _endTime!.hour,
+        _endTime!.minute,
       );
+      int durationInMinutes = endDateTime.difference(startDateTime).inMinutes;
+      if (durationInMinutes <= 0) {
+        durationInMinutes += 1440; // Add 24 hours for overnight sessions
+      }
+
+      // Map short day names back to full names for the backend
+      const dayMap = {
+        "Mon": "Monday",
+        "Tue": "Tuesday",
+        "Wed": "Wednesday",
+        "Thu": "Thursday",
+        "Fri": "Friday",
+        "Sat": "Saturday",
+        "Sun": "Sunday",
+      };
+      final fullDayNames = _selectedDays.map((day) => dayMap[day]!).toList();
+
+      // CONSTRUCT THE SCHEDULE OBJECT
+      final scheduleObject = Schedule(
+        startTime:
+            '${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}',
+        endTime:
+            '${_endTime!.hour.toString().padLeft(2, '0')}:${_endTime!.minute.toString().padLeft(2, '0')}',
+        days: fullDayNames,
+        startDate: _startDate!,
+        endDate: _endDate!,
+        recurrence: _recurrenceRule,
+      );
+
+      final apiService = Provider.of<ApiService>(context, listen: false);
+
+      // Common data from controllers
+      final commonData = {
+        'groupName': _groupNameController.text.trim(),
+        'location': _locationController.text.trim(),
+        'locationText': _locationTextController.text.trim(),
+        'latitude': double.parse(_latitudeController.text.trim()),
+        'longitude': double.parse(_longitudeController.text.trim()),
+        'description': _descriptionController.text.trim(),
+        'maxParticipants': int.parse(_maxParticipantsController.text.trim()),
+        'yogaStyle': _selectedYogaStyle,
+        'difficultyLevel': _selectedDifficultyLevel,
+        'sessionDuration': durationInMinutes,
+        'pricePerSession': double.parse(_priceController.text.trim()),
+        'currency': _currencyController.text.trim(),
+        'requirements': _requirementsController.text
+            .trim()
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList(),
+        'equipmentNeeded': _equipmentController.text
+            .trim()
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList(),
+        'isActive': _isActive,
+      };
+
+      if (widget.existingGroup == null) {
+        // --- CREATE A NEW GROUP ---
+        // Pass the scheduleObject directly here, along with other data
+        await apiService.createGroup(
+          schedule: scheduleObject, // <-- FIX: Pass the object directly
+          // Pass the rest of the data
+          groupName: commonData['groupName'] as String,
+          location: commonData['location'] as String,
+          locationText: commonData['locationText'] as String,
+          latitude: commonData['latitude'] as double,
+          longitude: commonData['longitude'] as double,
+          description: commonData['description'] as String,
+          maxParticipants: commonData['maxParticipants'] as int,
+          yogaStyle: commonData['yogaStyle'] as String,
+          difficultyLevel: commonData['difficultyLevel'] as String,
+          sessionDuration: commonData['sessionDuration'] as int,
+          pricePerSession: commonData['pricePerSession'] as double,
+          currency: commonData['currency'] as String,
+          requirements: commonData['requirements'] as List<String>,
+          equipmentNeeded: commonData['equipmentNeeded'] as List<String>,
+          isActive: commonData['isActive'] as bool,
+        );
+      } else {
+        // --- UPDATE AN EXISTING GROUP ---
+        // Pass the scheduleObject directly here too
+        await apiService.updateGroup(
+          id: widget.existingGroup!.id,
+          schedule: scheduleObject, // <-- FIX: Pass the object directly
+          // Pass the rest of the data
+          groupName: commonData['groupName'] as String,
+          location: commonData['location'] as String,
+          locationText: commonData['locationText'] as String,
+          latitude: commonData['latitude'] as double,
+          longitude: commonData['longitude'] as double,
+          description: commonData['description'] as String,
+          maxParticipants: commonData['maxParticipants'] as int,
+          yogaStyle: commonData['yogaStyle'] as String,
+          difficultyLevel: commonData['difficultyLevel'] as String,
+          sessionDuration: commonData['sessionDuration'] as int,
+          pricePerSession: commonData['pricePerSession'] as double,
+          currency: commonData['currency'] as String,
+          requirements: commonData['requirements'] as List<String>,
+          equipmentNeeded: commonData['equipmentNeeded'] as List<String>,
+          isActive: commonData['isActive'] as bool,
+        );
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.existingGroup == null
+                ? 'Group created successfully!'
+                : 'Group updated successfully!',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted)
+        _showError(
+          'Save failed: ${e.toString().replaceFirst('Exception: ', '')}',
+        );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(widget.existingGroup == null ? 'Group created successfully!' : 'Group updated successfully!'),
-        backgroundColor: Colors.green,
-      ),
-    );
-    Navigator.pop(context, true);
-  } catch (e) {
-    if (mounted) _showError('Save failed: ${e.toString().replaceFirst('Exception: ', '')}');
-  } finally {
-    if (mounted) setState(() => _isLoading = false);
   }
-}
 
   @override
   void dispose() {
@@ -821,7 +943,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                                 onPressed: _isLoading ? null : _fetchLocation,
                                 icon: const Icon(Icons.my_location),
                                 label: const Text('Use Current Location'),
-                                style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(50),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -830,7 +954,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                                 onPressed: _isLoading ? null : _openMapPicker,
                                 icon: const Icon(Icons.map_outlined),
                                 label: const Text('Pick on Map'),
-                                style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                                style: FilledButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(50),
+                                ),
                               ),
                             ),
                           ],
@@ -852,7 +978,10 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.schedule, color: theme.colorScheme.primary),
+                          Icon(
+                            Icons.schedule,
+                            color: theme.colorScheme.primary,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'Schedule & Duration',
@@ -863,82 +992,114 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      const Text('Select Class Days *',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const Text(
+                        'Select Class Days *',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8.0,
                         runSpacing: 4.0,
-                        children: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) {
-                          final isSelected = _selectedDays.contains(day);
-                          return FilterChip(
-                            label: Text(day),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              setState(() {
-                                if (selected) {
-                                  _selectedDays.add(day);
-                                } else {
-                                  _selectedDays.remove(day);
-                                }
-                                _updateTimingsField();
-                              });
-                            },
-                            selectedColor: theme.colorScheme.primary,
-                            labelStyle: TextStyle(
-                              color: isSelected ? theme.colorScheme.onPrimary : null,
-                            ),
-                          );
-                        }).toList(),
+                        children:
+                            [
+                              'Mon',
+                              'Tue',
+                              'Wed',
+                              'Thu',
+                              'Fri',
+                              'Sat',
+                              'Sun',
+                            ].map((day) {
+                              final isSelected = _selectedDays.contains(day);
+                              return FilterChip(
+                                label: Text(day),
+                                selected: isSelected,
+                                onSelected: (selected) {
+                                  setState(() {
+                                    if (selected) {
+                                      _selectedDays.add(day);
+                                    } else {
+                                      _selectedDays.remove(day);
+                                    }
+                                    _updateTimingsField();
+                                  });
+                                },
+                                selectedColor: theme.colorScheme.primary,
+                                labelStyle: TextStyle(
+                                  color: isSelected
+                                      ? theme.colorScheme.onPrimary
+                                      : null,
+                                ),
+                              );
+                            }).toList(),
                       ),
 
                       const SizedBox(height: 20),
-                      const Text('Select Class Date Range *',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const Text(
+                        'Select Class Date Range *',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
                           Expanded(
                             child: ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: theme.colorScheme.secondaryContainer,
-                                foregroundColor: theme.colorScheme.onSecondaryContainer,
+                                backgroundColor:
+                                    theme.colorScheme.secondaryContainer,
+                                foregroundColor:
+                                    theme.colorScheme.onSecondaryContainer,
                               ),
                               icon: const Icon(Icons.calendar_today),
-                              label: Text(_startDate == null
-                                  ? 'Start Date'
-                                  : DateFormat('dd MMM yyyy').format(_startDate!)),
-                              onPressed: () => _pickDate(true), // For Start Date
+                              label: Text(
+                                _startDate == null
+                                    ? 'Start Date'
+                                    : DateFormat(
+                                        'dd MMM yyyy',
+                                      ).format(_startDate!),
+                              ),
+                              onPressed: () =>
+                                  _pickDate(true), // For Start Date
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: theme.colorScheme.secondaryContainer,
-                                foregroundColor: theme.colorScheme.onSecondaryContainer,
+                                backgroundColor:
+                                    theme.colorScheme.secondaryContainer,
+                                foregroundColor:
+                                    theme.colorScheme.onSecondaryContainer,
                               ),
                               icon: const Icon(Icons.event),
-                              label: Text(_endDate == null
-                                  ? 'End Date'
-                                  : DateFormat('dd MMM yyyy').format(_endDate!)),
+                              label: Text(
+                                _endDate == null
+                                    ? 'End Date'
+                                    : DateFormat(
+                                        'dd MMM yyyy',
+                                      ).format(_endDate!),
+                              ),
                               onPressed: () => _pickDate(false), // For End Date
                             ),
                           ),
                         ],
                       ),
-        
+
                       const SizedBox(height: 20),
-                      const Text('Select Class Time *',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const Text(
+                        'Select Class Time *',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       const SizedBox(height: 8),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size.fromHeight(50),
                           backgroundColor: theme.colorScheme.secondaryContainer,
-                          foregroundColor: theme.colorScheme.onSecondaryContainer,
+                          foregroundColor:
+                              theme.colorScheme.onSecondaryContainer,
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
                         icon: const Icon(Icons.access_time),
                         label: Text(
@@ -953,9 +1114,11 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size.fromHeight(50),
                           backgroundColor: theme.colorScheme.secondaryContainer,
-                          foregroundColor: theme.colorScheme.onSecondaryContainer,
+                          foregroundColor:
+                              theme.colorScheme.onSecondaryContainer,
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
                         icon: const Icon(Icons.access_time),
                         label: Text(
@@ -989,7 +1152,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                               // validator: _validateSessionDuration,
                               keyboardType: TextInputType.number,
                               inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly
+                                FilteringTextInputFormatter.digitsOnly,
                               ],
                             ),
                           ),
@@ -1004,7 +1167,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                               validator: _validateMaxParticipants,
                               keyboardType: TextInputType.number,
                               inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly
+                                FilteringTextInputFormatter.digitsOnly,
                               ],
                             ),
                           ),

@@ -539,4 +539,137 @@ router.get('/location/reverse-geocode', async (req, res) => {
   }
 });
 
+// New route: Hard delete group and all associated records
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const groupId = req.params.id;
+
+    // Find and delete the group itself
+    const group = await Group.findByIdAndDelete(groupId);
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found'
+      });
+    }
+
+    // Remove all group members related to this group
+    await GroupMember.deleteMany({ group_id: groupId });
+
+    // Remove all attendance records related to this group
+    await Attendance.deleteMany({ group_id: groupId });
+
+    res.json({
+      success: true,
+      message: 'Group and all related records deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete group error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete group',
+      error: error.message
+    });
+  }
+});
+
+// New route: Participant hard leave group and delete their attendance for the group
+router.delete('/:id/leave', auth, async (req, res) => {
+  try {
+    const groupId = req.params.id;
+    const userId = req.user.id;
+
+    // Delete group membership for this user and group (hard delete)
+    const membership = await GroupMember.findOneAndDelete({ user_id: userId, group_id: groupId });
+    if (!membership) {
+      return res.status(404).json({ success: false, message: 'Membership not found' });
+    }
+
+    // Remove all attendance records for this user in the group
+    await Attendance.deleteMany({ user_id: userId, group_id: groupId });
+
+    res.json({
+      success: true,
+      message: 'Left group and deleted attendance records'
+    });
+  } catch (error) {
+    console.error('Leave group error:', error);
+    res.status(500).json({ success: false, message: 'Failed to leave group', error: error.message });
+  }
+});
+
+// New route: Get all scheduled session dates for a group
+router.get('/:id/sessions', async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.id);
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+    if (!group.schedule || !group.schedule.startDate || !group.schedule.endDate || !group.schedule.days) {
+      return res.status(400).json({ success: false, message: 'Group schedule data is incomplete' });
+    }
+
+    const { startDate, endDate, days, startTime } = group.schedule;
+    const sessions = [];
+
+    const dayNameToNum = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
+    const scheduledDays = days.map(d => dayNameToNum[d]);
+
+    let currentDate = new Date(startDate);
+    const finalDate = new Date(endDate);
+
+    // Parse startTime (assumed format "HH:mm")
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+
+    while (currentDate <= finalDate) {
+      if (scheduledDays.includes(currentDate.getDay())) {
+        const sessionDate = new Date(currentDate);
+        sessionDate.setHours(startHour, startMinute, 0, 0);
+        sessions.push(sessionDate.toISOString());
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    res.json({ success: true, data: { sessions } });
+
+  } catch (error) {
+    console.error('Get sessions error:', error);
+    res.status(500).json({ success: false, message: 'Failed to retrieve sessions', error: error.message });
+  }
+});
+
+// GET /groups/:groupId/sessions
+router.get('/:groupId/sessions', async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    // Assuming you have a Session model or schedule array in Group
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: 'Group not found' });
+    }
+    // If sessions are stored separately, query them; otherwise array
+    // Example: group.sessions is an array of session date strings
+    const sessions = group.sessions || [];
+    res.json({ success: true, data: { sessions } });
+  } catch (err) {
+    console.error('Error fetching group sessions', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET /participants/:participantId/groups
+router.get('/participants/:participantId/groups', async (req, res) => {
+  try {
+    const { participantId } = req.params;
+    // Fetch groups where participant is a member
+    const groups = await Group.find({ participants: participantId });
+    res.json({ success: true, data: groups });
+  } catch (err) {
+    console.error('Error fetching participant groups', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
+
 module.exports = router;

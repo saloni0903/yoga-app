@@ -1,4 +1,3 @@
-// lib/screens/participant/group_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../api_service.dart';
@@ -6,6 +5,13 @@ import '../../models/attendance.dart';
 import '../../models/yoga_group.dart';
 import '../qr/qr_scanner_screen.dart';
 import 'package:intl/intl.dart';
+
+class _SessionStatus {
+  final DateTime sessionDate;
+  final String status; // e.g., 'present', 'missed', etc.
+
+  _SessionStatus({required this.sessionDate, required this.status});
+}
 
 class GroupDetailScreen extends StatefulWidget {
   final String groupId;
@@ -17,7 +23,7 @@ class GroupDetailScreen extends StatefulWidget {
 }
 
 class _GroupDetailScreenState extends State<GroupDetailScreen> {
-  late Future<(YogaGroup, List<AttendanceRecord>)> _detailsFuture;
+  late Future<(YogaGroup, List<_SessionStatus>)> _detailsFuture;
 
   @override
   void initState() {
@@ -32,10 +38,49 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           Future.wait([
             apiService.getGroupById(widget.groupId),
             apiService.getAttendanceForGroup(widget.groupId),
-          ]).then(
-            (results) =>
-                (results[0] as YogaGroup, results[1] as List<AttendanceRecord>),
-          );
+            apiService.getGroupScheduledSessions(widget.groupId),
+          ]).then((results) {
+            final group = results[0] as YogaGroup;
+            final attendanceHistory = results[1] as List<AttendanceRecord>;
+            final scheduledSessions = results[2] as List<DateTime>;
+
+            final attendedDates = attendanceHistory
+                .map(
+                  (e) => DateTime.utc(
+                    e.sessionDate.year,
+                    e.sessionDate.month,
+                    e.sessionDate.day,
+                  ),
+                )
+                .toSet();
+            final missedSessions = scheduledSessions
+                .where(
+                  (date) => !attendedDates.contains(
+                    DateTime.utc(date.year, date.month, date.day),
+                  ),
+                )
+                .toList();
+
+            List<_SessionStatus> combinedSessions = [];
+            for (var att in attendanceHistory) {
+              combinedSessions.add(
+                _SessionStatus(
+                  sessionDate: att.sessionDate,
+                  status: att.attendanceType,
+                ),
+              );
+            }
+            for (var miss in missedSessions) {
+              combinedSessions.add(
+                _SessionStatus(sessionDate: miss, status: 'missed'),
+              );
+            }
+            combinedSessions.sort(
+              (a, b) => b.sessionDate.compareTo(a.sessionDate),
+            );
+
+            return (group, combinedSessions);
+          });
     });
   }
 
@@ -43,8 +88,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // The title now dynamically updates once the group name is loaded.
-        title: FutureBuilder<(YogaGroup, List<AttendanceRecord>)>(
+        title: FutureBuilder<(YogaGroup, List<_SessionStatus>)>(
           future: _detailsFuture,
           builder: (context, snapshot) {
             if (snapshot.hasData) {
@@ -54,7 +98,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           },
         ),
       ),
-      body: FutureBuilder<(YogaGroup, List<AttendanceRecord>)>(
+      body: FutureBuilder<(YogaGroup, List<_SessionStatus>)>(
         future: _detailsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -75,7 +119,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
               children: [
-                // Action card is placed first for easy access.
                 _buildAttendanceCard(context),
                 const SizedBox(height: 20),
                 _buildAboutCard(context, group),
@@ -84,7 +127,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 const SizedBox(height: 16),
                 _buildLogisticsCard(context, group),
                 const SizedBox(height: 16),
-                // Only show the instructor card if their name is available.
                 if (group.instructorName != null &&
                     group.instructorName!.isNotEmpty)
                   _buildInstructorCard(context, group),
@@ -98,7 +140,63 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  // --- UI HELPER WIDGETS ---
+  // ... (all widget helper methods remain as in your code with _buildAttendanceHistoryCard accepting List<_SessionStatus>)
+
+  Widget _buildAttendanceHistoryCard(
+    BuildContext context,
+    List<_SessionStatus> history,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Your Attendance History",
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const Divider(height: 20),
+            if (history.isEmpty)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16.0),
+                  child: Text("No attendance records found for this group."),
+                ),
+              )
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: history.length,
+                itemBuilder: (context, index) {
+                  final record = history[index];
+                  final statusColor = record.status == 'missed'
+                      ? Colors.red
+                      : Colors.green;
+                  final statusText = record.status == 'missed'
+                      ? 'Missed'
+                      : '${record.status[0].toUpperCase()}${record.status.substring(1)}';
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      statusColor == Colors.green
+                          ? Icons.check_circle
+                          : Icons.cancel,
+                      color: statusColor,
+                    ),
+                    title: Text(DateFormat.yMMMMd().format(record.sessionDate)),
+                    subtitle: Text('Status: $statusText'),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildAttendanceCard(BuildContext context) {
     // This widget remains the same as it was already functional.
@@ -315,86 +413,33 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       ),
     );
   }
+}
 
-  Widget _buildAttendanceHistoryCard(
-    BuildContext context,
-    List<AttendanceRecord> history,
-  ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Your Attendance History",
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const Divider(height: 20),
-            if (history.isEmpty)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16.0),
-                  child: Text("No attendance records found for this group."),
-                ),
-              )
-            else
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: history.length,
-                itemBuilder: (context, index) {
-                  final record = history[index];
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
-                      Icons.check_circle,
-                      color: Colors.green,
-                    ),
-                    title: Text(DateFormat.yMMMMd().format(record.sessionDate)),
-                    subtitle: Text(
-                      'Status: ${toBeginningOfSentenceCase(record.attendanceType)}',
-                    ),
-                  );
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// A flexible helper widget to create a consistent row with an icon, title, and value.
-  Widget _buildInfoRow(
-    BuildContext context,
-    IconData icon,
-    String title,
-    String value,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 22),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 2),
-                Text(value, style: Theme.of(context).textTheme.bodyLarge),
-              ],
-            ),
+/// A flexible helper widget to create a consistent row with an icon, title, and value.
+Widget _buildInfoRow(
+  BuildContext context,
+  IconData icon,
+  String title,
+  String value,
+) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8.0),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: Theme.of(context).colorScheme.primary, size: 22),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 2),
+              Text(value, style: Theme.of(context).textTheme.bodyLarge),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
 }

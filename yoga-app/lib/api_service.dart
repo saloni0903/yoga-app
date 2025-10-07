@@ -22,7 +22,7 @@ class ApiService with ChangeNotifier {
   // }
 
   // Deployed
-  String get baseUrl => 'https://yoga-app-7drp.onrender.com';
+  String get baseUrl => 'http://10.104.65.41:3000';
 
   String? _token;
   User? _currentUser;
@@ -91,12 +91,13 @@ class ApiService with ChangeNotifier {
 
       if (attendanceList != null) {
         // Store the recent attendance history
-        recentAttendance = attendanceList.map((e) => AttendanceRecord.fromJson(e)).toList();
+        recentAttendance = attendanceList
+            .map((e) => AttendanceRecord.fromJson(e))
+            .toList();
       }
 
       // Notify all widgets listening to ApiService that data has changed
       notifyListeners();
-
     } catch (e) {
       print('Failed to fetch dashboard data: $e');
       // Optionally re-throw or handle the error
@@ -188,7 +189,7 @@ class ApiService with ChangeNotifier {
     _ensureOk(res, data);
     return User.fromJson(data['data']);
   }
-  
+
   Future<User> updateMyProfile(Map<String, dynamic> profileData) async {
     if (_currentUser == null) throw Exception('Not authenticated.');
     final res = await http.put(
@@ -205,6 +206,101 @@ class ApiService with ChangeNotifier {
     notifyListeners();
 
     return updatedUser;
+  }
+
+  Map<String, String> get _headers => {
+    'Content-Type': 'application/json',
+    if (token != null) 'Authorization': 'Bearer $token',
+  };
+
+  // Delete a group (hard delete)
+  Future<bool> deleteGroup(String groupId) async {
+    final url = Uri.parse('$baseUrl/groups/$groupId');
+    final response = await http.delete(url, headers: _headers);
+
+    if (response.statusCode == 200) {
+      return true;
+    } else {
+      throw Exception('Failed to delete group: ${response.body}');
+    }
+  }
+
+  // Leave a group (participant leaves and deletes attendance)
+  Future<bool> leaveGroup(String groupId) async {
+    final url = Uri.parse('$baseUrl/groups/$groupId/leave');
+    final response = await http.delete(url, headers: _headers);
+
+    if (response.statusCode == 200) {
+      return true;
+    } else {
+      throw Exception('Failed to leave group: ${response.body}');
+    }
+  }
+
+  // Get scheduled sessions for a group
+  Future<List<DateTime>> fetchGroupSessions(String groupId) async {
+    final url = Uri.parse('$baseUrl/groups/$groupId/sessions');
+    final response = await http.get(url, headers: _headers);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final sessions = (data['data']['sessions'] as List)
+          .map<DateTime>((e) => DateTime.parse(e))
+          .toList();
+      return sessions;
+    } else {
+      throw Exception('Failed to fetch group sessions: ${response.body}');
+    }
+  }
+
+  // Fetch attendance filtered by participant and group
+  Future<List<AttendanceRecord>> getAttendanceByGroup(String groupId) async {
+    if (currentUser == null) {
+      throw Exception('User not logged in');
+    }
+    final userId = currentUser!.id;
+    final url = Uri.parse(
+      '$baseUrl/attendance/participant/$userId/group/$groupId',
+    );
+    final response = await http.get(url, headers: _headers);
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body);
+      final data = body['data'] as List;
+      return data.map((e) => AttendanceRecord.fromJson(e)).toList();
+    } else {
+      throw Exception('Failed to fetch attendance: ${response.body}');
+    }
+  }
+
+  // Fetch scheduled session dates for a group
+  Future<List<DateTime>> getGroupScheduledSessions(String groupId) async {
+    final url = Uri.parse('$baseUrl/groups/$groupId/sessions');
+    final response = await http.get(url, headers: _headers);
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body);
+      final sessionsList = body['data']['sessions'] as List<dynamic>;
+      return sessionsList.map((e) => DateTime.parse(e as String)).toList();
+    } else {
+      throw Exception('Failed to fetch scheduled sessions: ${response.body}');
+    }
+  }
+
+  // Fetch participant's joined groups
+  Future<List<YogaGroup>> getMyJoinedGroups() async {
+    if (currentUser == null) {
+      throw Exception('User not logged in');
+    }
+    final url = Uri.parse('$baseUrl/participants/${currentUser!.id}/groups');
+    final response = await http.get(url, headers: _headers);
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body);
+      final groupsList = body['data'] as List<dynamic>;
+      return groupsList.map((e) => YogaGroup.fromJson(e)).toList();
+    } else {
+      throw Exception('Failed to fetch joined groups: ${response.body}');
+    }
   }
 
   Future<List<User>> getGroupMembers({required String groupId}) async {
@@ -353,19 +449,6 @@ class ApiService with ChangeNotifier {
     _ensureOk(res, _decode(res));
   }
 
-  Future<List<YogaGroup>> getMyJoinedGroups() async {
-    final res = await http.get(
-      Uri.parse('$baseUrl/api/groups/my-groups'),
-      headers: _authHeaders(), // This is a protected route
-    );
-
-    final data = _decode(res);
-    _ensureOk(res, data);
-
-    final List listJson = data['data']['groups'];
-    return listJson.map((e) => YogaGroup.fromJson(e)).toList();
-  }
-
   Future<void> markAttendanceByQr({required String qrToken}) async {
     final res = await http.post(
       Uri.parse('$baseUrl/api/attendance/scan'),
@@ -442,7 +525,8 @@ class ApiService with ChangeNotifier {
     final uri = Uri.parse('$baseUrl/api/groups').replace(
       queryParameters: {
         if (search != null && search.isNotEmpty) 'search': search,
-        if (instructorId != null && instructorId.isNotEmpty) 'instructor_id': instructorId,
+        if (instructorId != null && instructorId.isNotEmpty)
+          'instructor_id': instructorId,
         if (latitude != null) 'latitude': latitude.toString(),
         if (longitude != null) 'longitude': longitude.toString(),
       },
@@ -456,20 +540,22 @@ class ApiService with ChangeNotifier {
         : [];
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
   }
+
   Future<Map<String, String>> reverseGeocode({
     required double latitude,
     required double longitude,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/groups/location/reverse-geocode').replace(
-      queryParameters: {
-        'lat': latitude.toString(),
-        'lon': longitude.toString(),
-      },
-    );
+    final uri = Uri.parse('$baseUrl/api/groups/location/reverse-geocode')
+        .replace(
+          queryParameters: {
+            'lat': latitude.toString(),
+            'lon': longitude.toString(),
+          },
+        );
     final res = await http.get(uri, headers: _authHeaders(optional: true));
     final data = _decode(res);
     _ensureOk(res, data);
-    
+
     // Return a map with both address and city
     return {
       'address': data['data']['address'] ?? 'Could not fetch address',
