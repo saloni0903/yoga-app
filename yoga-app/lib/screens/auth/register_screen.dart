@@ -3,6 +3,7 @@ import '../home/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 // lib/screens/auth/register_screen.dart
 
 class RegisterScreen extends StatefulWidget {
@@ -119,6 +120,56 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+  // Helper function to show errors
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+      ),
+    );
+  }
+
+  // Logic to get current location and fill the city field
+  Future<void> _fetchLocation() async {
+    setState(() => _isLoading = true);
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) throw Exception('Location services are disabled.');
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw Exception('Location permissions are denied');
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Location permissions are permanently denied.');
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+      );
+
+      final apiService = Provider.of<ApiService>(context, listen: false);
+      final locationData = await apiService.reverseGeocode(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+
+      setState(() {
+        _locationController.text = locationData['city'] ?? '';
+      });
+    } catch (e) {
+      if (mounted) {
+        _showError(e.toString().replaceFirst("Exception: ", ""));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -200,7 +251,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       padding: const EdgeInsets.all(20.0),
                       child: Form(
                         key: _formKey,
-                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        autovalidateMode: AutovalidateMode.disabled,
                         child: Column(
                           children: [
                             Row(
@@ -209,7 +260,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   child: TextFormField(
                                     controller: _firstNameController,
                                     textInputAction: TextInputAction.next,
-                                    decoration: const InputDecoration(
+                                    decoration: InputDecoration(
                                       labelText: 'First name',
                                       prefixIcon: Icon(Icons.person_outline),
                                     ),
@@ -222,7 +273,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   child: TextFormField(
                                     controller: _lastNameController,
                                     textInputAction: TextInputAction.next,
-                                    decoration: const InputDecoration(
+                                    decoration: InputDecoration(
                                       labelText: 'Last name',
                                       prefixIcon: Icon(Icons.person_outline),
                                     ),
@@ -237,7 +288,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
                               textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Email address',
                                 prefixIcon: Icon(Icons.alternate_email),
                               ),
@@ -248,7 +299,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               controller: _phoneController,
                               keyboardType: TextInputType.phone,
                               textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Phone Number',
                                 prefixIcon: Icon(Icons.phone_outlined),
                                 helperText:
@@ -286,21 +337,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               controller: _confirmPasswordController,
                               obscureText: _obscurePw,
                               textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Confirm Password',
                                 prefixIcon: Icon(Icons.lock_outline),
                               ),
                               validator: _validateConfirmPassword,
                             ),
-                            const SizedBox(height: 16),
+                            // This is the CORRECT code block
                             TextFormField(
                               controller: _locationController,
                               textInputAction: TextInputAction.done,
                               onFieldSubmitted: (_) => _register(),
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration( // <-- Notice 'const' is gone
                                 labelText: 'Your City',
                                 helperText: 'e.g., Indore',
-                                prefixIcon: Icon(Icons.location_city_outlined),
+                                prefixIcon: const Icon(Icons.location_city_outlined),
+                                // ▼▼▼ ADD THIS SUFFIX ICON ▼▼▼
+                                suffixIcon: IconButton(
+                                  icon: const Icon(Icons.my_location),
+                                  tooltip: 'Auto-Fetch My City',
+                                  onPressed: _isLoading ? null : _fetchLocation,
+                                ),
+                                // ▲▲▲ END OF SUFFIX ICON ▲▲▲
                               ),
                               validator: _validateLocation,
                             ),

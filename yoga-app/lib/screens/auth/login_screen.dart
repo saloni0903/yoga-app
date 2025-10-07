@@ -152,7 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
                               textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Email',
                                 prefixIcon: Icon(Icons.alternate_email),
                                 helperText: 'Must contain @ and end with .com',

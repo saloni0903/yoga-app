@@ -60,20 +60,20 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           children: [
             TextFormField(
               controller: _groupNameController,
-              decoration: const InputDecoration(labelText: 'Group Name *'),
+              decoration: InputDecoration(labelText: 'Group Name *'),
               validator: _validateGroupName,
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _selectedYogaStyle,
-              decoration: const InputDecoration(labelText: 'Yoga Style'),
+              decoration: InputDecoration(labelText: 'Yoga Style'),
               items: _yogaStyles.map((style) => DropdownMenuItem(value: style, child: Text(style.toUpperCase()))).toList(),
               onChanged: (value) => setState(() => _selectedYogaStyle = value ?? 'hatha'),
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _selectedDifficultyLevel,
-              decoration: const InputDecoration(labelText: 'Difficulty Level'),
+              decoration: InputDecoration(labelText: 'Difficulty Level'),
               items: _difficultyLevels.map((level) => DropdownMenuItem(value: level, child: Text(level.toUpperCase()))).toList(),
               onChanged: (value) => setState(() => _selectedDifficultyLevel = value ?? 'all-levels'),
             ),
@@ -88,13 +88,13 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           children: [
             TextFormField(
               controller: _locationController,
-              decoration: const InputDecoration(labelText: 'City *'),
+              decoration: InputDecoration(labelText: 'City *'),
               validator: (v) => _validateRequired(v, 'City'),
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _locationTextController,
-              decoration: const InputDecoration(labelText: 'Address *'),
+              decoration: InputDecoration(labelText: 'Address *'),
               validator: _validateLocationText,
               maxLines: 2,
             ),
@@ -154,21 +154,21 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
               // const SizedBox(height: 16),
               // TextFormField(
               //   controller: _sessionDurationController,
-              //   decoration: const InputDecoration(labelText: 'Duration (minutes) *'),
+              //   decoration: InputDecoration(labelText: 'Duration (minutes) *'),
               //   validator: _validateSessionDuration,
               //   keyboardType: TextInputType.number,
               // ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _maxParticipantsController,
-                decoration: const InputDecoration(labelText: 'Max Participants *'),
+                decoration: InputDecoration(labelText: 'Max Participants *'),
                 validator: _validateMaxParticipants,
                 keyboardType: TextInputType.number,
               ),
                const SizedBox(height: 16),
                TextFormField(
                 controller: _priceController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Price per Session *',
                   prefixIcon: Icon(Icons.currency_rupee),
                 ),
@@ -772,7 +772,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       // Group Name
                       TextFormField(
                         controller: _groupNameController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Group Name *',
                           helperText:
                               'Enter a descriptive name for your yoga group',
@@ -786,7 +786,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       // Location (Short Name)
                       TextFormField(
                         controller: _locationController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'City',
                           helperText: 'e.g., "Indore", "Mumbai"',
                           prefixIcon: Icon(Icons.location_on),
@@ -799,7 +799,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       // Location Text (Detailed)
                       TextFormField(
                         controller: _locationTextController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Address *',
                           helperText: 'Full address',
                           prefixIcon: Icon(Icons.place),
@@ -968,7 +968,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _timingsController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Generated Schedule *',
                           helperText: 'Auto-generated from your selections',
                           prefixIcon: Icon(Icons.event_repeat),
@@ -982,7 +982,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                           Expanded(
                             child: TextFormField(
                               // controller: _sessionDurationController,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Duration (minutes) *',
                                 prefixIcon: Icon(Icons.timer),
                               ),
@@ -997,7 +997,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                           Expanded(
                             child: TextFormField(
                               controller: _maxParticipantsController,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Max Participants *',
                                 prefixIcon: Icon(Icons.people),
                               ),
@@ -1044,7 +1044,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       // Yoga Style Dropdown
                       DropdownButtonFormField<String>(
                         value: _selectedYogaStyle,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Yoga Style',
                           prefixIcon: Icon(Icons.spa),
                         ),
@@ -1063,7 +1063,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       // Difficulty Level Dropdown
                       DropdownButtonFormField<String>(
                         value: _selectedDifficultyLevel,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Difficulty Level',
                           prefixIcon: Icon(Icons.trending_up),
                         ),
@@ -1085,7 +1085,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       // Description
                       TextFormField(
                         controller: _descriptionController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Description (Optional)',
                           helperText:
                               'Describe your yoga group and what makes it special',
@@ -1133,7 +1133,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                             flex: 2,
                             child: TextFormField(
                               controller: _priceController,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Price per Session *',
                                 helperText: 'Enter Rs. 0 for free',
                                 prefixIcon: Icon(Icons.currency_rupee),
@@ -1186,7 +1186,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       // Requirements
                       TextFormField(
                         controller: _requirementsController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Requirements (Optional)',
                           helperText: 'Separate multiple items with commas',
                           prefixIcon: Icon(Icons.checklist),
@@ -1199,7 +1199,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       // Equipment Needed
                       TextFormField(
                         controller: _equipmentController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Equipment Needed (Optional)',
                           helperText: 'Separate multiple items with commas',
                           prefixIcon: Icon(Icons.fitness_center),

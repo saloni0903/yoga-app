@@ -266,6 +266,31 @@ class MyApp extends StatelessWidget {
     final darkTheme = darkBase.copyWith(
       // We are adding the same AppBarTheme from the light theme
       // so the style (center title, font weight) remains consistent.
+      inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: Colors.grey.shade800, // A dark color for the field background
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 16,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: Colors.grey.shade700),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: Colors.grey.shade700),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: darkBase.colorScheme.primary, width: 1.6),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: darkBase.colorScheme.error),
+      ),
+    ),
+
       appBarTheme: darkBase.appBarTheme.copyWith(
         centerTitle: true,
         elevation: 0,
