@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:file_picker/file_picker.dart';
+// import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart';
 // lib/screens/auth/register_screen.dart
 
@@ -20,9 +20,11 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  // FilePickerResult? result;
+
   final _formKey = GlobalKey<FormState>();
-  String? _fileName;
-  File? _pickedFile;
+  // String? _fileName;
+  // File? _pickedFile;
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -102,29 +104,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return null;
   }
 
-  Future<void> pickDocument() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'doc', 'docx', 'txt'],
-    );
+  // Future<void> pickDocument() async {
+  //   // Use a local variable here
+  //   // final localResult = await FilePicker.platform.pickFiles(
+  //   //   type: FileType.custom,
+  //   //   allowedExtensions: ['pdf', 'doc', 'docx', 'txt'],
+  //   // );
 
-    if (result != null) {
-      PlatformFile platformFile = result.files.first;
-      setState(() {
-        _fileName = platformFile.name;
-        _pickedFile = File(platformFile.path!);
-      });
-    }
-  }
+  //   // Assign the local result to your class variable
+  //   setState(() {
+  //     result = localResult;
+  //   });
+
+  //   if (localResult != null) {
+  //     PlatformFile platformFile = localResult.files.first; // This now works
+  //     setState(() {
+  //       _fileName = platformFile.name;
+  //       // On web, path is null, so handle it safely
+  //       if (platformFile.path != null) {
+  //         _pickedFile = File(platformFile.path!);
+  //       }
+  //     });
+  //   }
+  // }
 
   Future<void> _register() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-
-    // ⭐ CORRECTION 2: The endpoint was missing the specific path (e.g., /register).
-    // Make sure to replace this with the correct path from your server's API.
     final apiEndpoint =
-        'https://yoga-app-7drp.onrender.com/api/auth/register'; // Example path added
-
+        'https://yoga-app-7drp.onrender.com/api/auth/register';
     setState(() => _isLoading = true);
     try {
       final fullName =
@@ -139,11 +146,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
       request.fields['role'] = _selectedRole;
       request.fields['location'] = _locationController.text.trim();
 
-      if (_pickedFile != null) {
-        request.files.add(
-          await http.MultipartFile.fromPath('document', _pickedFile!.path),
-        );
-      }
+      // if (result != null && result.files.first.bytes != null) { // Check for bytes
+      //   // This is for web
+      //   request.files.add(
+      //     http.MultipartFile.fromBytes(
+      //       'document', // Must match backend field name
+      //       result.files.first.bytes!,
+      //       filename: result.files.first.name,
+      //     ),
+      //   );
+      // } else if (_pickedFile != null) {
+      //   // This is for mobile
+      //   request.files.add(
+      //     await http.MultipartFile.fromPath('document', _pickedFile!.path),
+      //   );
+      // }
 
       var response = await request.send();
       final responseBody = await response.stream.bytesToString();
@@ -380,42 +397,42 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            ElevatedButton(
-                              onPressed: () async {
-                                FilePickerResult? result = await FilePicker
-                                    .platform
-                                    .pickFiles(
-                                      type: FileType.custom,
-                                      allowedExtensions: [
-                                        'pdf',
-                                        'doc',
-                                        'docx',
-                                        'txt',
-                                      ],
-                                    );
-                                if (result != null) {
-                                  setState(() {
-                                    _fileName = result.files.first.name;
-                                    _pickedFile = File(
-                                      result.files.first.path!,
-                                    );
-                                  });
-                                  // You can add upload logic here if needed in future
-                                } else {
-                                  setState(() {
-                                    _fileName = null;
-                                    _pickedFile = null;
-                                  });
-                                  // Optional: Show cancelled alert if you like
-                                }
-                              },
-                              child: Text('Select Document'),
-                            ),
-                            if (_fileName != null)
-                              Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: Text('Selected: $_fileName'),
-                              ),
+                            // ElevatedButton(
+                            //   onPressed: () async {
+                            //     FilePickerResult? result = await FilePicker
+                            //         .platform
+                            //         .pickFiles(
+                            //           type: FileType.custom,
+                            //           allowedExtensions: [
+                            //             'pdf',
+                            //             'doc',
+                            //             'docx',
+                            //             'txt',
+                            //           ],
+                            //         );
+                            //     if (result != null) {
+                            //       setState(() {
+                            //         _fileName = result.files.first.name;
+                            //         _pickedFile = File(
+                            //           result.files.first.path!,
+                            //         );
+                            //       });
+                            //       // You can add upload logic here if needed in future
+                            //     } else {
+                            //       setState(() {
+                            //         _fileName = null;
+                            //         _pickedFile = null;
+                            //       });
+                            //       // Optional: Show cancelled alert if you like
+                            //     }
+                            //   },
+                            //   child: Text('Select Document'),
+                            // ),
+                            // if (_fileName != null)
+                            //   Padding(
+                            //     padding: const EdgeInsets.all(8.0),
+                            //     child: Text('Selected: $_fileName'),
+                            //   ),
 
                             const SizedBox(height: 16),
                             TextFormField(

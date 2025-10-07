@@ -173,6 +173,7 @@ class ApiService with ChangeNotifier {
         'password': password,
         'role': role,
         'location': location,
+        'samagraId': samagraId,
       }),
     );
     final data = _decode(res);

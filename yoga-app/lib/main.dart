@@ -172,16 +172,15 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          elevation: 0,
-          minimumSize: const Size.fromHeight(52),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-      ),
+      // filledButtonTheme: FilledButtonThemeData(
+      //   style: FilledButton.styleFrom(
+      //     elevation: 0,
+      //     minimumSize: const Size.fromHeight(52),
+      //     shape: RoundedRectangleBorder(
+      //       borderRadius: BorderRadius.circular(14),
+      //     ),
+      //   ),
+      // ),  
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: const Size.fromHeight(50),
