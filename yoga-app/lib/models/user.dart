@@ -1,4 +1,5 @@
 // lib/models/user.dart
+
 class User {
   final String id;
   final String firstName;
@@ -7,9 +8,14 @@ class User {
   final String role;
   final String location;
   final String? phone;
+  final String? samagraId;
   final String? token;
-  // ✅ ADDED: The status field is now included.
   final String status;
+
+  // ⭐ ADDITION: Added the missing profileImage field.
+  final String? profileImage;
+
+  // Stats for the dashboard
   final int totalMinutesPracticed;
   final int totalSessionsAttended;
   final int currentStreak;
@@ -24,9 +30,10 @@ class User {
     required this.role,
     required this.location,
     this.phone,
+    this.samagraId,
     this.token,
-    // ✅ ADDED: To the constructor.
     required this.status,
+    this.profileImage, // ⭐ ADDITION
     required this.totalMinutesPracticed,
     required this.totalSessionsAttended,
     required this.currentStreak,
@@ -34,26 +41,20 @@ class User {
 
   factory User.fromMemberJson(Map<String, dynamic> json) {
     final userJson = json['user_id'] as Map<String, dynamic>? ?? {};
-    final firstName = userJson['firstName'] ?? '';
-    final lastName = userJson['lastName'] ?? '';
-    final email = userJson['email'] ?? '';
-    final role = userJson['role'] ?? 'participant';
-    final location = userJson['location'] ?? '';
-    final phone = userJson['phone'] as String?;
-    final status = userJson['status'] ?? 'approved';
-
     return User(
       id: userJson['_id'] ?? '',
-      firstName: firstName,
-      lastName: lastName,
-      email: email,
-      role: role,
-      location: location,
-      phone: phone,
+      firstName: userJson['firstName'] ?? '',
+      lastName: userJson['lastName'] ?? '',
+      email: userJson['email'] ?? '',
+      role: userJson['role'] ?? 'participant',
+      location: userJson['location'] ?? '',
+      phone: userJson['phone'] as String?,
+      samagraId: userJson['samagraId'] as String?,
       token: '', // Member lists don't include tokens
-      status: status,
-      totalMinutesPracticed: 0, // Default value
-      totalSessionsAttended: 0, // Default value
+      status: userJson['status'] ?? 'approved',
+      profileImage: userJson['profileImage'] as String?, // ⭐ ADDITION
+      totalMinutesPracticed: 0,
+      totalSessionsAttended: 0,
       currentStreak: 0,
     );
   }
@@ -68,11 +69,12 @@ class User {
       role: userJson['role'] ?? 'participant',
       location: userJson['location'] ?? '',
       phone: userJson['phone'] as String?,
+      samagraId: userJson['samagraId'] as String?,
       token: json['token'] as String?,
-      // ✅ ADDED: Parse the status from the JSON, with a safe default.
       status: userJson['status'] ?? 'approved',
-      totalMinutesPracticed: userJson['totalMinutesPracticed'] ?? 0, // Default value
-      totalSessionsAttended: userJson['totalSessionsAttended'] ?? 0, // Default value
+      profileImage: userJson['profileImage'] as String?, // ⭐ ADDITION
+      totalMinutesPracticed: userJson['totalMinutesPracticed'] ?? 0,
+      totalSessionsAttended: userJson['totalSessionsAttended'] ?? 0,
       currentStreak: userJson['currentStreak'] ?? 0,
     );
   }
@@ -86,8 +88,9 @@ class User {
       role: userJson['role'] ?? 'participant',
       location: userJson['location'] ?? '',
       phone: userJson['phone'] as String?,
-      // ✅ ADDED: Parse the status from the JSON.
+      samagraId: userJson['samagraId'] as String?,
       status: userJson['status'] ?? 'approved',
+      profileImage: userJson['profileImage'] as String?, // ⭐ ADDITION
       totalMinutesPracticed: userJson['totalMinutesPracticed'] ?? 0,
       totalSessionsAttended: userJson['totalSessionsAttended'] ?? 0,
       currentStreak: userJson['currentStreak'] ?? 0,
@@ -102,9 +105,10 @@ class User {
     String? role,
     String? location,
     String? phone,
+    String? samagraId,
     String? token,
-    // ✅ ADDED: To the copyWith method.
     String? status,
+    String? profileImage, // ⭐ ADDITION
     int? totalMinutesPracticed,
     int? totalSessionsAttended,
     int? currentStreak,
@@ -117,10 +121,14 @@ class User {
       role: role ?? this.role,
       location: location ?? this.location,
       phone: phone ?? this.phone,
+      samagraId: samagraId ?? this.samagraId,
       token: token ?? this.token,
       status: status ?? this.status,
-      totalMinutesPracticed: totalMinutesPracticed ?? this.totalMinutesPracticed,
-      totalSessionsAttended: totalSessionsAttended ?? this.totalSessionsAttended,
+      profileImage: profileImage ?? this.profileImage, // ⭐ ADDITION
+      totalMinutesPracticed:
+          totalMinutesPracticed ?? this.totalMinutesPracticed,
+      totalSessionsAttended:
+          totalSessionsAttended ?? this.totalSessionsAttended,
       currentStreak: currentStreak ?? this.currentStreak,
     );
   }

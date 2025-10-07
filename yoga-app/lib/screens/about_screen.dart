@@ -1,114 +1,129 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
+  Future<void> _launchURL(BuildContext context, String url) async {
+    final uri = Uri.parse(url);
+    if (!await launchUrl(uri)) {
+      // Show an error message if the URL can't be launched
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open the manual. Please try again later.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Get theme data once to use for styling
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('About YES'),
-        backgroundColor: Colors.white,
-        elevation: 1,
-        foregroundColor: Colors.black87,
+        // ⭐ FIX: Removed hardcoded colors to allow the AppBar to adapt to the theme.
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Spacer to push content from the top
-            const Spacer(flex: 2),
+      // ⭐ FIX: The layout is now scrollable and adaptive.
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              // Ensures the content area is at least as tall as the screen,
+              // which allows vertical centering on larger screens.
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24.0,
+                    vertical: 32.0,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Spacer pushes the main content block down.
+                      const Spacer(flex: 2),
 
-            // App Logo
-            Image.asset(
-              'assets/images/logo.png', // Make sure this is your correct filename
-              height: 100,
-            ),
-            const SizedBox(height: 16),
+                      Image.asset(
+                        'assets/images/logo.png',
+                        height: 200, // You can now safely use a larger logo
+                      ),
+                      const SizedBox(height: 24),
 
-            // App Name & Version
-            const Text(
-              'YES (Yoga Essentials and Suryanamaskar)',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 4),
+                      Text(
+                        'YES App',
+                        textAlign: TextAlign.center,
+                        // ⭐ FIX: Using theme-aware text styles.
+                        style: textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '(Yoga Essentials and Suryanamaskara)',
+                        textAlign: TextAlign.center,
+                        style: textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 24),
 
-            // App Description
-            const Text(
-              'An initiative by the Ministry of Ayush to make the practice of yoga more accessible. This platform connects certified instructors with enthusiasts, fostering a community dedicated to wellness.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 15,
-                height: 1.5,
-                color: Colors.black54,
-              ),
-            ),
+                      Text(
+                        'An initiative by the Ministry of Ayush to make the practice of yoga more accessible. This platform connects certified instructors with enthusiasts, fostering a community dedicated to wellness.',
+                        textAlign: TextAlign.center,
+                        style: textTheme.bodyLarge?.copyWith(height: 1.5),
+                      ),
 
-            // Spacer to push the footer to the bottom
-            const Spacer(flex: 3),
-          
-            
-            // Collaboration Logos (Smaller)
-            const Text(
-              'In Collaboration With',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset(
-                  'assets/images/ayush_logo.jpg', // Ensure filename is correct
-                  height: 45, // Smaller logo
+                      // Spacer pushes the footer content to the bottom.
+                      const Spacer(flex: 3),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.description_outlined),
+                        label: const Text('Download User Manual'),
+                        onPressed: () {
+                          // ❗ IMPORTANT: Replace this with the actual URL of your PDF file
+                          const pdfUrl =
+                              'https://drive.google.com/file/d/1OntCVlAN_rmmNYrY1dCSnYReCnQfil7C/view?usp=drivesdk';
+                          _launchURL(context, pdfUrl);
+                        },
+                      ),
+                      const SizedBox(height: 24),
+
+                      Text('In Collaboration With', style: textTheme.bodySmall),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Image.asset(
+                            'assets/images/ayush_logo.jpg',
+                            height: 45,
+                          ),
+                          const SizedBox(width: 24),
+                          Image.asset('assets/images/sgsits.png', height: 45),
+                        ],
+                      ),
+                      const Divider(height: 48),
+
+                      Text('Developed By', style: textTheme.titleSmall),
+                      const SizedBox(height: 8),
+                      Text(
+                        'The students of SGSITS, Indore',
+                        textAlign: TextAlign.center,
+                        style: textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 24),
+                      Text('Version 1.0.0', style: textTheme.bodySmall),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 24),
-                Image.asset(
-                  'assets/images/sgsits.png', // Ensure filename is correct
-                  height: 45, // Smaller logo
-                ),
-              ],
-            ),
-            const Divider(height: 32),
-
-            // "Developed By" section at the absolute bottom
-            const Text(
-              'Developed By',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.black54,
               ),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'The students of SGSITS, Indore',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 15,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Version 1.0.0', // Updated version
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

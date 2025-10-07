@@ -5,10 +5,25 @@ const User = require('../model/User');
 const auth = require('../middleware/auth');  
 const router = express.Router();
 
+
+// ⭐ CHANGE 1: Import and configure multer
+const multer = require('multer');
+const upload = multer(); // Using a simple in-memory storage for now
+
 // Register
-router.post('/register', async (req, res) => {
+// ⭐ CHANGE 2: Add the multer middleware to the route.
+// `upload.single('document')` would be better if you plan to save the file.
+// `upload.any()` is a simple way to make it work by just parsing the text fields.
+router.post('/register', upload.any(), async (req, res) => {
   try {
-    const { email, password, firstName, lastName, role = 'participant', location } = req.body;
+    // Because of multer, `req.body` will now be correctly populated with your text fields.
+    const { email, password, fullName, role = 'participant', location, phone, samagraId } = req.body;
+
+    // The 'fullName' is sent directly from Flutter, so we split it here.
+    const nameParts = fullName.trim().split(' ');
+    const firstName = nameParts.shift() || '';
+    const lastName = nameParts.join(' ') || '';
+
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -19,14 +34,16 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Create new user
+    // Create new user with all fields from Flutter
     const user = new User({
       email,
       password,
       firstName,
       lastName,
       role,
-      location
+      location,
+      phone,
+      samagraId
     });
 
     await user.save();

@@ -1,10 +1,12 @@
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
+
 import '../../api_service.dart';
 import '../../models/user.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:yoga_app/screens/about_screen.dart';
-import 'package:yoga_app/screens/about_screen.dart';
-// lib/screens/profile/profile_screen.dart
+import '../about_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -15,34 +17,59 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  
-  // Text editing controllers to manage the form fields
+
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _samagraIdController = TextEditingController();
   final _locationController = TextEditingController();
 
   bool _isLoading = false;
-  bool _isEditing = false; // To toggle between view and edit mode
+  bool _isEditing = false;
+
+  // ⭐ ADDITION: State for the picked profile image file
+  File? _profileImageFile;
+
+  // ⭐ ADDITION: Flag to prevent controllers from being repopulated unnecessarily
+  bool _controllersPopulated = false;
 
   @override
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _phoneController.dispose();
+    _samagraIdController.dispose();
     _locationController.dispose();
     super.dispose();
   }
-  
-  // Function to populate the form fields with user data
+
+  // ⭐ CHANGE: This function is now only called when needed, not on every rebuild.
   void _populateControllers(User user) {
     _firstNameController.text = user.firstName;
     _lastNameController.text = user.lastName;
     _phoneController.text = user.phone ?? '';
+    _samagraIdController.text = user.samagraId ?? '';
     _locationController.text = user.location;
+    _controllersPopulated = true;
   }
-  
-  // Function to handle the profile update API call
+
+  // ⭐ ADDITION: Image picking logic
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 50,
+    );
+
+    if (pickedFile != null) {
+      setState(() {
+        _profileImageFile = File(pickedFile.path);
+      });
+    }
+  }
+
+  // lib/screens/profile/profile_screen.dart
+
   Future<void> _updateProfile() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
@@ -50,12 +77,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final apiService = Provider.of<ApiService>(context, listen: false);
 
     try {
-      await apiService.updateMyProfile({
-        'firstName': _firstNameController.text.trim(),
-        'lastName': _lastNameController.text.trim(),
-        'phone': _phoneController.text.trim(),
-        'location': _locationController.text.trim(),
-      });
+      // ⭐ CORRECTION: Added the required named parameters `profileData:` and `imageFile:`.
+      await apiService.updateMyProfile(
+        profileData: {
+          'firstName': _firstNameController.text.trim(),
+          'lastName': _lastNameController.text.trim(),
+          'phone': _phoneController.text.trim(),
+          'samagraId': _samagraIdController.text.trim(),
+          'location': _locationController.text.trim(),
+        },
+        imageFile: _profileImageFile,
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -63,14 +96,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        // Turn off editing mode after saving
-        setState(() => _isEditing = false);
+        setState(() {
+          _isEditing = false;
+          _profileImageFile = null;
+        });
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Update failed: ${e.toString().replaceFirst("Exception: ", "")}'),
+            content: Text(
+              'Update failed: ${e.toString().replaceFirst("Exception: ", "")}',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -80,27 +117,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // ⭐ ADDITION: Added more robust validators for phone and Samagra ID
+  String? _validatePhone(String? value) {
+    final phone = value?.trim() ?? '';
+    if (phone.isEmpty) return null; // Phone is optional
+    if (phone.length != 10 || int.tryParse(phone) == null) {
+      return 'Please enter a valid 10-digit phone number.';
+    }
+    return null;
+  }
+
+  String? _validateSamagraId(String? value) {
+    final samagraId = value?.trim() ?? '';
+    if (samagraId.isEmpty) return null; // Samagra ID is optional
+    if (samagraId.length != 9 || int.tryParse(samagraId) == null) {
+      return 'Please enter a valid 9-digit Samagra ID.';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    // We use a Consumer here so the UI updates if the profile changes
     return Consumer<ApiService>(
       builder: (context, apiService, child) {
         final user = apiService.currentUser;
         if (user == null) {
           return const Scaffold(body: Center(child: Text('Not logged in.')));
         }
-        
-        // Populate controllers with the latest user data
-        _populateControllers(user);
+
+        // ⭐ CHANGE: Only populate controllers once to avoid losing user's edits.
+        if (!_controllersPopulated) {
+          _populateControllers(user);
+        }
 
         return Scaffold(
           appBar: AppBar(
             title: const Text('My Profile'),
             actions: [
-              // Toggle between "Edit" and "Cancel" buttons
               if (_isEditing)
                 TextButton(
-                  onPressed: () => setState(() => _isEditing = false),
+                  onPressed: () {
+                    setState(() {
+                      _isEditing = false;
+                      _controllersPopulated =
+                          false; // Reset to repopulate with original data
+                      _profileImageFile =
+                          null; // Discard picked image on cancel
+                    });
+                  },
                   child: const Text('Cancel'),
                 )
               else
@@ -121,13 +185,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Center(
                     child: Stack(
                       children: [
+                        // ⭐ CHANGE: Display the network image, the newly picked image, or the initial.
                         CircleAvatar(
                           radius: 50,
-                          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                          child: Text(
-                            '${user.firstName[0]}${user.lastName[0]}',
-                            style: Theme.of(context).textTheme.headlineLarge,
-                          ),
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primaryContainer,
+                          backgroundImage: _profileImageFile != null
+                              ? FileImage(_profileImageFile!)
+                              : (user.profileImage != null
+                                        ? NetworkImage(user.profileImage!)
+                                        : null)
+                                    as ImageProvider?,
+                          child:
+                              (_profileImageFile == null &&
+                                  user.profileImage == null)
+                              ? Text(
+                                  '${user.firstName[0]}${user.lastName[0]}',
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.headlineLarge,
+                                )
+                              : null,
                         ),
                         if (_isEditing)
                           Positioned(
@@ -135,10 +214,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             right: 0,
                             child: CircleAvatar(
                               radius: 18,
-                              backgroundColor: Theme.of(context).colorScheme.primary,
+                              backgroundColor: Theme.of(
+                                context,
+                              ).colorScheme.primary,
                               child: IconButton(
-                                icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
-                                onPressed: () { /* TODO: Implement image picking */ },
+                                icon: const Icon(
+                                  Icons.camera_alt,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                // ⭐ CHANGE: Hooked up the image picker function
+                                onPressed: _pickImage,
                               ),
                             ),
                           ),
@@ -147,46 +233,89 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 16),
                   Center(
-                    child: Text(user.fullName, style: Theme.of(context).textTheme.headlineSmall),
+                    child: Text(
+                      user.fullName,
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
                   ),
                   Center(
-                    child: Text(user.email, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey.shade600)),
+                    child: Text(
+                      user.email,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
                   ),
                   const Divider(height: 40),
                   TextFormField(
                     controller: _firstNameController,
                     enabled: _isEditing,
-                    decoration: InputDecoration(labelText: 'First Name'),
-                    validator: (v) => v!.isEmpty ? 'First name is required' : null,
+                    decoration: const InputDecoration(
+                      labelText: 'First Name',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                    validator: (v) =>
+                        v!.isEmpty ? 'First name is required' : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _lastNameController,
                     enabled: _isEditing,
-                    decoration: InputDecoration(labelText: 'Last Name'),
-                     validator: (v) => v!.isEmpty ? 'Last name is required' : null,
+                    decoration: const InputDecoration(
+                      labelText: 'Last Name',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                    validator: (v) =>
+                        v!.isEmpty ? 'Last name is required' : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _phoneController,
                     enabled: _isEditing,
-                    decoration: InputDecoration(labelText: 'Phone Number'),
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number',
+                      prefixIcon: Icon(Icons.phone_outlined),
+                    ),
                     keyboardType: TextInputType.phone,
+                    // ⭐ CHANGE: Using the new, more specific validator.
+                    validator: _validatePhone,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _samagraIdController,
+                    enabled: _isEditing,
+                    decoration: const InputDecoration(
+                      labelText: 'Samagra ID',
+                      prefixIcon: Icon(Icons.badge_outlined),
+                    ),
+                    keyboardType: TextInputType.number,
+                    // ⭐ CHANGE: Using the new, more specific validator.
+                    validator: _validateSamagraId,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _locationController,
                     enabled: _isEditing,
-                    decoration: InputDecoration(labelText: 'City/Location'),
-                    validator: (v) => v!.isEmpty ? 'Location is required' : null,
+                    decoration: const InputDecoration(
+                      labelText: 'City/Location',
+                      prefixIcon: Icon(Icons.location_city_outlined),
+                    ),
+                    validator: (v) =>
+                        v!.isEmpty ? 'Location is required' : null,
                   ),
                   const SizedBox(height: 32),
-                  // Only show the Save button when in editing mode
                   if (_isEditing)
                     ElevatedButton.icon(
                       onPressed: _isLoading ? null : _updateProfile,
                       icon: _isLoading
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
                           : const Icon(Icons.save_alt_rounded),
                       label: Text(_isLoading ? 'Saving...' : 'Save Changes'),
                     ),
@@ -198,19 +327,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () {
                         Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const AboutScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const AboutScreen(),
+                          ),
                         );
                       },
                     ),
                     ListTile(
                       leading: const Icon(Icons.logout, color: Colors.red),
-                      title: const Text('Logout', style: TextStyle(color: Colors.red)),
+                      title: const Text(
+                        'Logout',
+                        style: TextStyle(color: Colors.red),
+                      ),
                       onTap: () {
                         showDialog(
                           context: context,
                           builder: (ctx) => AlertDialog(
                             title: const Text('Confirm Logout'),
-                            content: const Text('Are you sure you want to log out?'),
+                            content: const Text(
+                              'Are you sure you want to log out?',
+                            ),
                             actions: [
                               TextButton(
                                 child: const Text('Cancel'),
@@ -221,8 +357,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 onPressed: () {
                                   apiService.logout();
                                   if (mounted) {
-                                    Navigator.of(context, rootNavigator: true)
-                                      .pushNamedAndRemoveUntil('/login', (route) => false);
+                                    Navigator.of(
+                                      context,
+                                      rootNavigator: true,
+                                    ).pushNamedAndRemoveUntil(
+                                      '/login',
+                                      (route) => false,
+                                    );
                                   }
                                 },
                               ),
@@ -241,6 +382,3 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
-
-                  
-                
