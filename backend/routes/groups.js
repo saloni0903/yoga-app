@@ -8,21 +8,19 @@ const auth = require('../middleware/auth');
 const axios = require('axios');
 
 // Get all groups
-// routes/groups.js
-
-// GET all groups (with advanced search, geocoding, and distance calculation)
 router.get('/', async (req, res) => {
   try {
-    const { search, latitude, longitude, page = 1, limit = 10 } = req.query;
+    // 1. Destructure all possible query parameters
+    const { search, latitude, longitude, page = 1, limit = 10, instructor_id } = req.query;
 
     let searchCoords;
 
-    // Priority 1: If user provides a search term, geocode it to get coordinates.
+    // --- Geocoding Logic (no changes needed here) ---
     if (search) {
       try {
         const geocodeUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(search)}&format=json&limit=1`;
         const geocodeResponse = await axios.get(geocodeUrl, {
-          headers: { 'User-Agent': 'YogaApp/1.0' } // Nominatim requires a User-Agent
+          headers: { 'User-Agent': 'YogaApp/1.0' }
         });
         
         if (geocodeResponse.data && geocodeResponse.data.length > 0) {
@@ -33,19 +31,15 @@ router.get('/', async (req, res) => {
         }
       } catch (e) {
         console.error('Geocoding failed for search term:', search);
-        // If geocoding fails, we can fall back to a simple text search without location.
-        // Or, for now, we'll proceed without searchCoords.
       }
     }
-
-    // Priority 2: If no search term, use the user's provided coordinates.
     if (!searchCoords && latitude && longitude) {
       searchCoords = [parseFloat(longitude), parseFloat(latitude)];
     }
+    // --- End of Geocoding Logic ---
 
-    // If we have coordinates, perform a geospatial query. Otherwise, do a simple text search.
+    // Scenario 1: Geospatial search (if coordinates are available)
     if (searchCoords) {
-      // Use MongoDB's Aggregation Pipeline for geospatial queries with distance.
       const pipeline = [
         {
           $geoNear: {
@@ -53,47 +47,43 @@ router.get('/', async (req, res) => {
               type: 'Point',
               coordinates: searchCoords,
             },
-            distanceField: 'distance', // This adds a 'distance' field (in meters) to each document
+            distanceField: 'distance',
             spherical: true,
-            maxDistance: 50000, // Optional: 50km radius
+            maxDistance: 50000, // 50km radius
           },
         },
       ];
       
-      // If there was a search term, add a match stage after geo-searching.
+      // ✅ Dynamically build the matching conditions
+      const matchConditions = {};
+      if (instructor_id) {
+        matchConditions.instructor_id = instructor_id;
+      }
       if (search) {
-        pipeline.push({
-          $match: {
-            $or: [
-              { group_name: { $regex: search, $options: 'i' } },
-              { location_text: { $regex: search, $options: 'i' } },
-            ],
-          },
-        });
+        matchConditions.$or = [
+          { group_name: { $regex: search, $options: 'i' } },
+          { location_text: { $regex: search, $options: 'i' } },
+        ];
       }
 
-      // Add instructor population
+      // ✅ Add the match stage to the pipeline ONLY if there are conditions
+      if (Object.keys(matchConditions).length > 0) {
+        pipeline.push({ $match: matchConditions });
+      }
+
+      // --- Population and Pagination (no changes needed here) ---
       pipeline.push({
-        $lookup: {
-          from: 'users', // The actual collection name for 'User' model
-          localField: 'instructor_id',
-          foreignField: '_id',
-          as: 'instructor_id'
-        }
+        $lookup: { from: 'users', localField: 'instructor_id', foreignField: '_id', as: 'instructor_id' }
       }, {
-        $unwind: { // Deconstruct the instructor_id array
-          path: '$instructor_id',
-          preserveNullAndEmptyArrays: true // Keep groups even if instructor is not found
-        }
+        $unwind: { path: '$instructor_id', preserveNullAndEmptyArrays: true }
       });
 
+      const countPipeline = [...pipeline, { $count: 'total' }];
       const paginatedPipeline = [
         ...pipeline,
         { $skip: (parseInt(page) - 1) * parseInt(limit) },
         { $limit: parseInt(limit) }
       ];
-
-      const countPipeline = [...pipeline, { $count: 'total' }];
 
       const [groups, totalResult] = await Promise.all([
         Group.aggregate(paginatedPipeline),
@@ -102,7 +92,7 @@ router.get('/', async (req, res) => {
       
       const total = totalResult.length > 0 ? totalResult[0].total : 0;
       
-      res.json({
+      return res.json({
         success: true,
         data: {
           groups,
@@ -114,18 +104,28 @@ router.get('/', async (req, res) => {
         },
       });
 
+    // Scenario 2: Simple text/ID search (no location data)
     } else {
-      // Fallback to simple text search if no location data is available
-      let query = {};
+      // ✅ Dynamically build the query object
+      const query = {};
+      if (instructor_id) {
+        query.instructor_id = instructor_id;
+      }
       if (search) {
         query.$or = [
           { group_name: { $regex: search, $options: 'i' } },
           { location_text: { $regex: search, $options: 'i' } },
         ];
       }
-      const groups = await Group.find(query).populate('instructor_id', 'fullName').limit(parseInt(limit)).skip((page - 1) * parseInt(limit)).lean();
+      
       const total = await Group.countDocuments(query);
-      res.json({
+      const groups = await Group.find(query)
+        .populate('instructor_id', 'fullName')
+        .limit(parseInt(limit))
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .lean();
+      
+      return res.json({
         success: true,
         data: {
           groups,
