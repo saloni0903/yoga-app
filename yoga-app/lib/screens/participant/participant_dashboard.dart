@@ -1,35 +1,33 @@
-// lib/screens/participant/participant_dashboard.dart
-
-import 'my_groups_screen.dart';
-import '../../api_service.dart';
-import '../../models/user.dart';
-import 'find_group_screen.dart';
-import 'my_progress_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:yoga_app/screens/settings_screen.dart';
-import 'package:yoga_app/screens/profile/profile_screen.dart';
+import 'package:yoga_app/api_service.dart';
+import 'package:yoga_app/models/user.dart';
 import 'package:yoga_app/screens/participant/dashboard_home_tab.dart';
+import 'package:yoga_app/screens/participant/find_group_screen.dart';
+import 'package:yoga_app/screens/participant/my_groups_screen.dart';
+import 'package:yoga_app/screens/participant/my_progress_screen.dart';
+import 'package:yoga_app/screens/profile/profile_screen.dart';
+import 'package:yoga_app/screens/settings_screen.dart';
+import 'package:yoga_app/generated/app_localizations.dart';
 
 class ParticipantDashboard extends StatefulWidget {
-  final User user;
-  final ApiService apiService;
-
-  const ParticipantDashboard({
-    super.key,
-    required this.user,
-    required this.apiService,
-  });
+  const ParticipantDashboard({super.key});
 
   @override
   State<ParticipantDashboard> createState() => _ParticipantDashboardState();
 }
 
 class _ParticipantDashboardState extends State<ParticipantDashboard> {
-  int _index = 0;
+  int _currentIndex = 0;
+  final PageController _pageController = PageController();
 
-  // ✨ 1. Define the list here
-  late final List<Widget> _pages;
+  final List<Widget> _screens = const [
+    DashboardHomeTab(),
+    MyGroupsScreen(),
+    FindGroupScreen(),
+    MyProgressScreen(),
+    SettingsScreen(),
+  ];
 
   final List<String> _pageTitles = const [
     'Home',
@@ -39,96 +37,117 @@ class _ParticipantDashboardState extends State<ParticipantDashboard> {
     'Settings',
   ];
 
-  // ✨ 2. Initialize the list only ONCE in initState
   @override
-  void initState() {
-    super.initState();
-    _pages = [
-      const DashboardHomeTab(),
-      const MyGroupsScreen(),
-      const FindGroupScreen(),
-      const MyProgressScreen(),
-      const SettingsScreen(),
-    ];
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onTabTapped(int index) {
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeIn,
+    );
+  }
+
+  void _onPageChanged(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: _index == 0,
-      onPopInvoked: (didPop) {
-        if (didPop) return;
-        if (_index != 0) {
-          setState(() {
-            _index = 0;
-          });
-        }
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          leading: Padding(
-            padding: const EdgeInsets.only(left: 12.0),
-            child: GestureDetector(
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                );
-              },
-              child: CircleAvatar(
-                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                child: Text(
-                  (widget.user.firstName.isNotEmpty)
-                      ? widget.user.firstName[0].toUpperCase()
-                      : 'U',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
+    final user = Provider.of<ApiService>(context, listen: false).currentUser;
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12.0),
+          child: GestureDetector(
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
+              );
+            },
+            child: CircleAvatar(
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              child: Text(
+                (user?.firstName.isNotEmpty ?? false)
+                    ? user!.firstName[0].toUpperCase()
+                    : 'U',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
           ),
-          title: Text(_pageTitles[_index]),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.qr_code_scanner),
-              tooltip: 'Mark Attendance',
-              onPressed: () {
-                Navigator.of(context).pushNamed('/qr-scanner');
-              },
-            ),
-          ],
         ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: (i) => setState(() => _index = i),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.groups_outlined),
-              selectedIcon: Icon(Icons.groups),
-              label: 'My Groups',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.explore_outlined),
-              selectedIcon: Icon(Icons.explore),
-              label: 'Discover',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.calendar_month_outlined),
-              selectedIcon: Icon(Icons.calendar_month),
-              label: 'Progress',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              selectedIcon: Icon(Icons.settings),
-              label: 'Settings',
-            ),
-          ],
-        ),
-        body: _index < _pages.length ? _pages[_index] : _pages[0],
+        title: Text(_pageTitles[_currentIndex]),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner),
+            tooltip: 'Mark Attendance',
+            onPressed: () => Navigator.of(context).pushNamed('/qr-scanner'),
+          ),
+        ],
+      ),
+      // The PageView widget enables the swiping gesture
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: _onPageChanged,
+        // Wrap each screen in a KeepAlivePage to preserve its state
+        children: _screens.map((screen) => KeepAlivePage(child: screen)).toList(),
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: _onTabTapped,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.groups_outlined),
+            selectedIcon: Icon(Icons.groups),
+            label: 'My Groups',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.explore_outlined),
+            selectedIcon: Icon(Icons.explore),
+            label: 'Discover',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.calendar_month_outlined),
+            selectedIcon: Icon(Icons.calendar_month),
+            label: 'Progress',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings),
+            label: 'Settings',
+          ),
+        ],
       ),
     );
   }
+}
+
+class KeepAlivePage extends StatefulWidget {
+  final Widget child;
+  const KeepAlivePage({super.key, required this.child});
+
+  @override
+  State<KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<KeepAlivePage> with AutomaticKeepAliveClientMixin {
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+
+  @override
+  bool get wantKeepAlive => true;
 }

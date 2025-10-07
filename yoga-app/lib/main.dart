@@ -1,7 +1,8 @@
 import 'api_service.dart';
 import 'models/user.dart'; 
 import 'theme_provider.dart';
-// import 'screens/splash_screen.dart';
+import 'package:yoga_app/generated/app_localizations.dart';
+import 'providers/language_provider.dart';
 import 'package:flutter/material.dart';
 import 'screens/home/home_screen.dart';
 import 'package:provider/provider.dart';
@@ -16,12 +17,16 @@ void main() {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => ApiService()), // Create it here
+        ChangeNotifierProvider(create: (_) => ApiService()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
-      child: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, child) {
-          return MyApp(themeProvider: themeProvider);
+      child: Consumer2<ThemeProvider, LanguageProvider>(
+        builder: (context, themeProvider, languageProvider, child) {
+          return MyApp(
+            themeProvider: themeProvider,
+            languageProvider: languageProvider,
+          );
         },
       ),
     ),
@@ -81,7 +86,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
 class MyApp extends StatelessWidget {
 
   final ThemeProvider themeProvider;
-  const MyApp({super.key, required this.themeProvider});
+  final LanguageProvider languageProvider;
+
+  const MyApp({super.key, required this.themeProvider, required this.languageProvider});
 
   @override
   Widget build(BuildContext context) {
@@ -322,6 +329,9 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       title: 'YES Yoga App',
+      locale: languageProvider.locale,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       debugShowCheckedModeBanner: false,
       themeMode: themeProvider.themeMode,
       theme: lightTheme, // <-- THIS IS THE FIX

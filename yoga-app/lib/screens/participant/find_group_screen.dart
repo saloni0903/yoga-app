@@ -8,6 +8,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:yoga_app/generated/app_localizations.dart';
+
 
 class FindGroupScreen extends StatefulWidget {
   const FindGroupScreen({super.key});
@@ -194,14 +196,15 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
   }
 
   Widget _buildListView() {
+    final l10n = AppLocalizations.of(context)!; 
     if (!_searchPerformed) {
-      return const Center(
-        child: Text('Enter a search term to find groups.'),
+      return Center( // Remove 'const'
+        child: Text(l10n.enterSearchTerm),
       );
     }
     if (_groups.isEmpty && !_isLoading) {
-      return const Center(
-        child: Text('No groups found matching your search.'),
+      return Center( // Remove 'const'
+        child: Text(l10n.noGroupsFoundSearch),
       );
     }
     return ListView.builder(
@@ -240,6 +243,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       body: Column(
         children: [
@@ -248,7 +252,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                labelText: 'Search by location or group name',
+                labelText: l10n.searchPlaceholder,
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.search),
                   onPressed: _isLoading ? null : _searchGroups,
@@ -260,9 +264,9 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8.0),
             child: SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, icon: Icon(Icons.list), label: Text('List')),
-                ButtonSegment(value: true, icon: Icon(Icons.map), label: Text('Map')),
+              segments: [
+                ButtonSegment(value: false, icon: Icon(Icons.list), label: Text(l10n.list)),
+                ButtonSegment(value: true, icon: Icon(Icons.map), label: Text(l10n.map)),
               ],
               selected: {_isMapView},
               onSelectionChanged: (newSelection) {

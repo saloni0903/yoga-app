@@ -19,6 +19,6 @@ class HomeScreen extends StatelessWidget {
     }
     
     // Participant needs user and apiService passed down.
-    return ParticipantDashboard(user: user, apiService: apiService);
+    return ParticipantDashboard();
   }
 }

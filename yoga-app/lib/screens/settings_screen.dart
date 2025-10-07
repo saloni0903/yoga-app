@@ -4,10 +4,8 @@ import 'package:yoga_app/api_service.dart';
 import 'package:yoga_app/theme_provider.dart';
 import 'package:yoga_app/screens/about_screen.dart';
 import 'package:yoga_app/screens/profile/profile_screen.dart';
-
-
-// lib/screens/settings/settings_screen.dart
-
+import 'package:yoga_app/generated/app_localizations.dart';
+import 'package:yoga_app/providers/language_provider.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -16,14 +14,16 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final apiService = Provider.of<ApiService>(context, listen: false);
     final themeProvider = Provider.of<ThemeProvider>(context);
+    final languageProvider = Provider.of<LanguageProvider>(context);
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       body: ListView(
         children: [
           ListTile(
             leading: const Icon(Icons.person_outline),
-            title: const Text('My Profile'),
-            subtitle: const Text('Edit your personal information'),
+            title: Text(l10n.myProfile),
+            subtitle: Text(l10n.editProfile),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () {
               Navigator.of(context).push(
@@ -33,7 +33,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.dark_mode_outlined),
-            title: const Text('Dark Mode'),
+            title: Text(l10n.darkMode),
             trailing: Switch(
               value: themeProvider.themeMode == ThemeMode.dark,
               onChanged: (value) {
@@ -43,17 +43,33 @@ class SettingsScreen extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.language_outlined),
-            title: const Text('Language'),
-            subtitle: const Text('English'),
+            title: Text(l10n.language), 
+            subtitle: Text(l10n.languageName), 
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () {
-              // TODO: Implement language change logic
+              // Simple language switcher
+              showDialog(context: context, builder: (ctx) => AlertDialog(
+                title: Text(l10n.selectLanguage),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(title: const Text('English'), onTap: () {
+                      languageProvider.setLocale(const Locale('en'));
+                      Navigator.of(ctx).pop();
+                    }),
+                    ListTile(title: const Text('हिंदी'), onTap: () {
+                      languageProvider.setLocale(const Locale('hi'));
+                      Navigator.of(ctx).pop();
+                    }),
+                  ],
+                ),
+              ));
             },
           ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.info_outline),
-            title: const Text('About App'),
+            title: Text(l10n.aboutApp),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () {
               Navigator.of(context).push(
@@ -63,20 +79,20 @@ class SettingsScreen extends StatelessWidget {
           ),
           ListTile(
             leading: Icon(Icons.logout, color: Colors.red.shade700),
-            title: Text('Logout', style: TextStyle(color: Colors.red.shade700)),
+            title: Text(l10n.logout, style: TextStyle(color: Colors.red.shade700)),
             onTap: () {
               showDialog(
                 context: context,
                 builder: (ctx) => AlertDialog(
-                  title: const Text('Confirm Logout'),
-                  content: const Text('Are you sure you want to log out?'),
+                  title: Text(l10n.confirmLogout),
+                  content: Text(l10n.areYouSureLogout),
                   actions: [
                     TextButton(
-                      child: const Text('Cancel'),
+                      child: Text(l10n.cancel),
                       onPressed: () => Navigator.of(ctx).pop(),
                     ),
                     FilledButton(
-                      child: const Text('Logout'),
+                      child: Text(l10n.logout),
                       onPressed: () {
                         apiService.logout();
                         Navigator.of(context, rootNavigator: true)

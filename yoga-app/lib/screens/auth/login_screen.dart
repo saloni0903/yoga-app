@@ -5,7 +5,7 @@ import '../home/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
-//  lib/screens/auth/login_screen.dart
+import 'package:yoga_app/generated/app_localizations.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,9 +15,6 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  // FIXED: Removed the local instance of ApiService. We will get it from Provider.
-  // final ApiService _apiService = ApiService();
-
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -97,6 +94,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -121,7 +119,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 20),
 
                   Text(
-                    'Welcome',
+                    l10n.welcomeBack,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.w700,
@@ -129,7 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Continue your yoga journey',
+                    l10n.loginScreenTitle,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.grey.shade700,
@@ -153,7 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               keyboardType: TextInputType.emailAddress,
                               textInputAction: TextInputAction.next,
                               decoration: InputDecoration(
-                                labelText: 'Email',
+                                labelText: l10n.emailLabel,
                                 prefixIcon: Icon(Icons.alternate_email),
                                 helperText: 'Must contain @ and end with .com',
                               ),
@@ -166,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               textInputAction: TextInputAction.done,
                               onFieldSubmitted: (_) => _login(),
                               decoration: InputDecoration(
-                                labelText: 'Password',
+                                labelText: l10n.passwordLabel,
                                 prefixIcon: const Icon(Icons.lock_outline),
                                 helperText:
                                     'Min 8, upper + lower + digit + special',
@@ -221,7 +219,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'New to YES?',
+                        l10n.newToApp,
                         style: TextStyle(color: Colors.grey.shade700),
                       ),
                       Flexible(
@@ -232,8 +230,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               builder: (context) => const RegisterScreen(),
                             ),
                           ),
-                          child: const Text(
-                            'Register a New Account',
+                          child: Text(
+                            l10n.registerNewAccount,
                             overflow: TextOverflow.ellipsis, // Prevents overflow
                           ),
                         ),
