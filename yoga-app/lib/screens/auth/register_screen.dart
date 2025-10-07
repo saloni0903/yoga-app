@@ -130,69 +130,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _register() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    final apiEndpoint =
-        'https://yoga-app-7drp.onrender.com/api/auth/register';
+
     setState(() => _isLoading = true);
+    // ✅ GET the ApiService from Provider
+    final apiService = Provider.of<ApiService>(context, listen: false);
+
     try {
-      final fullName =
-          '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
+      final fullName = '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
 
-      var request = http.MultipartRequest('POST', Uri.parse(apiEndpoint));
-      request.fields['fullName'] = fullName;
-      request.fields['email'] = _emailController.text.trim();
-      request.fields['phone'] = _phoneController.text.trim();
-      request.fields['samagraId'] = _samagraIdController.text.trim();
-      request.fields['password'] = _passwordController.text;
-      request.fields['role'] = _selectedRole;
-      request.fields['location'] = _locationController.text.trim();
+      // ✅ USE the apiService.register method. It sends the correct JSON format.
+      await apiService.register(
+        fullName: fullName,
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        phone: _phoneController.text.trim(),
+        role: _selectedRole,
+        location: _locationController.text.trim(),
+        samagraId: _samagraIdController.text.trim(),
+      );
 
-      // if (result != null && result.files.first.bytes != null) { // Check for bytes
-      //   // This is for web
-      //   request.files.add(
-      //     http.MultipartFile.fromBytes(
-      //       'document', // Must match backend field name
-      //       result.files.first.bytes!,
-      //       filename: result.files.first.name,
-      //     ),
-      //   );
-      // } else if (_pickedFile != null) {
-      //   // This is for mobile
-      //   request.files.add(
-      //     await http.MultipartFile.fromPath('document', _pickedFile!.path),
-      //   );
-      // }
-
-      var response = await request.send();
-      final responseBody = await response.stream.bytesToString();
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Registration successful!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          if (Navigator.canPop(context)) Navigator.pop(context);
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Registration failed: $responseBody'),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Registration successful! Please log in.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('An error occurred: ${e.toString()}'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
+        _showError('Registration failed: ${e.toString().replaceFirst("Exception: ", "")}');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
