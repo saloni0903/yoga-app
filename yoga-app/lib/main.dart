@@ -12,6 +12,10 @@ import 'screens/profile/profile_screen.dart';
 import 'package:yoga_app/screens/qr/qr_scanner_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+
+final seed = const Color(0xFF2E7D6E);
+final surfaceTint = const Color(0xFF204D45);
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(
@@ -92,9 +96,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final seed = const Color(0xFF2E7D6E);
-    final surfaceTint = const Color(0xFF204D45);
-
     final lightBase = ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
