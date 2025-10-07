@@ -1,9 +1,15 @@
+import 'dart:io';
+
+import 'package:http/http.dart' as http;
+
 import '../../api_service.dart';
 import '../home/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart';
 // lib/screens/auth/register_screen.dart
 
 class RegisterScreen extends StatefulWidget {
@@ -15,7 +21,8 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-
+  String? _fileName;
+  File? _pickedFile;
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -23,10 +30,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _locationController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _samagraIdController = TextEditingController();
 
   String _selectedRole = 'participant';
   bool _isLoading = false;
   bool _obscurePw = true;
+  bool _obscurePwd = true;
 
   // Strong password regex: >=8, 1 upper, 1 lower, 1 digit, 1 special
   final _passwordRegex = RegExp(
@@ -43,8 +52,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _validateEmail(String? value) {
     final v = value?.trim() ?? '';
     if (v.isEmpty) return 'Email is required';
-    if (!v.contains('@')) return 'Email must contain @';
-    if (!v.endsWith('.com')) return 'Email must end with .com';
+    // Using a more robust regex for email validation
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+    if (!emailRegex.hasMatch(v)) {
+      return 'Please enter a valid email address';
+    }
     return null;
   }
 
@@ -71,6 +83,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return null;
   }
 
+  String? _validateSamagraId(String? value) {
+    final v = value?.trim() ?? '';
+    if (v.isEmpty) return 'Samagra ID is required';
+    // ⭐ CORRECTION 1: Samagra ID validation was checking for 10 digits instead of 9.
+    if (v.length != 9) return 'Samagra ID must be 9 digits';
+    if (int.tryParse(v) == null) return 'Invalid Samagra ID';
+    return null;
+  }
+
   String? _validateConfirmPassword(String? value) {
     if (value == null || value.isEmpty) {
       return 'Please confirm your password';
@@ -81,38 +102,78 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return null;
   }
 
+  Future<void> pickDocument() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'doc', 'docx', 'txt'],
+    );
+
+    if (result != null) {
+      PlatformFile platformFile = result.files.first;
+      setState(() {
+        _fileName = platformFile.name;
+        _pickedFile = File(platformFile.path!);
+      });
+    }
+  }
+
   Future<void> _register() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    final apiService = Provider.of<ApiService>(context, listen: false);
+    // ⭐ CORRECTION 2: The endpoint was missing the specific path (e.g., /register).
+    // Make sure to replace this with the correct path from your server's API.
+    final apiEndpoint =
+        'https://yoga-app-7drp.onrender.com/api/auth/register'; // Example path added
 
     setState(() => _isLoading = true);
     try {
       final fullName =
           '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
 
-      // The register method will automatically log the user in and notify all listeners.
-      await apiService.register(
-        fullName: fullName,
-        email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
-        password: _passwordController.text,
-        role: _selectedRole,
-        location: _locationController.text.trim(),
-      );
+      var request = http.MultipartRequest('POST', Uri.parse(apiEndpoint));
+      request.fields['fullName'] = fullName;
+      request.fields['email'] = _emailController.text.trim();
+      request.fields['phone'] = _phoneController.text.trim();
+      request.fields['samagraId'] = _samagraIdController.text.trim();
+      request.fields['password'] = _passwordController.text;
+      request.fields['role'] = _selectedRole;
+      request.fields['location'] = _locationController.text.trim();
 
-      if (mounted) {
-        // If the registration screen is on top of the login screen, pop it.
-        if (Navigator.canPop(context)) {
-          Navigator.pop(context);
+      if (_pickedFile != null) {
+        request.files.add(
+          await http.MultipartFile.fromPath('document', _pickedFile!.path),
+        );
+      }
+
+      var response = await request.send();
+      final responseBody = await response.stream.bytesToString();
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Registration successful!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          if (Navigator.canPop(context)) Navigator.pop(context);
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Registration failed: $responseBody'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            content: Text('An error occurred: ${e.toString()}'),
             backgroundColor: Colors.redAccent,
-            content: Text(e.toString().replaceFirst("Exception: ", "")),
           ),
         );
       }
@@ -120,14 +181,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
   // Helper function to show errors
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.redAccent,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
     );
   }
 
@@ -160,7 +219,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       setState(() {
-        _locationController.text = locationData['city'] ?? '';
+        _locationController.text = locationData['city'] ?? 'Guna';
       });
     } catch (e) {
       if (mounted) {
@@ -179,7 +238,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _locationController.dispose();
     _confirmPasswordController.dispose();
-    _phoneController.dispose(); 
+    _phoneController.dispose();
+    _samagraIdController.dispose();
     super.dispose();
   }
 
@@ -203,13 +263,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     alignment: Alignment.center,
                     child: Image.asset(
                       'assets/images/logo.png', // Path to your logo
-                      width: 100,        // You can adjust the size
-                      height: 100,       // You can adjust the size
+                      width: 100, // You can adjust the size
+                      height: 100, // You can adjust the size
                     ),
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Join YES Yoga',
+                    'Join YES',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w700,
@@ -302,12 +362,61 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               decoration: InputDecoration(
                                 labelText: 'Phone Number',
                                 prefixIcon: Icon(Icons.phone_outlined),
-                                helperText:
-                                    'Must be of 10 digits',
-
+                                helperText: 'Must be of 10 digits',
                               ),
                               validator: _validatePhone,
                             ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _samagraIdController,
+                              keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.next,
+                              decoration: InputDecoration(
+                                labelText: 'Samagra ID',
+                                prefixIcon: Icon(Icons.badge_outlined),
+                                helperText: 'Must be of 9 digits',
+                              ),
+                              validator: _validateSamagraId,
+                            ),
+                            const SizedBox(height: 16),
+
+                            ElevatedButton(
+                              onPressed: () async {
+                                FilePickerResult? result = await FilePicker
+                                    .platform
+                                    .pickFiles(
+                                      type: FileType.custom,
+                                      allowedExtensions: [
+                                        'pdf',
+                                        'doc',
+                                        'docx',
+                                        'txt',
+                                      ],
+                                    );
+                                if (result != null) {
+                                  setState(() {
+                                    _fileName = result.files.first.name;
+                                    _pickedFile = File(
+                                      result.files.first.path!,
+                                    );
+                                  });
+                                  // You can add upload logic here if needed in future
+                                } else {
+                                  setState(() {
+                                    _fileName = null;
+                                    _pickedFile = null;
+                                  });
+                                  // Optional: Show cancelled alert if you like
+                                }
+                              },
+                              child: Text('Select Document'),
+                            ),
+                            if (_fileName != null)
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Text('Selected: $_fileName'),
+                              ),
+
                             const SizedBox(height: 16),
                             TextFormField(
                               controller: _passwordController,
@@ -330,28 +439,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                               validator: _validatePassword,
                             ),
-                            const SizedBox(height: 16), // This is the end of the Password field
-
+                            const SizedBox(
+                              height: 16,
+                            ), // This is the end of the Password field
                             // ▼▼▼ ADD THIS CONFIRM PASSWORD FIELD ▼▼▼
                             TextFormField(
                               controller: _confirmPasswordController,
-                              obscureText: _obscurePw,
+                              obscureText: _obscurePwd,
                               textInputAction: TextInputAction.next,
                               decoration: InputDecoration(
                                 labelText: 'Confirm Password',
                                 prefixIcon: Icon(Icons.lock_outline),
+                                suffixIcon: IconButton(
+                                  onPressed: () => setState(
+                                    () => _obscurePwd = !_obscurePwd,
+                                  ),
+                                  icon: Icon(
+                                    _obscurePwd
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
+                                  ),
+                                ),
                               ),
                               validator: _validateConfirmPassword,
                             ),
+                            const SizedBox(height: 16),
                             // This is the CORRECT code block
                             TextFormField(
                               controller: _locationController,
                               textInputAction: TextInputAction.done,
                               onFieldSubmitted: (_) => _register(),
-                              decoration: InputDecoration( // <-- Notice 'const' is gone
+                              decoration: InputDecoration(
+                                // <-- Notice 'const' is gone
                                 labelText: 'Your City',
                                 helperText: 'e.g., Indore',
-                                prefixIcon: const Icon(Icons.location_city_outlined),
+                                prefixIcon: const Icon(
+                                  Icons.location_city_outlined,
+                                ),
                                 // ▼▼▼ ADD THIS SUFFIX ICON ▼▼▼
                                 suffixIcon: IconButton(
                                   icon: const Icon(Icons.my_location),

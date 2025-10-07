@@ -34,6 +34,10 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  samagraId: {
+    type: String,
+    trim: true,
+  },
   role: {
     type: String,
     enum: ['instructor', 'participant','admin'],

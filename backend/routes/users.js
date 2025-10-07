@@ -164,24 +164,40 @@ router.get('/:id', async (req, res) => {
     });
   }
 });
+const multer = require('multer');
+const upload = multer(); // Using basic in-memory storage
 
 // Update user profile
-router.put('/:id', async (req, res) => {
+router.put('/:id', upload.single('profileImage'), async (req, res) => {
   try {
-    const { firstName, lastName, phone, dateOfBirth, emergencyContact, medicalInfo, preferences } = req.body;
+    // Destructure all possible text fields from the multipart body
+    const { firstName, lastName, phone, samagraId, location, dateOfBirth, emergencyContact, medicalInfo, preferences } = req.body;
     
+    // The uploaded file (if any) is available in req.file
+    const profileImageFile = req.file;
+
     const updateData = {};
     if (firstName) updateData.firstName = firstName;
     if (lastName) updateData.lastName = lastName;
     if (phone) updateData.phone = phone;
+    if (samagraId) updateData.samagraId = samagraId;
+    if (location) updateData.location = location; // Added location field
     if (dateOfBirth) updateData.dateOfBirth = dateOfBirth;
     if (emergencyContact) updateData.emergencyContact = emergencyContact;
     if (medicalInfo) updateData.medicalInfo = medicalInfo;
     if (preferences) updateData.preferences = preferences;
 
+    if (profileImageFile) {
+      // In a real application, you would upload this file to a cloud storage
+      // service (like AWS S3, Google Cloud Storage, or Cloudinary)
+      // and get a public URL back. For now, we'll just log it.
+      console.log('Received profile image:', profileImageFile.originalname);
+      // Example: updateData.profileImage = 'URL_from_cloud_storage';
+    }
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      updateData,
+      { $set: updateData }, // Using $set is safer for updates
       { new: true, runValidators: true }
     ).select('-password');
 

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'models/user.dart';
 import 'models/yoga_group.dart';
 import 'models/attendance.dart';
@@ -91,12 +92,13 @@ class ApiService with ChangeNotifier {
 
       if (attendanceList != null) {
         // Store the recent attendance history
-        recentAttendance = attendanceList.map((e) => AttendanceRecord.fromJson(e)).toList();
+        recentAttendance = attendanceList
+            .map((e) => AttendanceRecord.fromJson(e))
+            .toList();
       }
 
       // Notify all widgets listening to ApiService that data has changed
       notifyListeners();
-
     } catch (e) {
       print('Failed to fetch dashboard data: $e');
       // Optionally re-throw or handle the error
@@ -152,6 +154,7 @@ class ApiService with ChangeNotifier {
     required String email,
     required String password,
     required String phone,
+    required String samagraId,
     required String role,
     required String location,
   }) async {
@@ -166,6 +169,7 @@ class ApiService with ChangeNotifier {
         'lastName': lastName,
         'email': email,
         'phone': phone,
+        'samagraId': samagraId,
         'password': password,
         'role': role,
         'location': location,
@@ -188,23 +192,75 @@ class ApiService with ChangeNotifier {
     _ensureOk(res, data);
     return User.fromJson(data['data']);
   }
-  
-  Future<User> updateMyProfile(Map<String, dynamic> profileData) async {
+
+  Future<User> updateMyProfile({
+    required Map<String, dynamic> profileData,
+    File? imageFile, // ⭐ ADDITION: Optional parameter for the image file
+  }) async {
     if (_currentUser == null) throw Exception('Not authenticated.');
-    final res = await http.put(
-      Uri.parse('$baseUrl/api/users/${_currentUser!.id}'),
-      headers: _authHeaders(),
-      body: json.encode(profileData),
-    );
+
+    final uri = Uri.parse('$baseUrl/api/users/${_currentUser!.id}');
+    http.Response res;
+
+    // ⭐ CHANGE: Use a multipart request if an image file is provided.
+    if (imageFile != null) {
+      var request = http.MultipartRequest('PUT', uri);
+
+      // Add headers
+      request.headers.addAll(_authHeaders(includeContentType: false));
+
+      // Add text fields
+      profileData.forEach((key, value) {
+        request.fields[key] = value.toString();
+      });
+
+      // Add the image file
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'profileImage', // This key must match what your backend expects
+          imageFile.path,
+        ),
+      );
+
+      final streamedResponse = await request.send();
+      res = await http.Response.fromStream(streamedResponse);
+    } else {
+      // If no file, use the original JSON request
+      res = await http.put(
+        uri,
+        headers: _authHeaders(),
+        body: json.encode(profileData),
+      );
+    }
+
     final data = _decode(res);
     _ensureOk(res, data);
 
     final updatedUser = User.fromJson(data['data']);
-    // Keep the token from the original currentUser object.
     _currentUser = updatedUser.copyWith(token: _token);
     notifyListeners();
 
     return updatedUser;
+  }
+
+  // ⭐ You may also need to slightly adjust your _authHeaders helper
+  // to prevent it from setting a 'Content-Type' for multipart requests.
+
+  Map<String, String> _authHeaders({
+    bool optional = false,
+    bool includeContentType = true,
+  }) {
+    final headers = <String, String>{};
+    if (includeContentType) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    if (_token != null && _token!.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $_token';
+    } else if (!optional) {
+      throw Exception('Authentication token is missing for a protected route.');
+    }
+    return headers;
   }
 
   Future<List<User>> getGroupMembers({required String groupId}) async {
@@ -397,17 +453,6 @@ class ApiService with ChangeNotifier {
     return listJson.map((e) => AttendanceRecord.fromJson(e)).toList();
   }
 
-  Map<String, String> _authHeaders({bool optional = false}) {
-    print('[ApiService] Preparing headers. Current token is: $_token');
-    final headers = {'Content-Type': 'application/json'};
-    if (_token != null && _token!.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $_token';
-    } else if (!optional) {
-      throw Exception('Authentication token is missing for a protected route.');
-    }
-    return headers;
-  }
-
   Map<String, dynamic> _decode(http.Response res) {
     try {
       return json.decode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
@@ -442,7 +487,8 @@ class ApiService with ChangeNotifier {
     final uri = Uri.parse('$baseUrl/api/groups').replace(
       queryParameters: {
         if (search != null && search.isNotEmpty) 'search': search,
-        if (instructorId != null && instructorId.isNotEmpty) 'instructor_id': instructorId,
+        if (instructorId != null && instructorId.isNotEmpty)
+          'instructor_id': instructorId,
         if (latitude != null) 'latitude': latitude.toString(),
         if (longitude != null) 'longitude': longitude.toString(),
       },
@@ -456,20 +502,22 @@ class ApiService with ChangeNotifier {
         : [];
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
   }
+
   Future<Map<String, String>> reverseGeocode({
     required double latitude,
     required double longitude,
   }) async {
-    final uri = Uri.parse('$baseUrl/api/groups/location/reverse-geocode').replace(
-      queryParameters: {
-        'lat': latitude.toString(),
-        'lon': longitude.toString(),
-      },
-    );
+    final uri = Uri.parse('$baseUrl/api/groups/location/reverse-geocode')
+        .replace(
+          queryParameters: {
+            'lat': latitude.toString(),
+            'lon': longitude.toString(),
+          },
+        );
     final res = await http.get(uri, headers: _authHeaders(optional: true));
     final data = _decode(res);
     _ensureOk(res, data);
-    
+
     // Return a map with both address and city
     return {
       'address': data['data']['address'] ?? 'Could not fetch address',
