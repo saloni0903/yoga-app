@@ -5,6 +5,7 @@ import 'models/yoga_group.dart';
 import 'models/attendance.dart';
 import 'models/session_qr_code.dart';
 import 'package:flutter/material.dart';
+import 'models/session.dart'; 
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -297,6 +298,28 @@ class ApiService with ChangeNotifier {
     return SessionQrCode.fromJson(data['data']);
   }
 
+  Future<List<Session>> getInstructorSchedule() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/schedule/instructor'),
+      headers: _authHeaders(),
+    );
+    final data = _decode(res);
+    _ensureOk(res, data);
+    final List listJson = data['data'] ?? [];
+    return listJson.map((e) => Session.fromJson(e)).toList();
+  }
+
+  Future<List<Session>> getParticipantSchedule() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/schedule/participant'),
+      headers: _authHeaders(),
+    );
+    final data = _decode(res);
+    _ensureOk(res, data);
+    final List listJson = data['data'] ?? [];
+    return listJson.map((e) => Session.fromJson(e)).toList();
+  }
+
   Future<YogaGroup> getGroupById(String groupId) async {
     final res = await http.get(
       Uri.parse('$baseUrl/api/groups/$groupId'),
@@ -308,95 +331,20 @@ class ApiService with ChangeNotifier {
     return YogaGroup.fromJson(data['data']);
   }
 
-  Future<void> createGroup({
-    required String groupName,
-    required String location,
-    required String locationText,
-    required double latitude,
-    required double longitude,
-    required Schedule schedule,
-    // required String instructorId,
-    String? description,
-    int maxParticipants = 20,
-    String yogaStyle = 'hatha',
-    String difficultyLevel = 'all-levels',
-    int sessionDuration = 60,
-    double pricePerSession = 0,
-    String currency = 'INR',
-    List<String> requirements = const [],
-    List<String> equipmentNeeded = const [],
-    bool isActive = true,
-  }) async {
+  Future<void> createGroup(Map<String, dynamic> groupData) async {
     final res = await http.post(
       Uri.parse('$baseUrl/api/groups'),
       headers: _authHeaders(),
-      body: jsonEncode({
-        'group_name': groupName,
-        'location': location,
-        'location_text': locationText,
-        'latitude': latitude,
-        'longitude': longitude,
-        'schedule': schedule.toJson(),
-        // 'instructor_id': instructorId,
-        'description': description,
-        'max_participants': maxParticipants,
-        'yoga_style': yogaStyle,
-        'difficulty_level': difficultyLevel,
-        'session_duration': sessionDuration,
-        'price_per_session': pricePerSession,
-        'currency': currency,
-        'requirements': requirements,
-        'equipment_needed': equipmentNeeded,
-        'is_active': isActive,
-      }),
+      body: jsonEncode(groupData), // It simply encodes the map it receives.
     );
     _ensureCreated(res, _decode(res));
   }
 
-  /// ✅ NEW METHOD: Updates an existing yoga group.
-  Future<void> updateGroup({
-    required String id,
-    String? groupName,
-    String? location,
-    String? locationText,
-    double? latitude,
-    double? longitude,
-    Schedule? schedule,
-    String? description,
-    int? maxParticipants,
-    String? yogaStyle,
-    String? difficultyLevel,
-    int? sessionDuration,
-    double? pricePerSession,
-    String? currency,
-    List<String>? requirements,
-    List<String>? equipmentNeeded,
-    bool? isActive,
-  }) async {
-    final body = <String, dynamic>{};
-
-    // Only include fields that are not null to avoid overwriting existing data.
-    if (groupName != null) body['group_name'] = groupName;
-    if (location != null) body['location'] = location;
-    if (locationText != null) body['location_text'] = locationText;
-    if (latitude != null) body['latitude'] = latitude;
-    if (longitude != null) body['longitude'] = longitude;
-    if (schedule != null) body['schedule'] = schedule.toJson();
-    if (description != null) body['description'] = description;
-    if (maxParticipants != null) body['max_participants'] = maxParticipants;
-    if (yogaStyle != null) body['yoga_style'] = yogaStyle;
-    if (difficultyLevel != null) body['difficulty_level'] = difficultyLevel;
-    if (sessionDuration != null) body['session_duration'] = sessionDuration;
-    if (pricePerSession != null) body['price_per_session'] = pricePerSession;
-    if (currency != null) body['currency'] = currency;
-    if (requirements != null) body['requirements'] = requirements;
-    if (equipmentNeeded != null) body['equipment_needed'] = equipmentNeeded;
-    if (isActive != null) body['is_active'] = isActive;
-
+  Future<void> updateGroup(String id, Map<String, dynamic> groupData) async {
     final res = await http.put(
       Uri.parse('$baseUrl/api/groups/$id'),
       headers: _authHeaders(),
-      body: json.encode(body),
+      body: json.encode(groupData), // It simply encodes the map it receives.
     );
     _ensureOk(res, _decode(res));
   }

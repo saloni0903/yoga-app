@@ -7,7 +7,6 @@ class Schedule {
   final List<String> days; // ["Monday", "Friday"]
   final DateTime startDate;
   final DateTime endDate;
-  final String recurrence;
 
   Schedule({
     required this.startTime,
@@ -15,7 +14,6 @@ class Schedule {
     required this.days,
     required this.startDate,
     required this.endDate,
-    required this.recurrence,
   });
 
   factory Schedule.fromJson(Map<String, dynamic> j) {
@@ -25,7 +23,6 @@ class Schedule {
       days: List<String>.from(j['days'] ?? []),
       startDate: DateTime.tryParse(j['startDate'] ?? '') ?? DateTime.now(),
       endDate: DateTime.tryParse(j['endDate'] ?? '') ?? DateTime.now(),
-      recurrence: j['recurrence'] ?? 'NONE',
     );
   }
 
@@ -36,7 +33,6 @@ class Schedule {
       'days': days,
       'startDate': startDate.toIso8601String(),
       'endDate': endDate.toIso8601String(),
-      'recurrence': recurrence,
     };
   }
 }
@@ -49,8 +45,32 @@ class YogaGroup {
   final double? latitude;
   final double? longitude;
   final Schedule schedule;
-  // ✨ NEW: A getter to create a user-friendly timing string from the schedule.
-  // This solves all the 'timingText' errors across the app.
+  final String color;
+
+  int get sessionDurationInMinutes {
+    if (schedule.startTime.isEmpty || schedule.endTime.isEmpty) {
+      return 0;
+    }
+    try {
+      final startParts = schedule.startTime.split(':').map(int.parse).toList();
+      final endParts = schedule.endTime.split(':').map(int.parse).toList();
+
+      // Create DateTime objects on a dummy date to calculate the difference
+      final startDate = DateTime(2025, 1, 1, startParts[0], startParts[1]);
+      final endDate = DateTime(2025, 1, 1, endParts[0], endParts[1]);
+      
+      final duration = endDate.difference(startDate);
+
+      // Handle overnight sessions (e.g., 10 PM to 1 AM)
+      if (duration.isNegative) {
+        return duration.inMinutes + (24 * 60);
+      }
+      return duration.inMinutes;
+    } catch (e) {
+      return 0; // Return 0 if parsing fails
+    }
+  }
+
   String get timingText {
     if (schedule.days.isEmpty || schedule.startTime.isEmpty) {
       return 'No schedule set';
@@ -71,7 +91,6 @@ class YogaGroup {
   final bool isActive;
   final String? description;
   final int maxParticipants;
-  final int sessionDuration;
   final double pricePerSession;
   final String currency;
   final List<String> requirements;
@@ -96,7 +115,6 @@ class YogaGroup {
     required this.isActive,
     this.description,
     required this.maxParticipants,
-    required this.sessionDuration,
     required this.pricePerSession,
     required this.currency,
     this.requirements = const [],
@@ -105,6 +123,7 @@ class YogaGroup {
     required this.instructorId,
     this.instructorName,
     this.instructorEmail,
+    required this.color,
   });
 
   factory YogaGroup.fromJson(Map<String, dynamic> j) {
@@ -130,12 +149,12 @@ class YogaGroup {
       longitude: (j['longitude'] as num?)?.toDouble(),
       schedule: Schedule.fromJson(j['schedule'] ?? {}),
       yogaStyle: (j['yoga_style'] ?? 'hatha').toString(),
+      color: (j['color'] ?? '#4CAF50').toString(),
       difficultyLevel: (j['difficulty_level'] ?? 'all-levels').toString(),
       isActive: (j['is_active'] ?? true) == true,
       description: j['description']?.toString(),
       distance: (j['distance'] as num?)?.toDouble(),
       maxParticipants: (j['max_participants'] ?? 20) as int,
-      sessionDuration: (j['session_duration'] ?? 60) as int,
       pricePerSession: ((j['price_per_session'] ?? 0) as num).toDouble(),
       currency: (j['currency'] ?? 'RUPEE').toString(),
       requirements: List<String>.from(j['requirements'] ?? []),

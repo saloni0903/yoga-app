@@ -214,7 +214,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               context,
               Icons.timer_outlined,
               "Duration",
-              "${group.sessionDuration} minutes",
+              "${group.sessionDurationInMinutes} minutes",
             ),
             _buildInfoRow(
               context,

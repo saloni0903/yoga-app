@@ -5,8 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../api_service.dart';
-import '../../models/attendance.dart';
-import '../../models/user.dart';
+import '../../models/yoga_group.dart';
 
 class MyProgressScreen extends StatefulWidget {
   const MyProgressScreen({super.key});
@@ -16,133 +15,406 @@ class MyProgressScreen extends StatefulWidget {
 }
 
 class _MyProgressScreenState extends State<MyProgressScreen> {
-  late Future<List<AttendanceRecord>> _attendanceFuture;
+  late Future<List<YogaGroup>> _enrolledGroupsFuture;
+  DateTime _selectedDay = DateTime.now();
+  DateTime _focusedDay = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    // Fetch the data when the screen is first built
-    _attendanceFuture = _fetchAttendance();
+    _enrolledGroupsFuture = _fetchEnrolledGroups();
   }
 
-  Future<List<AttendanceRecord>> _fetchAttendance() {
-    // Use Provider to get the ApiService instance
-    return Provider.of<ApiService>(
-      context,
-      listen: false,
-    ).getAttendanceHistory();
+  Future<List<YogaGroup>> _fetchEnrolledGroups() {
+    return Provider.of<ApiService>(context, listen: false).getMyJoinedGroups();
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final apiService = Provider.of<ApiService>(context, listen: false);
     final user = apiService.currentUser;
 
     return Scaffold(
-      body: FutureBuilder<List<AttendanceRecord>>(
-        future: _attendanceFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final attendanceRecords = snapshot.data ?? [];
-
-          return ListView(
+      backgroundColor: theme.colorScheme.surface,
+      body: Column(
+        children: [
+          // Header with greeting
+          Container(
+            width: double.infinity,
             padding: const EdgeInsets.all(16.0),
-            children: [
-              if (user != null) _buildProfileHeader(user, apiService),
-              const SizedBox(height: 24),
-              _buildCalendar(context, attendanceRecords),
-              const SizedBox(height: 16), // Adds some space below the calendar
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.circle, color: Colors.green[400], size: 12),
-                  const SizedBox(width: 8),
-                  Text(
-                    'A green dot signifies a day with marked attendance.',
-                    style: TextStyle(color: Colors.grey.shade700),
-                  ),
-                ],
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [theme.colorScheme.primary, theme.colorScheme.primary.withOpacity(0.8)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-            ],
-          );
-        },
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Good ${_getGreeting()}, ${user?.fullName ?? 'User'}',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                FutureBuilder<List<YogaGroup>>(
+                  future: _enrolledGroupsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData) {
+                      final todaySessions = _getSessionsForDay(_selectedDay, snapshot.data!);
+                      return Text(
+                        'You have ${todaySessions.length} events today',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          // Calendar
+          Expanded(
+            flex: 2,
+            child: _buildCalendar(context),
+          ),
+
+          // Timeline for selected day
+          Expanded(
+            flex: 3,
+            child: _buildTimeline(context),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildProfileHeader(User user, ApiService apiService) {
-    return Column(
-      children: [
-        CircleAvatar(
-          radius: 40,
-          child: Text(
-            user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : 'U',
-            style: const TextStyle(fontSize: 32),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(user.fullName, style: Theme.of(context).textTheme.headlineSmall),
-        Text(user.email, style: const TextStyle(color: Colors.grey)),
-        const Divider(height: 40),
-      ],
-    );
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'morning';
+    if (hour < 17) return 'afternoon';
+    return 'evening';
   }
 
-  Widget _buildCalendar(BuildContext context, List<AttendanceRecord> records) {
-    final events = {
-      for (var record in records)
-        // Normalize date to midnight to use as a key
-        DateTime.utc(
-          record.sessionDate.year,
-          record.sessionDate.month,
-          record.sessionDate.day,
-        ): [
-          'Present',
-        ],
-    };
-
+  Widget _buildCalendar(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Card(
+      margin: const EdgeInsets.all(16.0),
       child: Padding(
         padding: const EdgeInsets.all(8.0),
         child: TableCalendar(
-          focusedDay: DateTime.now(),
+          focusedDay: _focusedDay,
           firstDay: DateTime.utc(2020, 1, 1),
           lastDay: DateTime.utc(2030, 12, 31),
-          headerStyle: const HeaderStyle(
+          selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+          onDaySelected: (selectedDay, focusedDay) {
+            setState(() {
+              _selectedDay = selectedDay;
+              _focusedDay = focusedDay;
+            });
+          },
+          headerStyle: HeaderStyle(
             formatButtonVisible: false,
             titleCentered: true,
+            titleTextStyle: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+            ) ?? const TextStyle(fontWeight: FontWeight.bold),
           ),
-          // Function to load events for each day
+          calendarStyle: CalendarStyle(
+            selectedDecoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              shape: BoxShape.circle,
+            ),
+            todayDecoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.3),
+              shape: BoxShape.circle,
+            ),
+            markersMaxCount: 3,
+            markerDecoration: BoxDecoration(
+              color: theme.colorScheme.secondary,
+              shape: BoxShape.circle,
+            ),
+          ),
           eventLoader: (day) {
-            return events[DateTime.utc(day.year, day.month, day.day)] ?? [];
+            return _getEventsForDay(day);
           },
-          calendarBuilders: CalendarBuilders(
-            markerBuilder: (context, date, events) {
-              if (events.isNotEmpty) {
-                return Positioned(
-                  right: 1,
-                  bottom: 1,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.green[400],
-                    ),
-                    width: 8,
-                    height: 8,
-                  ),
-                );
-              }
-              return null;
-            },
-          ),
         ),
       ),
     );
   }
+
+  Widget _buildTimeline(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return FutureBuilder<List<YogaGroup>>(
+      future: _enrolledGroupsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Error loading groups: ${snapshot.error}'),
+          );
+        }
+
+        final groups = snapshot.data ?? [];
+        final sessions = _getSessionsForDay(_selectedDay, groups);
+        
+        if (sessions.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.event_available,
+                  size: 64,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No sessions scheduled for ${DateFormat('MMM dd').format(_selectedDay)}',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                DateFormat('dd MMM').format(_selectedDay),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                itemCount: sessions.length,
+                itemBuilder: (context, index) {
+                  final session = sessions[index];
+                  return _buildSessionCard(context, session);
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSessionCard(BuildContext context, SessionInfo session) {
+    final theme = Theme.of(context);
+    final status = _getSessionStatus(session);
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12.0),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            // Time
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  session.startTime,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  session.endTime,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(width: 16),
+            
+            // Status indicator
+            Container(
+              width: 4,
+              height: 60,
+              decoration: BoxDecoration(
+                color: _getStatusColor(status),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            
+            const SizedBox(width: 16),
+            
+            // Session details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    session.groupName,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    session.sessionTitle,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.person,
+                        size: 16,
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        session.instructorName,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            // Status icon
+            Container(
+              padding: const EdgeInsets.all(8.0),
+              decoration: BoxDecoration(
+                color: _getStatusColor(status).withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _getStatusIcon(status),
+                color: _getStatusColor(status),
+                size: 20,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<String> _getEventsForDay(DateTime day) {
+    // This would be populated with actual session data
+    // For now, return empty list
+    return [];
+  }
+
+  List<SessionInfo> _getSessionsForDay(DateTime day, List<YogaGroup> groups) {
+    final sessions = <SessionInfo>[];
+    
+    for (final group in groups) {
+      // Check if this group has sessions on the selected day
+      final dayOfWeek = DateFormat('EEEE').format(day);
+      if (group.schedule.days.contains(dayOfWeek)) {
+        sessions.add(SessionInfo(
+          groupName: group.name,
+          sessionTitle: '${group.yogaStyle.toUpperCase()} Session',
+          instructorName: 'Instructor', // This would come from the group data
+          startTime: group.schedule.startTime,
+          endTime: group.schedule.endTime,
+          groupId: group.id,
+          sessionDate: day,
+        ));
+      }
+    }
+    
+    // Sort by start time
+    sessions.sort((a, b) => a.startTime.compareTo(b.startTime));
+    return sessions;
+  }
+
+  SessionStatus _getSessionStatus(SessionInfo session) {
+    final now = DateTime.now();
+    final sessionDateTime = DateTime(
+      session.sessionDate.year,
+      session.sessionDate.month,
+      session.sessionDate.day,
+      int.parse(session.startTime.split(':')[0]),
+      int.parse(session.startTime.split(':')[1]),
+    );
+    
+    if (sessionDateTime.isBefore(now)) {
+      // Check if user attended this session
+      return SessionStatus.attended; // This would check actual attendance
+    } else {
+      return SessionStatus.upcoming;
+    }
+  }
+
+  Color _getStatusColor(SessionStatus status) {
+    switch (status) {
+      case SessionStatus.attended:
+        return Colors.green;
+      case SessionStatus.missed:
+        return Colors.red;
+      case SessionStatus.upcoming:
+        return Colors.blue;
+    }
+  }
+
+  IconData _getStatusIcon(SessionStatus status) {
+    switch (status) {
+      case SessionStatus.attended:
+        return Icons.check_circle;
+      case SessionStatus.missed:
+        return Icons.cancel;
+      case SessionStatus.upcoming:
+        return Icons.schedule;
+    }
+  }
+}
+
+// Helper classes
+class SessionInfo {
+  final String groupName;
+  final String sessionTitle;
+  final String instructorName;
+  final String startTime;
+  final String endTime;
+  final String groupId;
+  final DateTime sessionDate;
+
+  SessionInfo({
+    required this.groupName,
+    required this.sessionTitle,
+    required this.instructorName,
+    required this.startTime,
+    required this.endTime,
+    required this.groupId,
+    required this.sessionDate,
+  });
+}
+
+enum SessionStatus {
+  attended,
+  missed,
+  upcoming,
 }

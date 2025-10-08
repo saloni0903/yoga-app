@@ -14,6 +14,7 @@ import 'group_members_screen.dart';
 import '../qr/qr_display_screen.dart';
 import 'package:yoga_app/generated/app_localizations.dart';
 import '../../utils/date_helper.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class InstructorDashboard extends StatefulWidget {
   const InstructorDashboard({super.key});
