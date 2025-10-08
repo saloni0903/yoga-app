@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 
 class Schedule {
   final String startTime; // "HH:mm"
-  final String endTime;   // "HH:mm"
+  final String endTime; // "HH:mm"
   final List<String> days; // ["Monday", "Friday"]
   final DateTime startDate;
   final DateTime endDate;
@@ -58,7 +58,7 @@ class YogaGroup {
       // Create DateTime objects on a dummy date to calculate the difference
       final startDate = DateTime(2025, 1, 1, startParts[0], startParts[1]);
       final endDate = DateTime(2025, 1, 1, endParts[0], endParts[1]);
-      
+
       final duration = endDate.difference(startDate);
 
       // Handle overnight sessions (e.g., 10 PM to 1 AM)
@@ -76,16 +76,27 @@ class YogaGroup {
       return 'No schedule set';
     }
     // Sort the days to a consistent order (Mon, Tue, Wed...)
-    const dayOrder = {"Monday": 1, "Tuesday": 2, "Wednesday": 3, "Thursday": 4, "Friday": 5, "Saturday": 6, "Sunday": 7};
-    final sortedDays = List<String>.from(schedule.days)..sort((a, b) => dayOrder[a]!.compareTo(dayOrder[b]!));
-    
+    const dayOrder = {
+      "Monday": 1,
+      "Tuesday": 2,
+      "Wednesday": 3,
+      "Thursday": 4,
+      "Friday": 5,
+      "Saturday": 6,
+      "Sunday": 7,
+    };
+    final sortedDays = List<String>.from(schedule.days)
+      ..sort((a, b) => dayOrder[a]!.compareTo(dayOrder[b]!));
+
     final shortDays = sortedDays.map((d) => d.substring(0, 3)).join(', ');
-    
-    final startTime = DateFormat('h:mm a').format(DateTime.parse('2025-01-01T${schedule.startTime}:00'));
-    
+
+    final startTime = DateFormat(
+      'h:mm a',
+    ).format(DateTime.parse('2025-01-01T${schedule.startTime}:00'));
+
     return '$shortDays at $startTime';
   }
-  
+
   final String yogaStyle;
   final String difficultyLevel;
   final bool isActive;
@@ -143,7 +154,11 @@ class YogaGroup {
     return YogaGroup(
       id: (j['_id'] ?? j['id'] ?? '').toString(),
       name: (j['group_name'] ?? '').toString(),
-      location: (j['location'] is Map ? (j['location']['coordinates']?.toString() ?? '') : (j['location'] ?? '')).toString(),
+      location:
+          (j['location'] is Map
+                  ? (j['location']['coordinates']?.toString() ?? '')
+                  : (j['location'] ?? ''))
+              .toString(),
       locationText: (j['location_text'] ?? '').toString(),
       latitude: (j['latitude'] as num?)?.toDouble(),
       longitude: (j['longitude'] as num?)?.toDouble(),
@@ -156,7 +171,7 @@ class YogaGroup {
       distance: (j['distance'] as num?)?.toDouble(),
       maxParticipants: (j['max_participants'] ?? 20) as int,
       pricePerSession: ((j['price_per_session'] ?? 0) as num).toDouble(),
-      currency: (j['currency'] ?? 'RUPEE').toString(),
+      currency: (j['currency'] ?? 'INR').toString(),
       requirements: List<String>.from(j['requirements'] ?? []),
       equipmentNeeded: List<String>.from(j['equipment_needed'] ?? []),
       instructorId: getInstructorId(j['instructor_id']),
