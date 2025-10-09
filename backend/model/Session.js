@@ -2,9 +2,9 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 
 const sessionSchema = new mongoose.Schema({
-  _id: {
-    type: String,
-    default: () => crypto.randomUUID()
+  _id: { 
+    type: String, 
+    default: () => crypto.randomUUID() 
   },
   group_id: {
     type: String,

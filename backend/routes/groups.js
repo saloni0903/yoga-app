@@ -7,6 +7,9 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const axios = require('axios');
 
+const Session = require('../model/Session');
+const crypto = require('crypto');
+
 // Get all groups
 router.get('/', async (req, res) => {
   try {
@@ -196,75 +199,107 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create new group
-// ADD THIS NEW VERSION
-router.post('/', auth, async (req, res) => { // Added auth middleware
-  try {
-    const {
-      group_name,
-      location_text,
-      latitude,
-      longitude,
-      schedule, // <-- MODIFIED: expecting schedule object
-      description,
-      yoga_style,
-      difficulty_level,
-      session_duration,
-      price_per_session,
-      max_participants,
-      // instructor_id is now taken from auth token
-    } = req.body;
+// REPLACE your existing router.post('/',...) with this entire block
+router.post('/', auth, async (req, res) => {
+    try {
+        const {
+            group_name,
+            location_text,
+            latitude,
+            longitude,
+            schedule,
+            color, // <-- New field
+            description,
+            yoga_style,
+            difficulty_level,
+            price_per_session,
+            max_participants,
+        } = req.body;
 
-    const instructor_id = req.user.id; // Get instructor from auth token
+        const instructor_id = req.user.id;
 
-    if (!instructor_id) {
-      return res.status(400).json({ success: false, message: 'Instructor ID is required and you must be logged in.' });
-    }
-    if (!latitude || !longitude) {
-      return res.status(400).json({ success: false, message: 'Latitude and longitude are required' });
-    }
-    if (!schedule || !schedule.startTime || !schedule.days || !schedule.startDate) {
-        return res.status(400).json({ success: false, message: 'A valid schedule object is required.' });
-    }
+        // --- Validation (More Robust) ---
+        if (!schedule || !schedule.startTime || !schedule.endTime || !schedule.days || !schedule.startDate || !schedule.endDate) {
+            return res.status(400).json({ success: false, message: 'A complete schedule object is required (startTime, endTime, days, startDate, endDate).' });
+        }
+        if (new Date(schedule.endDate) < new Date(schedule.startDate)) {
+            return res.status(400).json({ success: false, message: 'Schedule end date cannot be before the start date.' });
+        }
 
-    const groupData = {
-      instructor_id,
-      group_name,
-      location: {
-        type: 'Point',
-        coordinates: [parseFloat(longitude), parseFloat(latitude)],
-      },
-      location_text,
-      latitude: parseFloat(latitude),
-      longitude: parseFloat(longitude),
-      schedule,
-      description,
-      yoga_style,
-      difficulty_level,
-      session_duration: parseInt(session_duration) || 60,
-      price_per_session: parseFloat(price_per_session) || 0,
-      max_participants: parseInt(max_participants) || 20,
-    };
-    
-    const group = new Group(groupData);
-    await group.save();
+        // --- Create the Group ---
+        const groupData = {
+            instructor_id,
+            group_name,
+            location: {
+                type: 'Point',
+                coordinates: [parseFloat(longitude), parseFloat(latitude)],
+            },
+            location_text,
+            latitude: parseFloat(latitude),
+            longitude: parseFloat(longitude),
+            color,
+            schedule,
+            description,
+            yoga_style,
+            difficulty_level,
+            price_per_session: parseFloat(price_per_session) || 0,
+            max_participants: parseInt(max_participants) || 20,
+        };
 
-    res.status(201).json({
-      success: true,
-      message: 'Group created successfully',
-      data: group
-    });
-  } catch (error) {
-    console.error('Create group error:', error);
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({ success: false, message: 'Group validation failed', error: error.message });
+        const group = new Group(groupData);
+        await group.save();
+
+        // --- SESSION GENERATION LOGIC ---
+        const sessionsToCreate = [];
+        const dayMap = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
+        const scheduledDays = schedule.days.map(day => dayMap[day]);
+        
+        let currentDate = new Date(schedule.startDate);
+        const finalDate = new Date(schedule.endDate);
+        const [startHour, startMinute] = schedule.startTime.split(':').map(Number);
+
+        // Loop through each day from start to end date
+        while (currentDate <= finalDate) {
+            // Check if the current day of the week is in our schedule
+            if (scheduledDays.includes(currentDate.getUTCDay())) { // Use getUTCDay() for consistency
+                const sessionDate = new Date(currentDate);
+                // Set the correct time for the session in UTC
+                sessionDate.setUTCHours(startHour, startMinute, 0, 0);
+
+                sessionsToCreate.push({
+                    _id: crypto.randomUUID(),
+                    group_id: group._id,
+                    instructor_id: instructor_id,
+                    session_date: sessionDate,
+                    status: 'upcoming',
+                });
+            }
+            // Move to the next day
+            currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+        }
+
+        // Insert all generated sessions into the database in one go
+        if (sessionsToCreate.length > 0) {
+            await Session.insertMany(sessionsToCreate);
+        }
+
+        res.status(201).json({
+            success: true,
+            message: `Group created successfully with ${sessionsToCreate.length} sessions.`,
+            data: group
+        });
+
+    } catch (error) {
+        console.error('Create group error:', error);
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ success: false, message: 'Group validation failed', error: error.message });
+        }
+        res.status(500).json({
+            success: false,
+            message: 'Failed to create group',
+            error: error.message
+        });
     }
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create group',
-      error: error.message
-    });
-  }
 });
 
 // All other routes (PUT, DELETE, /join, etc.) remain the same.
@@ -320,46 +355,46 @@ router.put('/:id', auth, async (req, res) => { // Added auth middleware
   }
 });
 
-// ADD THIS NEW ROUTE
-router.get('/:id/sessions', async (req, res) => {
-  try {
-    const group = await Group.findById(req.params.id);
+// // ADD THIS NEW ROUTE
+// router.get('/:id/sessions', async (req, res) => {
+//   try {
+//     const group = await Group.findById(req.params.id);
 
-    if (!group) {
-      return res.status(404).json({ success: false, message: 'Group not found' });
-    }
-    if (!group.schedule || !group.schedule.startDate || !group.schedule.endDate || !group.schedule.days) {
-      return res.status(400).json({ success: false, message: 'Group does not have a valid schedule.' });
-    }
+//     if (!group) {
+//       return res.status(404).json({ success: false, message: 'Group not found' });
+//     }
+//     if (!group.schedule || !group.schedule.startDate || !group.schedule.endDate || !group.schedule.days) {
+//       return res.status(400).json({ success: false, message: 'Group does not have a valid schedule.' });
+//     }
 
-    const { startDate, endDate, days, startTime } = group.schedule;
-    const sessions = [];
+//     const { startDate, endDate, days, startTime } = group.schedule;
+//     const sessions = [];
     
-    const dayNameToNum = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
-    const scheduledDays = days.map(d => dayNameToNum[d]);
+//     const dayNameToNum = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
+//     const scheduledDays = days.map(d => dayNameToNum[d]);
     
-    let currentDate = new Date(startDate);
-    const finalDate = new Date(endDate);
+//     let currentDate = new Date(startDate);
+//     const finalDate = new Date(endDate);
     
-    const [startHour, startMinute] = startTime.split(':').map(Number);
+//     const [startHour, startMinute] = startTime.split(':').map(Number);
 
-    while (currentDate <= finalDate) {
-      if (scheduledDays.includes(currentDate.getDay())) {
-        const sessionDate = new Date(currentDate);
-        // Set the time from the schedule, preserving the date's timezone offset
-        sessionDate.setHours(startHour, startMinute, 0, 0);
-        sessions.push(sessionDate.toISOString());
-      }
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
+//     while (currentDate <= finalDate) {
+//       if (scheduledDays.includes(currentDate.getDay())) {
+//         const sessionDate = new Date(currentDate);
+//         // Set the time from the schedule, preserving the date's timezone offset
+//         sessionDate.setHours(startHour, startMinute, 0, 0);
+//         sessions.push(sessionDate.toISOString());
+//       }
+//       currentDate.setDate(currentDate.getDate() + 1);
+//     }
 
-    res.json({ success: true, data: { sessions } });
+//     res.json({ success: true, data: { sessions } });
 
-  } catch (error) {
-    console.error('Get sessions error:', error);
-    res.status(500).json({ success: false, message: 'Failed to calculate sessions', error: error.message });
-  }
-});
+//   } catch (error) {
+//     console.error('Get sessions error:', error);
+//     res.status(500).json({ success: false, message: 'Failed to calculate sessions', error: error.message });
+//   }
+// });
 
 // Delete group
 router.delete('/:id', async (req, res) => {

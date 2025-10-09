@@ -48,6 +48,24 @@ const groupSchema = new mongoose.Schema({
     min: -180,
     max: 180,
   },
+  color: {
+    type: String,
+    default: '#2E7D6E', // Default to your primary app color
+  },
+  schedule: {
+    type: {
+      startTime: { type: String, required: true }, // e.g., "07:00"
+      endTime: { type: String, required: true },   // e.g., "08:00"
+      days: { 
+        type: [String], 
+        required: true, 
+        enum: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] 
+      },
+      startDate: { type: Date, required: true },
+      endDate: { type: Date, required: true },
+    },
+    required: true,
+  },
   is_active: {
     type: Boolean,
     default: true,
@@ -73,12 +91,12 @@ const groupSchema = new mongoose.Schema({
     enum: ['beginner', 'intermediate', 'advanced', 'all-levels'],
     default: 'all-levels',
   },
-  session_duration: {
-    type: Number, // in minutes
-    default: 60,
-    min: 15,
-    max: 180,
-  },
+  // session_duration: {
+  //   type: Number, // in minutes
+  //   default: 60,
+  //   min: 15,
+  //   max: 180,
+  // },
   price_per_session: {
     type: Number,
     default: 0,
@@ -105,22 +123,9 @@ const groupSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-  schedule: {
-    type: {
-      startTime: { type: String, required: true },
-      endTime: { type: String, required: true },
-      days: { 
-        type: [String], 
-        required: true, 
-        enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] 
-      },
-      startDate: { type: Date, required: true },
-      endDate: { type: Date, required: true },
-      recurrence: { type: String, default: 'NONE' }, // ✅ ADD THIS LINE
-    },
-    required: false,
-  },
-}, {
+ 
+}, 
+{
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
   toJSON: {
     virtuals: true,

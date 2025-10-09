@@ -166,15 +166,13 @@ class ApiService with ChangeNotifier {
       Uri.parse('$baseUrl/api/auth/register'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode({
-        'firstName': firstName,
-        'lastName': lastName,
+        'fullName': fullName,
         'email': email,
         'phone': phone,
         'samagraId': samagraId,
         'password': password,
         'role': role,
         'location': location,
-        'samagraId': samagraId,
       }),
     );
     final data = _decode(res);
