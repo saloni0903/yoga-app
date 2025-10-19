@@ -264,35 +264,6 @@ router.post('/', auth, async (req, res) => {
         const group = new Group(groupData);
         await group.save();
 
-        // --- SESSION GENERATION LOGIC ---
-        const sessionsToCreate = [];
-        const dayMap = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
-        const scheduledDays = schedule.days.map(day => dayMap[day]);
-        
-        let currentDate = new Date(schedule.startDate);
-        const finalDate = new Date(schedule.endDate);
-        const [startHour, startMinute] = schedule.startTime.split(':').map(Number);
-
-        // Loop through each day from start to end date
-        while (currentDate <= finalDate) {
-            // Check if the current day of the week is in our schedule
-            if (scheduledDays.includes(currentDate.getUTCDay())) { // Use getUTCDay() for consistency
-                const sessionDate = new Date(currentDate);
-                // Set the correct time for the session in UTC
-                sessionDate.setUTCHours(startHour, startMinute, 0, 0);
-
-                sessionsToCreate.push({
-                    _id: crypto.randomUUID(),
-                    group_id: group._id,
-                    instructor_id: instructor_id,
-                    session_date: sessionDate,
-                    status: 'upcoming',
-                });
-            }
-            // Move to the next day
-            currentDate.setUTCDate(currentDate.getUTCDate() + 1);
-        }
-
         // Insert all generated sessions into the database in one go
         if (sessionsToCreate.length > 0) {
             await Session.insertMany(sessionsToCreate);
@@ -300,7 +271,7 @@ router.post('/', auth, async (req, res) => {
 
         res.status(201).json({
             success: true,
-            message: `Group created successfully with ${sessionsToCreate.length} sessions.`,
+            message: `Group created successfully!`,
             data: group
         });
 
