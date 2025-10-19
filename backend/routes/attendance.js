@@ -265,18 +265,15 @@ router.post('/scan', auth, async (req, res) => {
       return res.status(403).json({ success: false, message: 'You are not a member of this group.' });
     }
 
-    // 4. Check if attendance has already been marked for today
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Set to the beginning of the day
-
+    // 4. Check if attendance has already been marked for this specific session
     const existingAttendance = await Attendance.findOne({
       user_id: userId,
       group_id: groupId,
-      session_date: { $gte: today }
+      session_date: qrCode.session_date
     });
 
     if (existingAttendance) {
-      return res.status(400).json({ success: false, message: 'Attendance already marked for today.' });
+      return res.status(400).json({ success: false, message: 'Attendance already marked for this specific session.' });
     }
 
     // 5. All checks passed! Create the attendance record.
