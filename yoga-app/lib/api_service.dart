@@ -37,33 +37,17 @@ class ApiService with ChangeNotifier {
       _client = http.Client();
     }
   }
-  String? _token;
+
   User? _currentUser;
+  bool _isAuthenticated = false;
+  User? get currentUser => _currentUser;
+  bool get isAuthenticated => _isAuthenticated;
 
   List<AttendanceRecord> recentAttendance = [];
-
-  String? get token => _token;
-  User? get currentUser => _currentUser;
-  bool get isAuthenticated => _token != null && _currentUser != null;
-
-  Future<void> _setAuth(String? token, User? user) async {
-    _token = token;
-    _currentUser = user;
-    notifyListeners();
-
-    final prefs = await SharedPreferences.getInstance();
-    if (token != null) {
-      await prefs.setString('token', token);
-    } else {
-      await prefs.remove('token');
-    }
-  }
 
   Future<List<AttendanceRecord>> getAttendanceHistory() async {
     if (_currentUser == null)
       throw Exception('Must be logged in to get history.');
-
-    // This calls the backend route you provided: GET /api/attendance/user/:user_id
     final res = await _client.get(
       Uri.parse('$baseUrl/api/attendance/user/${_currentUser!.id}'),
       // headers: _authHeaders(),
@@ -122,14 +106,17 @@ class ApiService with ChangeNotifier {
           final res = await _client.get(Uri.parse('$baseUrl/api/auth/profile'));
 
           if (res.statusCode == 200) {
-              final data = _decode(res);
-              _currentUser = User.fromJson(data['data']);
-              _token = 'cookie_authenticated';
+              _currentUser = User.fromJson(data['data']['user']);
+              _isAuthenticated = true;
               notifyListeners();
-              return true;
+              return _currentUser!;
           }
+          _isAuthenticated = false;
+          notifyListeners();
           return false;
       } catch (e) {
+          _isAuthenticated = false;
+          notifyListeners();
           return false;
       }
   }
@@ -151,7 +138,10 @@ class ApiService with ChangeNotifier {
   }
 
   Future<void> logout() async {
-    await _setAuth(null, null);
+    // await _setAuth(null, null);
+    _currentUser = null;
+    _isAuthenticated = false;
+    notifyListeners();
   }
 
   Future<User> register({
@@ -183,7 +173,10 @@ class ApiService with ChangeNotifier {
     _ensureCreated(res, data);
 
     final user = User.fromAuthJson(data['data']);
-    await _setAuth(user.token, user);
+    // await _setAuth(user.token, user);
+    _currentUser = user;
+    _isAuthenticated = true;
+    notifyListeners();
     return user;
   }
 
