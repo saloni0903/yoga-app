@@ -94,6 +94,24 @@ class AuthWrapper extends StatefulWidget {
   State<AuthWrapper> createState() => _AuthWrapperState();
 }
 class _AuthWrapperState extends State<AuthWrapper> {
+  ApiService? _apiService;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final apiService = Provider.of<ApiService>(context);
+    if (apiService != _apiService) {
+      _apiService?.removeListener(_onAuthStateChanged); // Remove old listener if service changes
+      _apiService = apiService;
+      _apiService?.addListener(_onAuthStateChanged);
+      
+      // Perform initial login check only once
+      if (mounted && _apiService?.isAuthenticated == false) {
+         _apiService?.tryAutoLogin();
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -102,10 +120,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
     apiService.tryAutoLogin();
   }
   void _onAuthStateChanged() {
-    final apiService = Provider.of<ApiService>(context, listen: false);
-    if (apiService.isAuthenticated) {
-      FirebaseNotificationService.initialize(context);
-    }
+    // final apiService = Provider.of<ApiService>(context, listen: false);
+    // if (apiService.isAuthenticated) {
+      // FirebaseNotificationService.initialize(context);
+    // }
   }
   @override
   void dispose() {
