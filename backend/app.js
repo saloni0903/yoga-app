@@ -47,6 +47,7 @@ app.use('/api/groups', require('./routes/groups'));
 app.use('/api/attendance', require('./routes/attendance'));
 app.use('/api/qr', require('./routes/qr'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/schedule', require('./routes/schedule'));
 
 // 404 handler - catch all unmatched routes
 app.use((req, res, next) => {

@@ -1,74 +1,67 @@
+// backend/routes/schedule.js
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const Session = require('../model/Session');
-const GroupMember = require('../model/GroupMember');
-const Attendance = require('../model/Attendance');
 const Group = require('../model/Group');
 const mongoose = require('mongoose');
 
-// GET schedule for the logged-in INSTRUCTOR
-router.get('/instructor', auth, async (req, res) => {
+// GET dynamically generated sessions for a group within a date range
+router.get('/sessions', auth, async (req, res) => {
     try {
-        const instructorId = req.user.id;
+        const { groupId, startDate, endDate } = req.query;
+
+        if (!groupId || !startDate || !endDate) {
+            return res.status(400).json({ success: false, message: 'groupId, startDate, and endDate are required query parameters.' });
+        }
+
+        const group = await Group.findById(groupId).lean(); // .lean() for performance
+
+        if (!group) {
+            return res.status(404).json({ success: false, message: 'Group not found' });
+        }
+
+        // --- DYNAMIC SESSION CALCULATION LOGIC ---
+        const sessions = [];
+        const schedule = group.schedule;
         
-        // Find all sessions created by this instructor
-        const sessions = await Session.find({ instructor_id: instructorId })
-            .populate({
-                path: 'group_id',
-                select: 'group_name color' // Populate group name and color
-            })
-            .sort({ session_date: 1 }); // Sort by date
+        if (!schedule || !schedule.days || schedule.days.length === 0) {
+            return res.json({ success: true, data: [] }); // No schedule, no sessions
+        }
+
+        const dayMap = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
+        const scheduledDays = new Set(schedule.days.map(day => dayMap[day]));
+        
+        let currentDate = new Date(startDate);
+        const finalDate = new Date(endDate);
+        const [startHour, startMinute] = schedule.startTime.split(':').map(Number);
+
+        while (currentDate <= finalDate) {
+            // Check if the current day of the week is in our schedule
+            if (scheduledDays.has(currentDate.getUTCDay())) {
+                const sessionDate = new Date(currentDate);
+                sessionDate.setUTCHours(startHour, startMinute, 0, 0);
+
+                // This is a dynamically generated session object. It does not exist in the DB.
+                sessions.push({
+                    _id: new mongoose.Types.ObjectId().toString(), // A transient ID for frontend keying
+                    group_id: { // Simulate population for frontend compatibility
+                        _id: group._id,
+                        group_name: group.group_name,
+                        color: group.color,
+                    },
+                    session_date: sessionDate.toISOString(),
+                    status: 'upcoming', // This can be enhanced later with attendance data
+                });
+            }
+            // Move to the next day
+            currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+        }
 
         res.json({ success: true, data: sessions });
 
     } catch (error) {
-        console.error('Error fetching instructor schedule:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
-    }
-});
-
-// GET schedule for the logged-in PARTICIPANT
-router.get('/participant', auth, async (req, res) => {
-    try {
-        const participantId = req.user.id;
-
-        // 1. Find all groups the participant is a member of
-        const memberships = await GroupMember.find({ user_id: participantId, status: 'active' });
-        const groupIds = memberships.map(m => m.group_id);
-
-        // 2. Find all sessions for those groups
-        const sessions = await Session.find({ group_id: { $in: groupIds } })
-            .populate({
-                path: 'group_id',
-                select: 'group_name color'
-            })
-            .sort({ session_date: 1 })
-            .lean(); // Use .lean() for plain JS objects to modify them
-
-        // 3. Find all attendance records for this user
-        const attendanceRecords = await Attendance.find({ user_id: participantId });
-        const attendedSessionIds = new Set(attendanceRecords.map(a => a.session_id));
-
-        // 4. Determine the status for each session (upcoming, attended, missed)
-        const now = new Date();
-        const schedule = sessions.map(session => {
-            let status = 'upcoming';
-            if (session.session_date < now) {
-                // It's a past session, check if attended
-                status = attendedSessionIds.has(session._id) ? 'attended' : 'missed';
-            }
-            return {
-                ...session,
-                status: status, // Override the default 'upcoming' with our calculated status
-            };
-        });
-
-        res.json({ success: true, data: schedule });
-
-    } catch (error) {
-        console.error('Error fetching participant schedule:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
+        console.error('Error fetching dynamic schedule:', error);
+        res.status(500).json({ success: false, message: 'Server error while calculating schedule.' });
     }
 });
 
