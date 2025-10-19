@@ -24,8 +24,23 @@ initializeScheduler();
 
 const app = express();
 
+// cors config:
+const whitelist = ['https://aayush-dashboard.onrender.com']; // Production origins ONLY
+const corsOptions = {
+    origin: function (origin, callback) {
+        // Allow requests from the whitelist, requests with no origin (like mobile apps or Postman),
+        // and any localhost origin when NOT in production.
+        if (whitelist.indexOf(origin) !== -1 || !origin || (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost:'))) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+};
+app.use(cors(corsOptions));
+
 // Middleware
-app.use(cors());
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
