@@ -3,17 +3,13 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 
 const attendanceSchema = new mongoose.Schema({
-  _id: {
-    type: String,
-    default: () => crypto.randomUUID(),
-  },
   user_id: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
   },
   group_id: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'Group',
     required: true,
   },
@@ -26,7 +22,7 @@ const attendanceSchema = new mongoose.Schema({
     default: Date.now,
   },
   qr_code_id: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'SessionQRCode',
   },
   attendance_type: {
