@@ -40,6 +40,7 @@ class ApiService with ChangeNotifier {
 
   User? _currentUser;
   bool _isAuthenticated = false;
+  String? _token;
   User? get currentUser => _currentUser;
   bool get isAuthenticated => _isAuthenticated;
 
@@ -104,12 +105,12 @@ class ApiService with ChangeNotifier {
   Future<bool> tryAutoLogin() async {
       try {
           final res = await _client.get(Uri.parse('$baseUrl/api/auth/profile'));
-
+          final data = _decode(res);
           if (res.statusCode == 200) {
               _currentUser = User.fromJson(data['data']['user']);
               _isAuthenticated = true;
               notifyListeners();
-              return _currentUser!;
+              return true;
           }
           _isAuthenticated = false;
           notifyListeners();

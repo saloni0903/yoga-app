@@ -28,12 +28,13 @@ const app = express();
 const whitelist = ['https://aayush-dashboard.onrender.com']; // Base whitelist for production
 const corsOptions = {
     origin: function (origin, callback) {
-        // Allow Render preview URLs, whitelisted sites, no origin (Postman/mobile), and localhost in dev
-        const isAllowed = (origin && origin.endsWith('.onrender.com')) || 
+        // Allow Render URLs, whitelisted sites, localhost, and no origin (Postman/mobile)
+        const isAllowed = 
+                          (origin && origin.startsWith('http://localhost:')) || // <-- THIS IS THE FIX
+                          (origin && origin.endsWith('.onrender.com')) || 
                           whitelist.indexOf(origin) !== -1 || 
-                          !origin || 
-                          (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost:'));
-        
+                          !origin; 
+
         if (isAllowed) {
             callback(null, true);
         } else {

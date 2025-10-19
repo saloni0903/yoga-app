@@ -24,31 +24,16 @@ const groupSchema = new mongoose.Schema({
     type: {
       type: String,
       enum: ['Point'],
-      default: 'Point',
-    },
-    coordinates: {
-      type: [Number],
-      // required: true,
       required: function() { return this.groupType === 'offline'; }
     },
-  },
-  location_text: {
-    type: String,
-    required: function() { return this.groupType === 'offline'; },
-    trim: true,
-    maxlength: 500,
-  },
-  latitude: {
-    type: Number,
-    required: function() { return this.groupType === 'offline'; },
-    min: -90,
-    max: 90,
-  },
-  longitude: {
-    type: Number,
-    required: function() { return this.groupType === 'offline'; },
-    min: -180,
-    max: 180,
+    coordinates: {
+      type: [Number], // [longitude, latitude]
+      required: function() { return this.groupType === 'offline'; }
+    },
+    address: {
+        type: String,
+        required: function() { return this.groupType === 'offline'; }
+    }
   },
   color: {
     type: String,

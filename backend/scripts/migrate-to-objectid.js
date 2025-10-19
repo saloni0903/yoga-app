@@ -104,6 +104,7 @@ async function migrate() {
                 ...(newGroupId && { group_id: newGroupId }),
                 ...(newCreatedById && { created_by: newCreatedById })
             };
+            delete newQr.token; 
             await mongoose.connection.collection(COLLECTIONS.SESSION_QR_CODES).insertOne(newQr, { session });
             await mongoose.connection.collection(COLLECTIONS.SESSION_QR_CODES).deleteOne({ _id: oldId }, { session });
         }
@@ -121,7 +122,6 @@ async function migrate() {
             console.log(`\n--- Updating Foreign Keys in Collection: ${collectionInfo.name} ---`);
             const documents = await mongoose.connection.collection(collectionInfo.name).find({}).toArray();
             for (const doc of documents) {
-                // This is an in-place update because we are not changing the _id of these docs
                 const updatePayload = {};
                 let hasUpdate = false;
                 for (const fk of collectionInfo.fks) {
@@ -158,4 +158,3 @@ async function migrate() {
 }
 
 migrate().catch(() => process.exit(1));
-
