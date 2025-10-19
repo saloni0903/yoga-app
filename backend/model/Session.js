@@ -2,18 +2,14 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 
 const sessionSchema = new mongoose.Schema({
-  _id: { 
-    type: String, 
-    default: () => crypto.randomUUID() 
-  },
   group_id: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'Group',
     required: true,
     index: true,
   },
   instructor_id: {
-    type: String,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
     index: true,

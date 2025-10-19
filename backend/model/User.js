@@ -4,10 +4,11 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
 const userSchema = new mongoose.Schema({
-  _id: { 
-    type: String, 
-    default: () => crypto.randomUUID() 
-  },
+  // Mongoose will add it by default.
+  // _id: { 
+  //   type: String, 
+  //   default: () => crypto.randomUUID() 
+  // },
   email: {
     type: String,
     required: true,

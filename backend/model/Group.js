@@ -3,18 +3,8 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 
 const groupSchema = new mongoose.Schema({
-  // _id: {
-  //   type: mongoose.Schema.Types.UUID,
-  //   default: () => new mongoose.Types.UUID(),
-  // },
-  _id: { type: String, default: () => crypto.randomUUID() },
-  // instructor_id: {
-  //   type: mongoose.Schema.Types.UUID,
-  //   ref: 'User',
-  //   required: true,
-  // },
   instructor_id: { 
-    type: String, 
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User', 
     required: true 
   },
