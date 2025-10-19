@@ -29,11 +29,23 @@ export default function App() {
   }, [darkMode]);
 
   useEffect(() => {
-    const token = sessionStorage.getItem('adminToken');
-    if (token) {
-      setIsLoggedIn(true);
-      loadDashboardData();
-    }
+    const verifyLogin = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/auth/profile`, {
+          credentials: 'include' // This tells the browser to send the httpOnly cookie
+        });
+        if (res.ok) {
+          setIsLoggedIn(true);
+          // NOTE: We don't need to call loadDashboardData() here.
+          // The other useEffect depending on `isLoggedIn` will automatically trigger it.
+        } else {
+          setIsLoggedIn(false);
+        }
+      } catch (err) {
+        setIsLoggedIn(false);
+      }
+    };
+    verifyLogin();
   }, []);
 
   useEffect(() => {
@@ -59,6 +71,7 @@ export default function App() {
     try {
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, role: 'admin' }),
       });
@@ -69,7 +82,7 @@ export default function App() {
         throw new Error(data.message || 'Login failed. Not an admin.');
       }
       
-      sessionStorage.setItem('adminToken', data.data.token);
+      // sessionStorage.setItem('adminToken', data.data.token);
       setIsLoggedIn(true);
       setEmail('');
       setPassword('');
@@ -81,16 +94,17 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('adminToken');
+    // sessionStorage.removeItem('adminToken');
     setIsLoggedIn(false);
     setCurrentView('dashboard');
   };
 
   const loadStats = async () => {
     try {
-      const token = sessionStorage.getItem('adminToken');
+      // const token = sessionStorage.getItem('adminToken');
       const res = await fetch(`${API_URL}/api/admin/stats`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        // headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
       
       if (res.status === 401) {
@@ -107,9 +121,10 @@ export default function App() {
 
   const loadInstructors = async () => {
     try {
-      const token = sessionStorage.getItem('adminToken');
+      // const token = sessionStorage.getItem('adminToken');
       const res = await fetch(`${API_URL}/api/admin/instructors`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        // headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
       });
       
       if (res.status === 401) {
@@ -126,13 +141,14 @@ export default function App() {
 
   const updateInstructorStatus = async (id, status) => {
     try {
-      const token = sessionStorage.getItem('adminToken');
+      // const token = sessionStorage.getItem('adminToken');
       await fetch(`${API_URL}/api/admin/instructors/${id}/status`, {
         method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json', 
-          'Authorization': `Bearer ${token}` 
-        },
+        // headers: { 
+        //   'Content-Type': 'application/json', 
+        //   'Authorization': `Bearer ${token}` 
+        // },
+        credentials: 'include',
         body: JSON.stringify({ status }),
       });
       loadInstructors();
@@ -145,10 +161,11 @@ export default function App() {
     if (!window.confirm('Are you sure you want to permanently remove this instructor?')) return;
     
     try {
-      const token = sessionStorage.getItem('adminToken');
+      // const token = sessionStorage.getItem('adminToken');
       await fetch(`${API_URL}/api/admin/instructors/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
+        // headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
       });
       loadInstructors();
     } catch (err) {

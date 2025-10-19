@@ -103,14 +103,31 @@ router.post('/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    res.json({
-      success: true,
-      message: 'Login successful',
-      data: {
-        user: user.toJSON(),
-        token
-      }
+    // res.json({
+    //   success: true,
+    //   message: 'Login successful',
+    //   data: {
+    //     user: user.toJSON(),
+    //     token
+    //   }
+    // });
+    const cookieOptions = {
+        httpOnly: true, // Prevents client-side JS from accessing the cookie
+        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7-day expiry
+        secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in production
+        sameSite: 'strict' // Mitigates CSRF attacks
+    };
+
+    res.cookie('token', token, cookieOptions);
+
+    res.status(200).json({
+        success: true,
+        message: 'Login successful',
+        data: {
+            user: user.toJSON() // The token is NO LONGER sent in the body
+        }
     });
+
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({

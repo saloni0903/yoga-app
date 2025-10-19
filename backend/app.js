@@ -1,12 +1,22 @@
 // backend/app.js
-const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const express = require('express');
+const cookieParser = require('cookie-parser');
 const connectDB = require('./config/database');
 const initializeScheduler = require('./services/notificationScheduler');
 
 // Load environment variables
 dotenv.config();
+if (
+  process.env.NODE_ENV === 'production' &&
+  (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'your-secret-key')
+) {
+  console.error(
+    'FATAL ERROR: JWT_SECRET is not defined or is insecure in production. Application cannot start.'
+  );
+  process.exit(1);
+}
 
 // Connect to database
 connectDB();
@@ -16,6 +26,7 @@ const app = express();
 
 // Middleware
 app.use(cors());
+app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/schedule', require('./routes/schedule'));
