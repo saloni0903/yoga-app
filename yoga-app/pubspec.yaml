@@ -32,7 +32,8 @@ dependencies:
   file_picker: ^10.3.3
   url_launcher: ^6.3.2
   flutter_colorpicker: ^1.0.3
-
+  firebase_core: ^4.2.0
+  firebase_messaging: ^16.0.3
 
 dev_dependencies:
   flutter_launcher_icons: ^0.13.1
@@ -48,6 +49,7 @@ flutter:
   generate: true
   assets:
     - assets/images/
+    - assets/onboarding/
 
 flutter_icons:
   android: true
@@ -55,7 +57,7 @@ flutter_icons:
   image_path: "assets/images/logo.png"
 
 flutter_native_splash:
-  color: "#0E1513"
+  color: "#ffffff"
   image: assets/images/logo.png
   android: true
   ios: true

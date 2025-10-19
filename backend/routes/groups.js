@@ -204,6 +204,7 @@ router.post('/', auth, async (req, res) => {
     try {
         const {
             group_name,
+            groupType,
             location_text,
             latitude,
             longitude,
@@ -230,13 +231,14 @@ router.post('/', auth, async (req, res) => {
         const groupData = {
             instructor_id,
             group_name,
-            location: {
-                type: 'Point',
-                coordinates: [parseFloat(longitude), parseFloat(latitude)],
-            },
-            location_text,
-            latitude: parseFloat(latitude),
-            longitude: parseFloat(longitude),
+            groupType,
+            // location: {
+            //     type: 'Point',
+            //     coordinates: [parseFloat(longitude), parseFloat(latitude)],
+            // },
+            // location_text,
+            // latitude: parseFloat(latitude),
+            // longitude: parseFloat(longitude),
             color,
             schedule,
             description,
@@ -245,6 +247,19 @@ router.post('/', auth, async (req, res) => {
             price_per_session: parseFloat(price_per_session) || 0,
             max_participants: parseInt(max_participants) || 20,
         };
+
+        if (groupType === 'offline') {
+          if (!latitude || !longitude || !location_text) {
+              return res.status(400).json({ success: false, message: 'For offline groups, latitude, longitude, and location text are required.' });
+          }
+          groupData.location = {
+              type: 'Point',
+              coordinates: [parseFloat(longitude), parseFloat(latitude)],
+          };
+          groupData.location_text = location_text;
+          groupData.latitude = parseFloat(latitude);
+          groupData.longitude = parseFloat(longitude);
+        }
 
         const group = new Group(groupData);
         await group.save();

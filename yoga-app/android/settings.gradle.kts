@@ -22,6 +22,9 @@ plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
     // Updated AGP to satisfy the warning
     id("com.android.application") version "8.7.0" apply false
+    // START: FlutterFire Configuration
+    id("com.google.gms.google-services") version("4.3.15") apply false
+    // END: FlutterFire Configuration
     // Updated Kotlin to fix the build error
     id("org.jetbrains.kotlin.android") version "2.2.0" apply false
 }

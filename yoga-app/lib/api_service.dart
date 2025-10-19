@@ -145,7 +145,6 @@ class ApiService with ChangeNotifier {
     // return user;
   }
 
-  /// ✅ FIXED: Logout now correctly clears state and notifies listeners.
   Future<void> logout() async {
     await _setAuth(null, null);
   }
@@ -183,6 +182,20 @@ class ApiService with ChangeNotifier {
     return user;
   }
 
+  Future<void> updateUserFcmToken(String fcmToken) async {
+    if (_currentUser == null) return; // Don't proceed if not logged in
+
+    // NOTE: This assumes a new backend endpoint `PUT /api/users/me/fcm-token`
+    // You will need to create this endpoint.
+    final res = await http.put(
+      Uri.parse('$baseUrl/api/users/me/fcm-token'),
+      headers: _authHeaders(),
+      body: json.encode({'fcmToken': fcmToken}),
+    );
+
+    _ensureOk(res, _decode(res));
+  }
+
   Future<User> getMyProfile() async {
     final res = await http.get(
       Uri.parse('$baseUrl/api/auth/profile'),
@@ -195,7 +208,7 @@ class ApiService with ChangeNotifier {
 
   Future<User> updateMyProfile({
     required Map<String, dynamic> profileData,
-    File? imageFile, // ⭐ ADDITION: Optional parameter for the image file
+    File? imageFile,
   }) async {
     if (_currentUser == null) throw Exception('Not authenticated.');
 
@@ -243,9 +256,6 @@ class ApiService with ChangeNotifier {
     return updatedUser;
   }
 
-  // ⭐ You may also need to slightly adjust your _authHeaders helper
-  // to prevent it from setting a 'Content-Type' for multipart requests.
-
   Map<String, String> _authHeaders({
     bool optional = false,
     bool includeContentType = true,
@@ -264,7 +274,6 @@ class ApiService with ChangeNotifier {
   }
 
   Future<List<User>> getGroupMembers({required String groupId}) async {
-    // This calls the backend route: GET /api/groups/:groupId/members
     final res = await http.get(
       Uri.parse('$baseUrl/api/groups/$groupId/members'),
       headers: _authHeaders(),

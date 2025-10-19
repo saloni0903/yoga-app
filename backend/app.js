@@ -3,12 +3,14 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/database');
+const initializeScheduler = require('./services/notificationScheduler');
 
 // Load environment variables
 dotenv.config();
 
 // Connect to database
 connectDB();
+initializeScheduler();
 
 const app = express();
 

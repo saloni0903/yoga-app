@@ -116,7 +116,7 @@ class AboutScreen extends StatelessWidget {
                         style: textTheme.bodyMedium,
                       ),
                       const SizedBox(height: 24),
-                      Text('Version 1.0.0', style: textTheme.bodySmall),
+                      Text('Version 2.0.0', style: textTheme.bodySmall),
                     ],
                   ),
                 ),

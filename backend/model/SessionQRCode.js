@@ -84,7 +84,6 @@ const sessionQRCodeSchema = new mongoose.Schema({
 
 // Index for efficient queries
 sessionQRCodeSchema.index({ group_id: 1, session_date: 1 });
-sessionQRCodeSchema.index({ token: 1 });
 sessionQRCodeSchema.index({ expires_at: 1 });
 sessionQRCodeSchema.index({ is_active: 1 });
 sessionQRCodeSchema.index({ created_at: -1 });

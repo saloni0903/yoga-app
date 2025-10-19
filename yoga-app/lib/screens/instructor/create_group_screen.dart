@@ -48,6 +48,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   final _equipmentController = TextEditingController();
   
   // State Variables
+  String _groupType = 'offline';
   String _selectedYogaStyle = 'hatha';
   String _selectedDifficultyLevel = 'all-levels';
   bool _isActive = true;
@@ -429,11 +430,10 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       
       final colorString = '#${_groupColor.value.toRadixString(16).padLeft(8, '0').substring(2)}';
 
-      final groupData = {
+      final Map<String, dynamic> groupData = {
         'group_name': _groupNameController.text.trim(),
+        'groupType': _groupType,
         'location_text': _locationTextController.text.trim(),
-        'latitude': double.tryParse(_latitudeController.text.trim()),
-        'longitude': double.tryParse(_longitudeController.text.trim()),
         'description': _descriptionController.text.trim(),
         'max_participants': int.parse(_maxParticipantsController.text.trim()),
         'yoga_style': _selectedYogaStyle,
@@ -442,8 +442,18 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         'color': colorString,
         'is_active': _isActive,
         'schedule': scheduleObject,
-        // TODO: Add requirements and equipment to the payload
       };
+
+      if (_groupType == 'offline') {
+        if (_locationTextController.text.trim().isEmpty) {
+          _showError('Address is required for offline groups.');
+          setState(() => _isLoading = false);
+          return; // Stop the function here
+        }
+        groupData['location_text'] = _locationTextController.text.trim();
+        groupData['latitude'] = double.tryParse(_latitudeController.text.trim());
+        groupData['longitude'] = double.tryParse(_longitudeController.text.trim());
+      }
 
       final apiService = Provider.of<ApiService>(context, listen: false);
       if (widget.existingGroup == null) {
@@ -507,6 +517,21 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'offline', label: Text('Offline'), icon: Icon(Icons.location_on_outlined)),
+                  ButtonSegment(value: 'online', label: Text('Online'), icon: Icon(Icons.videocam_outlined)),
+                ],
+                selected: {_groupType},
+                onSelectionChanged: (Set<String> newSelection) {
+                  setState(() {
+                    _groupType = newSelection.first;
+                  });
+                },
+              ),
+            ),
             // --- CORE INFO (NEW UI) ---
             TextFormField(
               controller: _groupNameController,
@@ -573,45 +598,48 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             const SizedBox(height: 16),
             
             // --- LOCATION (OLD CARD UI) ---
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _locationTextController,
-                      decoration: const InputDecoration(
-                        labelText: 'Address *',
-                        helperText: 'Full address or meeting point',
-                        prefixIcon: Icon(Icons.place),
+            Visibility(
+              visible: _groupType == 'offline',
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _locationTextController,
+                        decoration: const InputDecoration(
+                          labelText: 'Address *',
+                          helperText: 'Full address or meeting point',
+                          prefixIcon: Icon(Icons.place),
+                        ),
+                        validator: (v) => _validateRequired(v, 'Address'),
+                        maxLines: 2,
+                        textCapitalization: TextCapitalization.sentences,
                       ),
-                      validator: (v) => _validateRequired(v, 'Address'),
-                      maxLines: 2,
-                      textCapitalization: TextCapitalization.sentences,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _isLoading ? null : _fetchCurrentLocation,
-                            icon: const Icon(Icons.my_location),
-                            label: const Text('Auto-Fetch'),
-                            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _isLoading ? null : _fetchCurrentLocation,
+                              icon: const Icon(Icons.my_location),
+                              label: const Text('Auto-Fetch'),
+                              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _isLoading ? null : _openMapPicker,
-                            icon: const Icon(Icons.map_outlined),
-                            label: const Text('Pick on Map'),
-                            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: _isLoading ? null : _openMapPicker,
+                              icon: const Icon(Icons.map_outlined),
+                              label: const Text('Pick on Map'),
+                              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

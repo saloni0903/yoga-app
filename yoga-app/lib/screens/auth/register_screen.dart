@@ -132,13 +132,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     setState(() => _isLoading = true);
-    // ✅ GET the ApiService from Provider
     final apiService = Provider.of<ApiService>(context, listen: false);
 
     try {
       final fullName = '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
 
-      // ✅ USE the apiService.register method. It sends the correct JSON format.
       await apiService.register(
         fullName: fullName,
         email: _emailController.text.trim(),

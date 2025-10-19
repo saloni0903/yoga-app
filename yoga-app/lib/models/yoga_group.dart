@@ -40,6 +40,7 @@ class Schedule {
 class YogaGroup {
   final String id;
   final String name;
+  final String groupType;
   final String location;
   final String locationText;
   final double? latitude;
@@ -116,6 +117,7 @@ class YogaGroup {
     this.distance,
     required this.id,
     required this.name,
+    required this.groupType,
     required this.location,
     required this.locationText,
     this.latitude,
@@ -154,11 +156,11 @@ class YogaGroup {
     return YogaGroup(
       id: (j['_id'] ?? j['id'] ?? '').toString(),
       name: (j['group_name'] ?? '').toString(),
-      location:
-          (j['location'] is Map
-                  ? (j['location']['coordinates']?.toString() ?? '')
-                  : (j['location'] ?? ''))
-              .toString(),
+      groupType: j['groupType'] as String? ?? 'offline',
+      location: (j['location'] is Map // <-- ADD 'location:' KEY HERE
+              ? (j['location']['coordinates']?.toString() ?? '')
+              : (j['location'] ?? ''))
+          .toString(),
       locationText: (j['location_text'] ?? '').toString(),
       latitude: (j['latitude'] as num?)?.toDouble(),
       longitude: (j['longitude'] as num?)?.toDouble(),

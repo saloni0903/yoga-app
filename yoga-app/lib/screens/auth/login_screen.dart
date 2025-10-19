@@ -5,6 +5,7 @@ import '../home/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
+import '../../services/notification_service.dart';
 import 'package:yoga_app/generated/app_localizations.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -54,7 +55,9 @@ class _LoginScreenState extends State<LoginScreen> {
         _emailController.text.trim(),
         _passwordController.text,
       );
-
+      
+      await FirebaseNotificationService.initialize(context);
+      
       // Navigate on success
       if (mounted) {
         Navigator.pushReplacement(

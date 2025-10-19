@@ -86,6 +86,10 @@ const userSchema = new mongoose.Schema({
       default: 'beginner',
     },
   },
+  fcmTokens: {
+    type: [String],
+    default: [],
+  },
 }, {
   timestamps: true,
   toJSON: {
@@ -101,7 +105,7 @@ const userSchema = new mongoose.Schema({
 userSchema.virtual('fullName').get(function() { return `${this.firstName} ${this.lastName}`; });
 userSchema.pre('save', async function(next) { 
     if (this.isModified('password')) { 
-      const salt = await bcrypt.genSalt(12); 
+      const salt = await bcrypt.genSalt(10); 
       this.password = await bcrypt.hash(this.password, salt); 
     } 
     if (this.isNew && this.role === 'instructor') {

@@ -34,9 +34,5 @@ export function useInstructors() {
   useEffect(() => {
     fetchInstructors();
   }, []);
-
-  // You can also return functions to update/delete instructors here
-  // and they would call fetchInstructors() again to refresh the data.
-
   return { instructors, loading, error, refreshInstructors: fetchInstructors };
 }

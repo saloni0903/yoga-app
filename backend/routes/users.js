@@ -1,6 +1,7 @@
 // backend/routes/users.js
 const express = require('express');
 const User = require('../model/User');
+const auth = require('../middleware/auth');
 const router = express.Router();
 
 // Get all users (admin only)
@@ -246,6 +247,36 @@ router.delete('/:id', async (req, res) => {
       message: 'Failed to delete user',
       error: error.message
     });
+  }
+});
+
+// Notifications
+router.put('/me/fcm-token', auth, async (req, res) => {
+  try {
+    const { fcmToken } = req.body;
+    const userId = req.user.id; // From the 'auth' middleware
+
+    if (!fcmToken) {
+      return res.status(400).json({ success: false, message: 'fcmToken is required.' });
+    }
+
+    // Use $addToSet to add the token to the array only if it's not already there.
+    // This prevents duplicate tokens for the same device.
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $addToSet: { fcmTokens: fcmToken } },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    res.json({ success: true, message: 'FCM token updated successfully.' });
+
+  } catch (error) {
+    console.error('Error updating FCM token:', error);
+    res.status(500).json({ success: false, message: 'Server error.' });
   }
 });
 

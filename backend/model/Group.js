@@ -1,5 +1,6 @@
 // backend/model/Group.js
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 
 const groupSchema = new mongoose.Schema({
   // _id: {
@@ -12,7 +13,17 @@ const groupSchema = new mongoose.Schema({
   //   ref: 'User',
   //   required: true,
   // },
-  instructor_id: { type: String, ref: 'User', required: true },
+  instructor_id: { 
+    type: String, 
+    ref: 'User', 
+    required: true 
+  },
+  groupType: {
+    type: String,
+    enum: ['online', 'offline'],
+    default: 'offline',
+    required: true,
+  }, 
   group_name: {
     type: String,
     required: true,
@@ -27,24 +38,25 @@ const groupSchema = new mongoose.Schema({
     },
     coordinates: {
       type: [Number],
-      required: true,
+      // required: true,
+      required: function() { return this.groupType === 'offline'; }
     },
   },
   location_text: {
     type: String,
-    required: true,
+    required: function() { return this.groupType === 'offline'; },
     trim: true,
     maxlength: 500,
   },
   latitude: {
     type: Number,
-    required: true,
+    required: function() { return this.groupType === 'offline'; },
     min: -90,
     max: 90,
   },
   longitude: {
     type: Number,
-    required: true,
+    required: function() { return this.groupType === 'offline'; },
     min: -180,
     max: 180,
   },
