@@ -38,16 +38,21 @@ export default function GroupsMapPage({ darkMode }) {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${API_URL}/api/groups`, { credentials: 'include' }); // Assuming this endpoint exists
+        const res = await fetch(`${API_URL}/api/groups`, { credentials: 'include' }); 
         if (!res.ok) {
            const errorData = await res.json().catch(() => ({}));
           throw new Error(errorData.message || `API failed with status ${res.status}`);
         }
         const data = await res.json();
         
-        // Ensure data structure is correct and filter groups with valid locations
-        if (data && Array.isArray(data.data)) {
-           const validGroups = data.data.filter(group => 
+        // --- CORRECTED CHECK ---
+        // Ensure data structure has data.data.groups which is an array
+        if (data && data.data && Array.isArray(data.data.groups)) { 
+           const groupsArray = data.data.groups;
+
+           console.log("Groups received from backend:", JSON.stringify(groupsArray, null, 2));
+           
+           const validGroups = groupsArray.filter(group => 
              group.location && 
              Array.isArray(group.location.coordinates) && 
              group.location.coordinates.length === 2 &&
@@ -55,17 +60,19 @@ export default function GroupsMapPage({ darkMode }) {
              typeof group.location.coordinates[1] === 'number'
            );
            setGroups(validGroups);
-            if (validGroups.length !== data.data.length) {
+            if (validGroups.length !== groupsArray.length) {
               console.warn("Some groups were filtered out due to missing or invalid location data.");
             }
         } else {
-          setGroups([]);
-          throw new Error('Invalid data structure for groups received');
+          // If the structure is wrong, throw the error
+          console.error('Received invalid data structure:', data); // Log what was received
+          setGroups([]); // Set to empty on error
+          throw new Error('Invalid data structure for groups received from API');
         }
       } catch (err) {
         console.error('Error loading groups:', err);
         setError(err.message);
-        setGroups([]);
+        setGroups([]); // Ensure groups is empty on error
       } finally {
         setLoading(false);
       }

@@ -6,6 +6,10 @@ const Attendance = require('../model/Attendance');
 const GroupMember = require('../model/GroupMember');
 const SessionQRCode = require('../model/SessionQRCode');
 
+const isAdmin = require('../middleware/isAdmin'); // ADD THIS LINE if not present
+const Group = require('../model/Group'); // ADD THIS LINE if not present
+const User = require('../model/User'); // ADD THIS LINE if not present
+
 // Mark attendance
 router.post('/mark', async (req, res) => {
   try {
@@ -290,6 +294,84 @@ router.post('/scan', auth, async (req, res) => {
   } catch (error) {
     console.error('Error scanning QR code:', error);
     res.status(500).json({ success: false, message: 'Server error during scan.' });
+  }
+});
+
+// --- NEW: GET All Attendance Records (For Past Sessions Page) ---
+router.get('/', auth, isAdmin, async (req, res) => { // Protected for Admin view
+  try {
+    const { 
+        page = 1, 
+        limit = 20, // Add pagination
+        sort = '-marked_at', // Default sort: newest first
+        populate = '' // Comma-separated fields: group_id,user_id,instructor_id
+    } = req.query;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    let query = Attendance.find(); // Start building the query
+
+    // Handle Sorting
+    if (sort) {
+        // Replace comma with space for Mongoose sort syntax e.g., "-marked_at,group_id" -> "-marked_at group_id"
+        const sortQuery = sort.split(',').join(' '); 
+        query = query.sort(sortQuery);
+    }
+
+    // Handle Population
+    const fieldsToPopulate = populate.split(',').filter(field => field); // Split and remove empty strings
+    if (fieldsToPopulate.includes('group_id')) {
+        query = query.populate({ 
+            path: 'group_id', 
+            select: 'group_name color instructor_id' // Include instructor_id if needed for nested populate
+        });
+    }
+    if (fieldsToPopulate.includes('user_id')) {
+        query = query.populate({
+            path: 'user_id',
+            select: 'firstName lastName email' // Select specific fields
+        });
+    }
+     if (fieldsToPopulate.includes('instructor_id')) {
+        // Check if Attendance model has instructor_id directly
+         // If yes:
+         query = query.populate({
+             path: 'instructor_id', // Make sure this path exists in Attendance schema
+             select: 'firstName lastName' 
+         });
+         // If instructor is only linked via Group (nested populate):
+         // Ensure 'group_id' population above includes 'instructor_id'
+         // query = query.populate({ 
+         //     path: 'group_id', 
+         //     populate: { path: 'instructor_id', select: 'firstName lastName' } 
+         // });
+         // Choose the correct population method based on your schema.
+     }
+
+
+    // Apply Pagination
+    query = query.skip(skip).limit(parseInt(limit));
+
+    // Execute Query
+    const attendanceRecords = await query.lean(); // Use lean() for performance
+
+    // Get Total Count for Pagination (without skip/limit, but with filters if added later)
+    const total = await Attendance.countDocuments(/* add filter conditions here if needed */);
+
+    res.json({
+      success: true,
+      data: attendanceRecords,
+      pagination: {
+        current: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / limit),
+        total,
+      },
+    });
+
+  } catch (error) {
+    console.error('Get all attendance error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch attendance records', error: error.message });
   }
 });
 
