@@ -7,7 +7,7 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const axios = require('axios');
 
-const Session = require('../model/Session');
+// const Session = require('../model/Session');
 const crypto = require('crypto');
 
 // Get all groups
