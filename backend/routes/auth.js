@@ -118,7 +118,7 @@ router.post('/login', async (req, res) => {
         sameSite: 'strict' // Mitigates CSRF attacks
     };
 
-    res.cookie('token', token, cookieOptions);
+    res.cookie('adminToken', token, cookieOptions);
 
     res.status(200).json({
         success: true,
