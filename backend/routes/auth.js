@@ -115,7 +115,7 @@ router.post('/login', async (req, res) => {
         httpOnly: true, // Prevents client-side JS from accessing the cookie
         expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7-day expiry
         secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in production
-        sameSite: 'strict' // Mitigates CSRF attacks
+        sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax'
     };
 
     res.cookie('adminToken', token, cookieOptions);
