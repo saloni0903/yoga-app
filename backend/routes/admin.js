@@ -1,3 +1,4 @@
+// backend/routes/admin.js
 const express = require('express');
 const router = express.Router();
 const User = require('../model/User');
@@ -59,18 +60,22 @@ router.delete('/instructors/:id', async (req, res) => {
 
 // --- Dashboard Statistics ---
 
-// GET daily and overall attendance stats
 router.get('/stats', async (req, res) => {
+    console.log('[Admin Route /stats] Handler reached.');
+    console.log('[Admin Route /stats] Authenticated User:', req.user ? req.user.email : 'No user attached!');
+
     try {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
+        // --- THIS IS THE LOGIC YOU WERE MISSING ---
         const totalParticipants = await User.countDocuments({ role: 'participant' });
         const totalInstructors = await User.countDocuments({ role: 'instructor', status: 'approved' });
-        
         const sessionsToday = await Attendance.countDocuments({ marked_at: { $gte: today } });
         const totalAttendance = await Attendance.countDocuments();
+        // -------------------------------------------
 
+        // Send the data back in the correct structure
         res.json({
             success: true,
             data: {
@@ -81,6 +86,7 @@ router.get('/stats', async (req, res) => {
             }
         });
     } catch (error) {
+        console.error('[Admin Route /stats] Error:', error);
         res.status(500).json({ success: false, message: 'Failed to fetch stats' });
     }
 });

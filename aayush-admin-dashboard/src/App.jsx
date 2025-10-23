@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { LogOut, Users, BarChart3, Calendar, TrendingUp, Eye, EyeOff, Moon, Sun, Menu, X, Activity, Award, Clock } from 'lucide-react';
 
-const API_URL = 'https://yoga-app-7drp.onrender.com';
+// const API_URL = 'https://yoga-app-7drp.onrender.com';
+const API_URL = 'http://localhost:3000';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -30,19 +31,22 @@ export default function App() {
 
   useEffect(() => {
     const verifyLogin = async () => {
+      setLoading(true); // Indicate loading during verification
       try {
         const res = await fetch(`${API_URL}/api/auth/profile`, {
-          credentials: 'include' // This tells the browser to send the httpOnly cookie
+          credentials: 'include'
         });
         if (res.ok) {
           setIsLoggedIn(true);
-          // NOTE: We don't need to call loadDashboardData() here.
-          // The other useEffect depending on `isLoggedIn` will automatically trigger it.
+          // Directly call data loading HERE upon successful verification
+          // loadDashboardData(); // We will load based on view instead
         } else {
           setIsLoggedIn(false);
         }
       } catch (err) {
         setIsLoggedIn(false);
+      } finally {
+        setLoading(false); // Stop loading indicator
       }
     };
     verifyLogin();
@@ -50,18 +54,26 @@ export default function App() {
 
   useEffect(() => {
     if (isLoggedIn) {
-      if (currentView === 'dashboard') {
-        loadStats();
-      } else if (currentView === 'instructors') {
-        loadInstructors();
-      }
+      setLoading(true); // Show loading when view changes or after login
+      const loadDataForView = async () => {
+        try {
+          if (currentView === 'dashboard') {
+            await loadStats();
+            // Optionally load minimal instructor data for dashboard preview if needed
+          } else if (currentView === 'instructors') {
+            await loadInstructors();
+          }
+          // Add other views here if necessary
+        } catch (error) {
+           // Error handling is managed within loadStats/loadInstructors (401 triggers logout)
+           console.error(`Error loading data for view ${currentView}:`, error);
+        } finally {
+          setLoading(false); // Hide loading indicator
+        }
+      };
+      loadDataForView();
     }
   }, [isLoggedIn, currentView]);
-
-  const loadDashboardData = async () => {
-    await loadStats();
-    await loadInstructors();
-  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -99,59 +111,86 @@ export default function App() {
     setCurrentView('dashboard');
   };
 
+  
+
   const loadStats = async () => {
     try {
-      // const token = sessionStorage.getItem('adminToken');
-      const res = await fetch(`${API_URL}/api/admin/stats`, {
-        // headers: { 'Authorization': `Bearer ${token}` }
-        credentials: 'include'
-      });
+      const res = await fetch(`${API_URL}/api/admin/stats`, { credentials: 'include' });
       
-      if (res.status === 401) {
-        handleLogout();
-        return;
+      if (!res.ok) {
+        throw new Error(`API failed with status ${res.status}`);
       }
-      
+
       const data = await res.json();
-      setStats(data.data);
+      console.log('Stats API response:', data);
+
+      // Some backends return { success, data: {...} }
+      // Others return just {...} directly.
+      const statsData =
+        data?.data && typeof data.data === 'object'
+          ? data.data
+          : data; // fallback if no "data" wrapper
+
+      setStats({
+        totalParticipants: statsData.totalParticipants ?? 0,
+        totalInstructors: statsData.totalInstructors ?? 0,
+        sessionsToday: statsData.sessionsToday ?? 0,
+        totalAttendance: statsData.totalAttendance ?? 0,
+      });
     } catch (err) {
       console.error('Error loading stats:', err);
+      // Optional: reset stats to default to prevent crash
+      setStats({
+        totalParticipants: 0,
+        totalInstructors: 0,
+        sessionsToday: 0,
+        totalAttendance: 0,
+      });
     }
   };
 
-  const loadInstructors = async () => {
-    try {
-      // const token = sessionStorage.getItem('adminToken');
-      const res = await fetch(`${API_URL}/api/admin/instructors`, {
-        // headers: { 'Authorization': `Bearer ${token}` }
-        credentials: 'include'
-      });
-      
-      if (res.status === 401) {
-        handleLogout();
-        return;
-      }
-      
-      const data = await res.json();
-      setInstructors(data.data);
-    } catch (err) {
-      console.error('Error loading instructors:', err);
-    }
-  };
+   // YOU WILL ADD THIS ENTIRE FUNCTION.
+ const loadInstructors = async () => {
+   try {
+     const res = await fetch(`${API_URL}/api/admin/instructors`, {
+       credentials: 'include'
+     });
+ 
+     if (res.status === 401) {
+       handleLogout();
+       return;
+     }
+ 
+     if (!res.ok) {
+       throw new Error(`API failed with status ${res.status}`);
+     }
+ 
+     const data = await res.json();
+ 
+     if (data && data.data) {
+       setInstructors(data.data);
+    } else {
+       console.error('Received invalid instructors data from API:', data);
+       setInstructors([]); // Set to empty array on failure
+     }
+   } catch (err) {
+     console.error('Error loading instructors:', err);
+     setInstructors([]); // Set to empty array on error
+   }
+ };
 
   const updateInstructorStatus = async (id, status) => {
     try {
-      // const token = sessionStorage.getItem('adminToken');
       await fetch(`${API_URL}/api/admin/instructors/${id}/status`, {
         method: 'PUT',
-        // headers: { 
-        //   'Content-Type': 'application/json', 
-        //   'Authorization': `Bearer ${token}` 
-        // },
+        headers: { 
+          // This header is MANDATORY for req.body to be parsed.
+          'Content-Type': 'application/json', 
+        },
         credentials: 'include',
         body: JSON.stringify({ status }),
       });
-      loadInstructors();
+      loadInstructors(); // Refresh the list after update
     } catch (err) {
       console.error('Error updating instructor status:', err);
     }

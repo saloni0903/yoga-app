@@ -5,6 +5,7 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 const connectDB = require('./config/database');
 const initializeScheduler = require('./services/notificationScheduler');
+const auth = require('./middleware/auth');
 
 // Load environment variables
 dotenv.config();
@@ -77,7 +78,12 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/attendance', require('./routes/attendance'));
 app.use('/api/qr', require('./routes/qr'));
-app.use('/api/admin', require('./routes/admin'));
+app.use('/api/auth', require('./routes/auth'));
+// app.use('/api/admin', require('./routes/admin'));
+app.use('/api/admin', (req, res, next) => {
+  console.log(`[App.js] Request hitting /api/admin path: ${req.method} ${req.originalUrl}`); // <-- ADD LOG
+  next();
+}, auth, require('./routes/admin'));
 app.use('/api/schedule', require('./routes/schedule'));
 
 // 404 handler - catch all unmatched routes
