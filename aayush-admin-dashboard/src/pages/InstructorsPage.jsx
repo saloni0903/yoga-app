@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import Spinner from '../components/Spinner';
 
-const API_URL = 'http://localhost:3000';
+const API_URL = 'https://yoga-app-7drp.onrender.com';
+// const API_URL = 'http://localhost:3000';
 
 export default function InstructorsPage({ darkMode }) { // Accept darkMode if needed
   const [instructors, setInstructors] = useState([]);

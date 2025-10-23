@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Spinner from '../components/Spinner';
 
-const API_URL = 'http://localhost:3000';
+const API_URL = 'https://yoga-app-7drp.onrender.com';
+// const API_URL = 'http://localhost:3000';
 
 // Helper function to format date/time
 const formatDate = (dateString) => {

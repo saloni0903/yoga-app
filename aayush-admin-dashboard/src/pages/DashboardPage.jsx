@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Users, BarChart3, Calendar, TrendingUp, Activity, Award, Clock } from 'lucide-react';
 import Spinner from '../components/Spinner';
 
-const API_URL = 'http://localhost:3000';
+const API_URL = 'https://yoga-app-7drp.onrender.com';
+// const API_URL = 'http://localhost:3000';
 
 export default function DashboardPage({ darkMode }) { // Accept darkMode if needed for styling
   const [stats, setStats] = useState({

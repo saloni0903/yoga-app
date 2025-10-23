@@ -3,7 +3,8 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet'; // Import Leaflet library itself for custom icon
 import Spinner from '../components/Spinner';
 
-const API_URL = 'http://localhost:3000';
+const API_URL = 'https://yoga-app-7drp.onrender.com';
+// const API_URL = 'http://localhost:3000';
 
 // Optional: Define a custom icon (ensure the path is correct or use a default)
 // const customIcon = new L.Icon({
