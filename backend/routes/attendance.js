@@ -335,16 +335,16 @@ router.get('/', auth, isAdmin, async (req, res) => { // Protected for Admin view
      if (fieldsToPopulate.includes('instructor_id')) {
         // Check if Attendance model has instructor_id directly
          // If yes:
-         query = query.populate({
-             path: 'instructor_id', // Make sure this path exists in Attendance schema
-             select: 'firstName lastName' 
-         });
+        //  query = query.populate({
+        //      path: 'instructor_id', // Make sure this path exists in Attendance schema
+        //      select: 'firstName lastName' 
+        //  });
          // If instructor is only linked via Group (nested populate):
          // Ensure 'group_id' population above includes 'instructor_id'
-         // query = query.populate({ 
-         //     path: 'group_id', 
-         //     populate: { path: 'instructor_id', select: 'firstName lastName' } 
-         // });
+         query = query.populate({ 
+             path: 'group_id', 
+             populate: { path: 'instructor_id', select: 'firstName lastName' } 
+         });
          // Choose the correct population method based on your schema.
      }
 
