@@ -12,22 +12,32 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/browser_client.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+
 
 class ApiService with ChangeNotifier {
-  // Local dev
-  // String baseURL() {
-  //   if (kIsWeb) {
-  //     return 'http://localhost:3000'; // Web uses localhost directly
-  //   } else {
-  //     // Mobile platforms need to use the local network IP address of the machine running the backend.
-  //     // Replace with your machine's local IP address.
-  //     return 'http://10.104.65.41:3000';
-  //   }
-  // }
+String get baseUrl {
+    // 1. Define constants inside the getter or globally (inside the getter is cleaner here)
+    const bool useLocalIp = true; // <-- SET THIS TO FALSE WHEN BUILDING FINAL MOBILE APK
+    const String localMobileIp = 'http://10.104.65.41:3000';
+    const String deployedUrl = 'https://yoga-app-7drp.onrender.com';
 
-  // Deployed
-  String get baseUrl => 'https://yoga-app-7drp.onrender.com';
+    // 2. Check environment (kIsWeb is true when running on Chrome)
+    if (kIsWeb) {
+      // Always use localhost for web debugging
+      return 'http://localhost:3000'; 
+    }
+    
+    // 3. Check local mobile debug flag
+    if (useLocalIp) {
+        // For mobile device/emulator testing against local machine IP
+        return localMobileIp;
+    }
+    
+    // 4. Default to deployed URL
+    return deployedUrl;
+  }
 
   late http.Client _client;
   ApiService() {
@@ -41,8 +51,40 @@ class ApiService with ChangeNotifier {
   User? _currentUser;
   bool _isAuthenticated = false;
   String? _token;
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+
+  // getters
   User? get currentUser => _currentUser;
   bool get isAuthenticated => _isAuthenticated;
+
+  // Secure token helpers
+  Future<void> _saveToken(String token) async {
+    _token = token;
+    await _secureStorage.write(key: 'jwt', value: token);
+  }
+
+  Future<String?> _loadToken() async {
+    _token ??= await _secureStorage.read(key: 'jwt');
+    return _token;
+  }
+
+  Future<void> _clearToken() async {
+    _token = null;
+    await _secureStorage.delete(key: 'jwt');
+  }
+
+  Map<String, String> _authHeaders({bool includeContentType = true, bool optional = false}) {
+    final headers = <String, String>{};
+    if (includeContentType) headers['Content-Type'] = 'application/json';
+
+    if (_token != null && _token!.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $_token';
+    } else if (!optional) {
+      throw Exception('Authentication required. No token found.');
+    }
+
+    return headers;
+  }
 
   List<AttendanceRecord> recentAttendance = [];
 
@@ -51,7 +93,7 @@ class ApiService with ChangeNotifier {
       throw Exception('Must be logged in to get history.');
     final res = await _client.get(
       Uri.parse('$baseUrl/api/attendance/user/${_currentUser!.id}'),
-      // headers: _authHeaders(),
+      headers: _authHeaders(),
     );
 
     final data = _decode(res);
@@ -68,7 +110,7 @@ class ApiService with ChangeNotifier {
     try {
       final res = await _client.get(
         Uri.parse('$baseUrl/api/dashboard'),
-        // headers: _authHeaders(),
+        headers: _authHeaders(),
       );
 
       final data = _decode(res);
@@ -103,23 +145,40 @@ class ApiService with ChangeNotifier {
   }
 
   Future<bool> tryAutoLogin() async {
-      try {
-          final res = await _client.get(Uri.parse('$baseUrl/api/auth/profile'));
-          final data = _decode(res);
-          if (res.statusCode == 200) {
-              _currentUser = User.fromJson(data['data']['user']);
-              _isAuthenticated = true;
-              notifyListeners();
-              return true;
-          }
-          _isAuthenticated = false;
-          notifyListeners();
-          return false;
-      } catch (e) {
-          _isAuthenticated = false;
-          notifyListeners();
-          return false;
+    try {
+      final token = await _loadToken();
+      if (token == null) {
+        _isAuthenticated = false;
+        notifyListeners();
+        return false;
       }
+      
+      // If token exists, try to get profile (which verifies the token's validity)
+      final res = await _client.get(
+        Uri.parse('$baseUrl/api/auth/profile'),
+        headers: _authHeaders(), // CRITICAL: Must send the token
+      );
+
+      if (res.statusCode == 200) {
+        final data = _decode(res);
+        _currentUser = User.fromJson(data['data']); // User is nested under 'data' in your backend response
+        _isAuthenticated = true;
+        notifyListeners();
+        return true;
+      }
+
+      // If token is invalid/expired (e.g., status 401), clear it.
+      await _clearToken();
+      _isAuthenticated = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      // Catch network errors, server down, etc.
+      await _clearToken();
+      _isAuthenticated = false;
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<User> login(String email, String password) async {
@@ -131,15 +190,20 @@ class ApiService with ChangeNotifier {
     final data = _decode(res);
     _ensureOk(res, data);
 
-    final user = User.fromAuthJson(data['data']);
-    _token = 'cookie_authenticated';
+    final token = data['data']['token']; // Assuming your mobile backend sends JWT here
+    if (token == null) {
+      throw Exception('Login succeeded but token was not returned in JSON body.');
+    }
+    
+    await _saveToken(token);
     _currentUser = User.fromJson(data['data']['user']);
+    _isAuthenticated = true;
     notifyListeners();
     return _currentUser!;
   }
 
   Future<void> logout() async {
-    // await _setAuth(null, null);
+    await _clearToken();
     _currentUser = null;
     _isAuthenticated = false;
     notifyListeners();
@@ -172,9 +236,11 @@ class ApiService with ChangeNotifier {
     );
     final data = _decode(res);
     _ensureCreated(res, data);
-
+    final token = data['data']['token']; // Assuming token is returned on successful registration
+    if (token != null) {
+      await _saveToken(token);
+    }
     final user = User.fromAuthJson(data['data']);
-    // await _setAuth(user.token, user);
     _currentUser = user;
     _isAuthenticated = true;
     notifyListeners();
@@ -188,7 +254,7 @@ class ApiService with ChangeNotifier {
     // You will need to create this endpoint.
     final res = await _client.put(
       Uri.parse('$baseUrl/api/users/me/fcm-token'),
-      // headers: _authHeaders(),
+      headers: _authHeaders(),
       body: json.encode({'fcmToken': fcmToken}),
     );
 
@@ -198,7 +264,7 @@ class ApiService with ChangeNotifier {
   Future<User> getMyProfile() async {
     final res = await _client.get(
       Uri.parse('$baseUrl/api/auth/profile'),
-      // headers: _authHeaders(),
+      headers: _authHeaders(),
     );
     final data = _decode(res);
     _ensureOk(res, data);
@@ -219,7 +285,7 @@ class ApiService with ChangeNotifier {
       var request = http.MultipartRequest('PUT', uri);
 
       // Add headers
-      // request.headers.addAll(_authHeaders(includeContentType: false));
+      request.headers.addAll(_authHeaders(includeContentType: false));
 
       // Add text fields
       profileData.forEach((key, value) {
@@ -240,7 +306,7 @@ class ApiService with ChangeNotifier {
       // If no file, use the original JSON request
       res = await _client.put(
         uri,
-        // headers: _authHeaders(),
+        headers: _authHeaders(),
         body: json.encode(profileData),
       );
     }
@@ -255,26 +321,10 @@ class ApiService with ChangeNotifier {
     return updatedUser;
   }
 
-  // Map<String, String> _authHeaders({
-  //   bool optional = false,
-  //   bool includeContentType = true,
-  // }) {
-  //   final headers = <String, String>{};
-  //   if (includeContentType) {
-  //     headers['Content-Type'] = 'application/json';
-  //   } 
-  //   // if (_token != null && _token!.isNotEmpty) {
-  //   //   headers['Authorization'] = 'Bearer $_token';
-  //   // } else if (!optional) {
-  //   //   throw Exception('Authentication token is missing for a protected route.');
-  //   // }
-  //   return headers;
-  // }
-
   Future<List<User>> getGroupMembers({required String groupId}) async {
     final res = await _client.get(
       Uri.parse('$baseUrl/api/groups/$groupId/members'),
-      // headers: _authHeaders(),
+      headers: _authHeaders(),
     );
     final data = _decode(res);
     _ensureOk(res, data);
@@ -291,7 +341,7 @@ class ApiService with ChangeNotifier {
   }) async {
     final res = await _client.post(
       Uri.parse('$baseUrl/api/qr/generate'),
-      // headers: _authHeaders(),
+      headers: _authHeaders(),
       body: json.encode({
         'group_id': groupId,
         'session_date': sessionDate.toIso8601String(),
@@ -306,7 +356,7 @@ class ApiService with ChangeNotifier {
   Future<List<Session>> getInstructorSchedule() async {
     final res = await _client.get(
       Uri.parse('$baseUrl/api/schedule/instructor'),
-      // headers: _authHeaders(),
+      headers: _authHeaders(),
     );
     final data = _decode(res);
     _ensureOk(res, data);
@@ -317,7 +367,7 @@ class ApiService with ChangeNotifier {
   Future<List<Session>> getParticipantSchedule() async {
     final res = await _client.get(
       Uri.parse('$baseUrl/api/schedule/participant'),
-      // headers: _authHeaders(),
+      headers: _authHeaders(),
     );
     final data = _decode(res);
     _ensureOk(res, data);
@@ -328,7 +378,7 @@ class ApiService with ChangeNotifier {
   Future<YogaGroup> getGroupById(String groupId) async {
     final res = await _client.get(
       Uri.parse('$baseUrl/api/groups/$groupId'),
-      // headers: _authHeaders(),
+      headers: _authHeaders(),
     );
     final data = _decode(res);
     _ensureOk(res, data);
@@ -339,7 +389,7 @@ class ApiService with ChangeNotifier {
   Future<void> createGroup(Map<String, dynamic> groupData) async {
     final res = await _client.post(
       Uri.parse('$baseUrl/api/groups'),
-      // headers: _authHeaders(),
+      headers: _authHeaders(),
       body: jsonEncode(groupData), // It simply encodes the map it receives.
     );
     _ensureCreated(res, _decode(res));
@@ -348,7 +398,7 @@ class ApiService with ChangeNotifier {
   Future<void> updateGroup(String id, Map<String, dynamic> groupData) async {
     final res = await _client.put(
       Uri.parse('$baseUrl/api/groups/$id'),
-      // headers: _authHeaders(),
+      headers: _authHeaders(),
       body: json.encode(groupData), // It simply encodes the map it receives.
     );
     _ensureOk(res, _decode(res));
@@ -357,7 +407,7 @@ class ApiService with ChangeNotifier {
   Future<void> joinGroup({required String groupId}) async {
     final res = await _client.post(
       Uri.parse('$baseUrl/api/groups/$groupId/join'),
-      // headers: _authHeaders(),
+      headers: _authHeaders(),
       body: jsonEncode({}),
     );
     _ensureOk(res, _decode(res));
@@ -366,7 +416,7 @@ class ApiService with ChangeNotifier {
   Future<List<YogaGroup>> getMyJoinedGroups() async {
     final res = await _client.get(
       Uri.parse('$baseUrl/api/groups/my-groups'),
-      // headers: _authHeaders(), // This is a protected route
+      headers: _authHeaders(), // This is a protected route
     );
 
     final data = _decode(res);
@@ -379,7 +429,7 @@ class ApiService with ChangeNotifier {
   Future<void> markAttendanceByQr({required String qrToken}) async {
     final res = await _client.post(
       Uri.parse('$baseUrl/api/attendance/scan'),
-      // headers: _authHeaders(), // Must be authenticated
+      headers: _authHeaders(), // Must be authenticated
       body: json.encode({'token': qrToken}),
     );
     final data = _decode(res);
@@ -399,7 +449,7 @@ class ApiService with ChangeNotifier {
     ).replace(queryParameters: {'group_id': groupId});
 
     final res = await _client.get(uri, 
-      // headers: _authHeaders()
+      headers: _authHeaders()
     );
     final data = _decode(res);
     _ensureOk(res, data);
@@ -450,7 +500,7 @@ class ApiService with ChangeNotifier {
       },
     );
     final res = await _client.get(uri, 
-      // headers: _authHeaders(optional: true)
+      headers: _authHeaders(optional: true)
     );
     final data = _decode(res);
     _ensureOk(res, data);
@@ -473,7 +523,7 @@ class ApiService with ChangeNotifier {
           },
         );
     final res = await _client.get(uri, 
-      // headers: _authHeaders(optional: true)
+      headers: _authHeaders(optional: true)
       );
     final data = _decode(res);
     _ensureOk(res, data);

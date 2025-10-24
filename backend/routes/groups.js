@@ -255,6 +255,7 @@ router.post('/', auth, async (req, res) => {
           groupData.location = {
               type: 'Point',
               coordinates: [parseFloat(longitude), parseFloat(latitude)],
+              address: location_text
           };
           groupData.location_text = location_text;
           groupData.latitude = parseFloat(latitude);
@@ -263,11 +264,6 @@ router.post('/', auth, async (req, res) => {
 
         const group = new Group(groupData);
         await group.save();
-
-        // Insert all generated sessions into the database in one go
-        if (sessionsToCreate.length > 0) {
-            await Session.insertMany(sessionsToCreate);
-        }
 
         res.status(201).json({
             success: true,

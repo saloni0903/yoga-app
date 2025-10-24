@@ -103,30 +103,27 @@ router.post('/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // res.json({
-    //   success: true,
-    //   message: 'Login successful',
-    //   data: {
-    //     user: user.toJSON(),
-    //     token
-    //   }
-    // });
-    const cookieOptions = {
-        httpOnly: true, // Prevents client-side JS from accessing the cookie
-        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7-day expiry
-        secure: process.env.NODE_ENV === 'production', // Only send over HTTPS in production
-        sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax'
-    };
-
-    res.cookie('adminToken', token, cookieOptions);
-
-    res.status(200).json({
-        success: true,
-        message: 'Login successful',
-        data: {
-            user: user.toJSON() // The token is NO LONGER sent in the body
-        }
-    });
+    if (user.role === 'admin') {
+      // For Admin Dashboard (Web): Use cookie, don't send token in body
+      res.cookie('adminToken', token, cookieOptions);
+      res.status(200).json({
+          success: true,
+          message: 'Login successful',
+          data: {
+              user: user.toJSON()
+          }
+      });
+    } else {
+      // For Participant/Instructor (Mobile): Send token in JSON body
+      res.status(200).json({
+          success: true,
+          message: 'Login successful',
+          data: {
+              user: user.toJSON(),
+              token: token // <--- THIS IS WHAT THE MOBILE APP NEEDS
+          }
+      });
+    }
 
   } catch (error) {
     console.error('Login error:', error);
