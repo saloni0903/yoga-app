@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Spinner from '../components/Spinner';
 
-const API_URL = 'https://yoga-app-7drp.onrender.com';
-// const API_URL = 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL;
 
 // Helper function to format date/time
 const formatDate = (dateString) => {
@@ -14,8 +13,9 @@ const formatDate = (dateString) => {
       hour: '2-digit', minute: '2-digit', hour12: true 
     });
   } catch (e) {
+    console.error("Error formatting date:", dateString, e); // Use 'e'
     return 'Invalid Date';
-  }
+}
 };
 
 export default function SessionsPage({ darkMode }) {

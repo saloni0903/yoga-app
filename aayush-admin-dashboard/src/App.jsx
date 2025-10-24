@@ -3,8 +3,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardLayout from './layouts/DashboardLayout';
 import Spinner from './components/Spinner';
 
-const API_URL = 'https://yoga-app-7drp.onrender.com';
-// const API_URL = 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function App() {
   const [isVerifyingAuth, setIsVerifyingAuth] = useState(true);

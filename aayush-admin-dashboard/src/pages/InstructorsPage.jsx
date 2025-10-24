@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import Spinner from '../components/Spinner';
 
-const API_URL = 'https://yoga-app-7drp.onrender.com';
-// const API_URL = 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function InstructorsPage({ darkMode }) { // Accept darkMode if needed
   const [instructors, setInstructors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const loadInstructors = async () => {
     // Keep loading true while fetching
@@ -87,6 +89,20 @@ export default function InstructorsPage({ darkMode }) { // Accept darkMode if ne
     }
   };
 
+  const filteredInstructors = instructors
+    .filter(instructor => {
+      // Status filter
+      if (filterStatus === 'all') return true;
+      return instructor.status === filterStatus;
+    })
+    .filter(instructor => {
+      // Search term filter
+      if (searchTerm === '') return true;
+      const fullName = `${instructor.firstName || ''} ${instructor.lastName || ''}`.toLowerCase();
+      const email = (instructor.email || '').toLowerCase();
+      return fullName.includes(searchTerm.toLowerCase()) || email.includes(searchTerm.toLowerCase());
+    });
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -118,6 +134,37 @@ export default function InstructorsPage({ darkMode }) { // Accept darkMode if ne
       
       {renderError()} 
 
+      <div className={`mb-4 flex flex-col md:flex-row gap-4 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+        {/* Search Input */}
+        <input
+          type="text"
+          placeholder="Search by name or email..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className={`w-full md:w-1/2 px-4 py-2.5 rounded-xl transition-all duration-200 ${
+            darkMode
+              ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-teal-500'
+              : 'bg-gray-50 border-gray-200 text-gray-800 placeholder-gray-400 focus:border-teal-500'
+          } border-2 focus:outline-none focus:ring-4 focus:ring-teal-500/20`}
+        />
+        {/* Status Filters */}
+        <div className={`flex items-center gap-2 overflow-x-auto p-1 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+          {['all', 'pending', 'approved', 'suspended', 'rejected'].map((status) => (
+            <button
+              key={status}
+              onClick={() => setFilterStatus(status)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-semibold whitespace-nowrap transition-all ${
+                filterStatus === status
+                  ? (darkMode ? 'bg-teal-600 text-white' : 'bg-teal-600 text-white shadow')
+                  : (darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200')
+              }`}
+            >
+              {status.charAt(0).toUpperCase() + status.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className={`rounded-2xl shadow-lg overflow-hidden ${
         darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'
       }`}>
@@ -140,7 +187,7 @@ export default function InstructorsPage({ darkMode }) { // Accept darkMode if ne
               </tr>
             </thead>
             <tbody className={`divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
-              {instructors.map((instructor) => {
+              {filteredInstructors.map((instructor) => {
                 // Default status if missing, though it shouldn't be
                 const currentStatus = instructor.status || 'pending'; 
                 const statusStyles = {
@@ -224,18 +271,17 @@ export default function InstructorsPage({ darkMode }) { // Accept darkMode if ne
               })}
             </tbody>
           </table>
-          
-          {instructors.length === 0 && !loading && !error && ( // Only show if not loading and no error
+
+          {filteredInstructors.length === 0 && !loading && !error && (
             <div className="text-center py-16">
               <div className="relative inline-block mb-6">
                 <div className="absolute inset-0 bg-teal-500/10 blur-2xl rounded-full"></div>
                 <img src="/website_logo.jpg" alt="No Data" className="relative mx-auto w-24 h-24 opacity-40 rounded-2xl" />
               </div>
-              <p className={`text-lg font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                No instructors found
-              </p>
               <p className={`text-sm mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                Instructor applications will appear here when submitted.
+                {searchTerm || filterStatus !== 'all'
+                  ? 'No applications found, try adjusting your search or filters.'
+                  : 'Instructor applications will appear here when submitted.'}
               </p>
             </div>
           )}
