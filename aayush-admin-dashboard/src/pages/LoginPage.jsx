@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Eye, EyeOff, Moon, Sun } from 'lucide-react';
 
-const API_URL = 'https://yoga-app-7drp.onrender.com';
-// const API_URL = 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function LoginPage({ onLoginSuccess, darkMode, setDarkMode }) {
   const [email, setEmail] = useState('');
