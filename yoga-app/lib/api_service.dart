@@ -1,6 +1,6 @@
 // lib/api_service.dart
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'models/user.dart';
 import 'models/yoga_group.dart';
@@ -10,7 +10,10 @@ import 'models/session.dart';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/browser_client.dart';
+
+import 'src/client_provider.dart' // This imports the mobile file by default
+    if (dart.library.html) 'src/client_provider_web.dart'; // And this one for web
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -41,11 +44,7 @@ String get baseUrl {
 
   late http.Client _client;
   ApiService() {
-    if (kIsWeb) {
-      _client = BrowserClient()..withCredentials = true;
-    } else {
-      _client = http.Client();
-    }
+    _client = getClient();
   }
 
   User? _currentUser;
@@ -273,7 +272,8 @@ String get baseUrl {
 
   Future<User> updateMyProfile({
     required Map<String, dynamic> profileData,
-    File? imageFile,
+    Uint8List? imageBytes, // <-- To this
+    String? imageFileName,
   }) async {
     if (_currentUser == null) throw Exception('Not authenticated.');
 
@@ -281,7 +281,7 @@ String get baseUrl {
     http.Response res;
 
     // ⭐ CHANGE: Use a multipart request if an image file is provided.
-    if (imageFile != null) {
+    if (imageBytes != null && imageFileName != null) {
       var request = http.MultipartRequest('PUT', uri);
 
       // Add headers
@@ -294,9 +294,10 @@ String get baseUrl {
 
       // Add the image file
       request.files.add(
-        await http.MultipartFile.fromPath(
-          'profileImage', // This key must match what your backend expects
-          imageFile.path,
+        http.MultipartFile.fromBytes(
+          'profileImage',
+          imageBytes,
+          filename: imageFileName,
         ),
       );
 

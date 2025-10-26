@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -77,7 +78,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final apiService = Provider.of<ApiService>(context, listen: false);
 
     try {
-      // ⭐ CORRECTION: Added the required named parameters `profileData:` and `imageFile:`.
+      // 1. Read bytes and get filename (if file exists)
+      Uint8List? imageBytes;
+      String? imageFileName;
+      if (_profileImageFile != null) {
+        imageBytes = await _profileImageFile!.readAsBytes();
+        // Use package:path/path.dart to be safe, but this is a quick fix
+        imageFileName = _profileImageFile!.path.split(r'\').last.split(r'/').last;
+      }
+
+      // 2. Call with new parameters
       await apiService.updateMyProfile(
         profileData: {
           'firstName': _firstNameController.text.trim(),
@@ -86,7 +96,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'samagraId': _samagraIdController.text.trim(),
           'location': _locationController.text.trim(),
         },
-        imageFile: _profileImageFile,
+        imageBytes: imageBytes, // <-- Pass the bytes
+        imageFileName: imageFileName, // <-- Pass the name
       );
 
       if (mounted) {
