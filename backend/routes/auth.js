@@ -102,6 +102,13 @@ router.post('/login', async (req, res) => {
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
     );
+    
+    const cookieOptions = {
+    httpOnly: true, // Makes the cookie inaccessible to client-side JavaScript
+    secure: process.env.NODE_ENV === 'production', // Use secure cookies in production (HTTPS)
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days (same as JWT expiry)
+    // sameSite: 'strict' // Optional: Helps prevent CSRF attacks
+  };
 
     if (user.role === 'admin') {
       // For Admin Dashboard (Web): Use cookie, don't send token in body

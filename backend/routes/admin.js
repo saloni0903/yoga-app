@@ -3,7 +3,8 @@ const express = require('express');
 const router = express.Router();
 const User = require('../model/User');
 const Attendance = require('../model/Attendance');
-const isAdmin = require('../middleware/isAdmin'); // Import our new middleware
+const isAdmin = require('../middleware/isAdmin');
+const { sendNotificationToUser } = require('../services/notificationService'); // Adjust path if needed
 
 // Protect all routes in this file with the isAdmin middleware
 router.use(isAdmin);
@@ -37,6 +38,31 @@ router.put('/instructors/:id/status', async (req, res) => {
     if (!instructor) {
       return res.status(404).json({ success: false, message: 'Instructor not found' });
     }
+    // --- Send Notification to Instructor ---
+  try {
+    let title = 'Account Status Update';
+    let body = `Your instructor account status has been updated to ${status}.`;
+
+    // Customize messages for specific statuses
+    if (status === 'approved') {
+      title = 'Account Approved!';
+      body = 'Congratulations! Your instructor account has been approved. You can now create groups.';
+    } else if (status === 'rejected') {
+      title = 'Account Update';
+      body = 'There was an update regarding your instructor application. Please contact admin for details.'; // Keep it vague or add reason if available
+    } else if (status === 'suspended') {
+      title = 'Account Suspended';
+      body = 'Your instructor account has been temporarily suspended. Please contact admin.';
+    }
+
+    // Send the notification using the instructor's ID from the updated document
+    await sendNotificationToUser(instructor.id, title, body, { type: 'status_update', newStatus: status });
+
+  } catch (notificationError) {
+    // Log the error but don't fail the main request if notification fails
+    console.error(`Failed to send status update notification to instructor ${instructor.id}:`, notificationError);
+  }
+  // --- End Notification ---
     res.json({ success: true, message: `Instructor status updated to ${status}`, data: instructor });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });

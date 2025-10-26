@@ -10,6 +10,10 @@ const axios = require('axios');
 // const Session = require('../model/Session');
 const crypto = require('crypto');
 
+// for notifications
+const notificationService = require('../services/notificationService');
+const { sendNotificationToUser } = require('../services/notificationService');
+
 // Get all groups
 router.get('/', async (req, res) => {
   try {
@@ -427,50 +431,22 @@ router.get('/:id/members', async (req, res) => {
 });
 
 // Join group
-// router.post('/:id/join', async (req, res) => {
-//   try {
-//     const { user_id } = req.body;
-    
-//     // Check if user is already a member
-//     const existingMember = await GroupMember.findOne({
-//       user_id,
-//       group_id: req.params.id
-//     });
-
-//     if (existingMember) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'User is already a member of this group'
-//       });
-//     }
-
-//     const membership = new GroupMember({
-//       user_id,
-//       group_id: req.params.id
-//     });
-
-//     await membership.save();
-
-//     res.status(201).json({
-//       success: true,
-//       message: 'Successfully joined the group',
-//       data: membership
-//     });
-//   } catch (error) {
-//     console.error('Join group error:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Failed to join group',
-//       error: error.message
-//     });
-//   }
-// });
-
 router.post('/:id/join', auth, async (req, res) => {
   try {
-    const user_id = req.user._id.toString(); // ✅ take from JWT
+    // Get user details from the authenticated request (provided by 'auth' middleware)
+    const user_id = req.user.id; // Use .id (often added by JWT decoding) or req.user._id if that's what your middleware provides
+    const joiningUserName = req.user.fullName; // Assumes fullName virtual exists on User model
     const group_id = req.params.id;
 
+    // 1. Fetch group details to get instructor ID and group name
+    const group = await Group.findById(group_id);
+    if (!group) {
+        return res.status(404).json({ success: false, message: 'Group not found' });
+    }
+    const instructorId = group.instructor_id ? group.instructor_id.toString() : null; // Convert ObjectId to string
+    const groupName = group.group_name;
+
+    // 2. Check if user is already a member
     const existingMember = await GroupMember.findOne({ user_id, group_id });
     if (existingMember) {
       return res.status(400).json({
@@ -479,14 +455,39 @@ router.post('/:id/join', auth, async (req, res) => {
       });
     }
 
+    // 3. Add the user to the group
     const membership = new GroupMember({ user_id, group_id });
     await membership.save();
 
+    // --- Send Notifications ---
+    // 4. Notify the instructor (if they exist and aren't the one joining)
+    if (instructorId && instructorId !== user_id) {
+        // console.log(`Attempting to notify instructor ${instructorId} about ${joiningUserName} joining ${groupName}`); // Debug log
+        await sendNotificationToUser(
+            instructorId,
+            'New Member Joined!', // Notification Title
+            `${joiningUserName} has joined your group "${groupName}".`, // Notification Body
+            { type: 'new_member', groupId: group_id } // Optional data payload
+        );
+    }
+
+    // 5. Notify the participant who just joined
+    // console.log(`Attempting to notify participant ${user_id} about joining ${groupName}`); // Debug log
+    await sendNotificationToUser(
+        user_id,
+        'Welcome!', // Notification Title
+        `You have successfully joined the group "${groupName}".`, // Notification Body
+        { type: 'group_joined', groupId: group_id } // Optional data payload
+    );
+    // --- End Notifications ---
+
+    // 6. Send success response
     res.status(201).json({
       success: true,
       message: 'Successfully joined the group',
       data: membership
     });
+
   } catch (error) {
     console.error('Join group error:', error);
     res.status(500).json({

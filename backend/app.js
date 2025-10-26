@@ -4,8 +4,11 @@ const dotenv = require('dotenv');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const connectDB = require('./config/database');
-const initializeScheduler = require('./services/notificationScheduler');
+const {initializeScheduler} = require('./services/notificationService');
 const auth = require('./middleware/auth');
+const firebaseAdmin = require('./config/firebase');
+
+require('./config/firebase');
 
 // Load environment variables
 dotenv.config();

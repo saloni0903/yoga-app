@@ -5,30 +5,44 @@ import 'screens/auth/register_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 
-import 'services/notification_service.dart';
 import 'providers/language_provider.dart';
 import 'api_service.dart';
 import 'models/user.dart'; 
 import 'theme_provider.dart';
+import 'package:provider/provider.dart';
 
 import 'package:flutter/material.dart';
 import 'package:yoga_app/screens/qr/qr_scanner_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'services/notification_service.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:provider/provider.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:yoga_app/generated/app_localizations.dart';
 
 import 'firebase_options.dart';
+import 'package:yoga_app/generated/app_localizations.dart';
+
 
 final seed = const Color(0xFF2E7D6E);
 final surfaceTint = const Color(0xFF204D45);
+
+@pragma('vm:entry-point') // Required for release mode AOT compilation
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Initialize Firebase if needed for background tasks
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  print("Handling a background message: ${message.messageId}");
+  // You might want to show a local notification here using flutter_local_notifications
+  // but keep this handler minimal as it runs in a separate isolate.
+}
 
 Future<void> main() async  {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
   runApp(
     MultiProvider(
       providers: [
@@ -95,18 +109,39 @@ class AuthWrapper extends StatefulWidget {
 }
 class _AuthWrapperState extends State<AuthWrapper> {
   ApiService? _apiService;
+  bool _notificationsInitialized = false;
 
   @override
   void initState() {
     super.initState();
+    _attemptAutoLoginAndInitNotifications();
     Provider.of<ApiService>(context, listen: false).tryAutoLogin();
   }
 
-  void _onAuthStateChanged() {
-    // final apiService = Provider.of<ApiService>(context, listen: false);
-    // if (apiService.isAuthenticated) {
-      // FirebaseNotificationService.initialize(context);
-    // }
+  Future<void> _attemptAutoLoginAndInitNotifications() async {
+    // Get ApiService once, without listening in initState
+    final apiService = Provider.of<ApiService>(context, listen: false);
+    final loggedIn = await apiService.tryAutoLogin();
+
+    // IMPORTANT: Check if the widget is still mounted after async work
+    if (loggedIn && mounted && !_notificationsInitialized) {
+      print("[AuthWrapper] Auto-login successful. Initializing notifications...");
+      try {
+        // Initialize notifications using the current context
+        await FirebaseNotificationService.initialize(context);
+        // Safely update state if still mounted
+        if (mounted) {
+          setState(() { _notificationsInitialized = true; });
+        }
+      } catch (e) {
+        print("[AuthWrapper] Error initializing notifications after auto-login: $e");
+        // Handle potential errors (e.g., context issues if user navigates away fast)
+      }
+    } else if (loggedIn) {
+         print("[AuthWrapper] Auto-login successful but notifications already initialized this session.");
+    } else {
+        print("[AuthWrapper] Auto-login failed.");
+    }
   }
 
   @override
@@ -114,11 +149,40 @@ class _AuthWrapperState extends State<AuthWrapper> {
     return Consumer<ApiService>(
       builder: (context, apiService, child) {
         if (apiService.isAuthenticated) {
+          if (!_notificationsInitialized) {
+             print("[AuthWrapper] Manual login detected or state restored. Initializing notifications...");
+             // Use addPostFrameCallback to run *after* the current build frame
+             WidgetsBinding.instance.addPostFrameCallback((_) async {
+               // Double-check mounted status and flag inside the callback
+               if (mounted && !_notificationsInitialized) {
+                 try {
+                     await FirebaseNotificationService.initialize(context);
+                     // Safely update state after async work inside callback
+                     if (mounted) {
+                        setState(() { _notificationsInitialized = true; });
+                     }
+                 } catch(e) {
+                     print("[AuthWrapper] Error initializing notifications after manual login/restore: $e");
+                 }
+               }
+            });
+          }
           return HomeScreen(
             apiService: apiService,
             user: apiService.currentUser!,
           );
         } else {
+          if (_notificationsInitialized) {
+              print("[AuthWrapper] User logged out. Resetting notification flag.");
+             // Use addPostFrameCallback to safely update state *after* the build
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                 if (mounted) { // Check if widget is still in the tree
+                    setState(() { _notificationsInitialized = false; });
+                 } else {
+                     _notificationsInitialized = false; // Reset anyway if not mounted
+                 }
+              });
+          }
           return const LoginScreen();
         }
       },

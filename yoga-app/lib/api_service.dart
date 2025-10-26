@@ -22,7 +22,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class ApiService with ChangeNotifier {
 String get baseUrl {
     // 1. Define constants inside the getter or globally (inside the getter is cleaner here)
-    const bool useLocalIp = true; // <-- SET THIS TO FALSE WHEN BUILDING FINAL MOBILE APK
+    const bool useLocalIp = false; // <-- SET THIS TO FALSE WHEN BUILDING FINAL MOBILE APK
     const String localMobileIp = 'http://10.104.65.41:3000';
     const String deployedUrl = 'https://yoga-app-7drp.onrender.com';
 
