@@ -217,7 +217,8 @@ async function sendNotificationToUser(userId, title, body, data = {}) {
       data: data // Optional data payload for the app (e.g., { type: 'new_member', groupId: '...' })
     };
 
-    const response = await admin.messaging().sendMulticast(message);
+    // const response = await admin.messaging().sendMulticast(message);
+    const response = await admin.messaging().sendEachForMulticast(message); // MUST BE sendEachForMulticast
 
     // --- Handle potential failures and cleanup invalid tokens ---
     if (response.failureCount > 0) {
