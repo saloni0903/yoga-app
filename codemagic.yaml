@@ -25,11 +25,11 @@ workflows:
 
       # 🔑 STEP 1: DECRYPT & COPY FIREBASE FILE (for Notification/Messaging)
       # Codemagic mein GoogleService-Info.plist ko Secret Variable 'IOS_FIREBASE_PLIST' naam se base64 mein upload karein.
-      - name: Set up iOS Firebase configuration
-        script: |
-          echo "Setting up GoogleService-Info.plist for Firebase..."
-          # Decrypts the secret and places it in the required iOS path
-          echo $IOS_FIREBASE_PLIST | base64 --decode > ios/Runner/GoogleService-Info.plist
+      # - name: Set up iOS Firebase configuration
+      #   script: |
+      #     echo "Setting up GoogleService-Info.plist for Firebase..."
+      #     # Decrypts the secret and places it in the required iOS path
+      #     echo $IOS_FIREBASE_PLIST | base64 --decode > ios/Runner/GoogleService-Info.plist
 
       - name: Install Pods (Native iOS dependencies)
         # Pods installation handles native code for permissions (like geolocator, permission_handler)

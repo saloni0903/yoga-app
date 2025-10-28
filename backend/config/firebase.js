@@ -1,6 +1,7 @@
 // Example: config/firebase.js
 const admin = require('firebase-admin');
 const serviceAccount = require('/etc/secrets/serviceAccountKey.json'); // Use Render's secret file path
+// const serviceAccount = require('./serviceAccountKey.json'); // Local path for development
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
