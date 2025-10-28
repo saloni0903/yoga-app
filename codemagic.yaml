@@ -31,10 +31,13 @@ workflows:
       #     # Decrypts the secret and places it in the required iOS path
       #     echo $IOS_FIREBASE_PLIST | base64 --decode > ios/Runner/GoogleService-Info.plist
 
-      - name: Ensure Flutter paths are set
-        script: |
-          flutter clean
-          flutter pub get
+      # - name: Ensure Flutter paths are set
+      #   script: |
+      #     flutter clean
+      #     flutter pub get
+
+      - name: Prepare iOS build environment 
+        script: flutter build ios --config-only --no-codesign
 
       - name: Install Pods (Native iOS dependencies)
         script: cd ios && pod install
