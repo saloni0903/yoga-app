@@ -1,50 +1,37 @@
-# 💡 IMPORTANT: Yahan maan liya gaya hai ki aapka Flutter project 'yoga-app' folder ke andar hai.
-# Agar Project Path sahi set ho gaya hai (yoga-app) toh yeh kaam karega.
+# In Repository Root (Yoga folder)
 
 workflows:
   ios-free-test:
-    name: iOS Free Test Build (7-Day Cert)
-    working_directory: yoga-app
+    name: iOS Free Test Build (Try 8 - Explicit FLUTTER_ROOT)
+    working_directory: yoga-app # Points to your Flutter project folder
     max_build_duration: 60
 
     environment:
       flutter: stable 
-      xcode: latest # Ensures the latest Xcode/iOS SDK is used
-
-      # 🔑 Codemagic Secrets Group: Aapko yeh group Codemagic UI mein banana hoga.
+      xcode: latest 
       groups:
-        - apple_developer_credentials # (Aapka Apple ID/Password yahaan jayega)
-        - firebase_secrets         # (Aapki Firebase .plist file yahaan upload hogi)
+        # Apple ID credentials group
+        - apple_developer_credentials 
+        # Removed firebase_secrets group as you don't have the plist file
         
     scripts:
+      - name: Install Flutter dependencies
+        script: |
+          flutter pub get
+          flutter gen-l10n # Correct localization command
+
+      # Combined step to set FLUTTER_ROOT and run pod install
       - name: Install Pods (Native iOS dependencies)
         script: |
-          # Explicitly set FLUTTER_ROOT using Codemagic's variable
+          echo "Explicitly setting FLUTTER_ROOT before pod install..."
+          # Force set FLUTTER_ROOT using Codemagic's built-in variable
           export FLUTTER_ROOT=$CM_FLUTTER_ROOT 
           # Now run pod install
           pod install
-        working_directory: ios
-
-      # 🔑 STEP 1: DECRYPT & COPY FIREBASE FILE (for Notification/Messaging)
-      # Codemagic mein GoogleService-Info.plist ko Secret Variable 'IOS_FIREBASE_PLIST' naam se base64 mein upload karein.
-      # - name: Set up iOS Firebase configuration
-      #   script: |
-      #     echo "Setting up GoogleService-Info.plist for Firebase..."
-      #     # Decrypts the secret and places it in the required iOS path
-      #     echo $IOS_FIREBASE_PLIST | base64 --decode > ios/Runner/GoogleService-Info.plist
-
-      # - name: Ensure Flutter paths are set
-      #   script: |
-      #     flutter clean
-      #     flutter pub get
-
-      - name: Install Pods (Native iOS dependencies)
-        script: cd ios && pod install
+        working_directory: ios # Run this script inside the 'ios' folder
         
       - name: Build IPA for testing
         script: |
-          echo "Starting iOS build with Development signing..."
-          # Builds the IPA file using the FREE 7-day Development Certificate
           flutter build ipa --release \
             --export-method development \
             --build-name=1.0.0 \
@@ -53,7 +40,7 @@ workflows:
     artifacts:
       # Save the final signed IPA file
       - $CM_BUILD_DIR/**/build/ios/ipa/*.ipa
-      # Save all Xcode logs for error tracking
+      # Save Xcode build logs
       - $CM_BUILD_DIR/ios/build/logs/build.log 
       - /tmp/xcodebuild*.log 
 
