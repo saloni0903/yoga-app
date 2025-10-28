@@ -17,11 +17,13 @@ workflows:
         - firebase_secrets         # (Aapki Firebase .plist file yahaan upload hogi)
         
     scripts:
-      - name: Install dependencies
+      - name: Install Pods (Native iOS dependencies)
         script: |
-          flutter pub get
-          # 💡 Flutter's new command for localization generation
-          flutter gen-l10n
+          # Explicitly set FLUTTER_ROOT using Codemagic's variable
+          export FLUTTER_ROOT=$CM_FLUTTER_ROOT 
+          # Now run pod install
+          pod install
+        working_directory: ios
 
       # 🔑 STEP 1: DECRYPT & COPY FIREBASE FILE (for Notification/Messaging)
       # Codemagic mein GoogleService-Info.plist ko Secret Variable 'IOS_FIREBASE_PLIST' naam se base64 mein upload karein.
