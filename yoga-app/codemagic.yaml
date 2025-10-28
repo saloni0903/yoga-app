@@ -4,7 +4,8 @@
 workflows:
   ios-free-test:
     name: iOS Free Test Build (7-Day Cert)
-    max_build_duration: 60 # 60 minutes max build time
+    working_directory: yoga-app
+    max_build_duration: 60
 
     environment:
       flutter: stable 
