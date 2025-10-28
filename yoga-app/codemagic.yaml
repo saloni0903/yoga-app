@@ -1,0 +1,56 @@
+# 💡 IMPORTANT: Yahan maan liya gaya hai ki aapka Flutter project 'yoga-app' folder ke andar hai.
+# Agar Project Path sahi set ho gaya hai (yoga-app) toh yeh kaam karega.
+
+workflows:
+  ios-free-test:
+    name: iOS Free Test Build (7-Day Cert)
+    max_build_duration: 60 # 60 minutes max build time
+
+    environment:
+      flutter: stable 
+      xcode: latest # Ensures the latest Xcode/iOS SDK is used
+
+      # 🔑 Codemagic Secrets Group: Aapko yeh group Codemagic UI mein banana hoga.
+      groups:
+        - apple_developer_credentials # (Aapka Apple ID/Password yahaan jayega)
+        - firebase_secrets         # (Aapki Firebase .plist file yahaan upload hogi)
+        
+    scripts:
+      - name: Install dependencies
+        script: |
+          flutter pub get
+          # 💡 Flutter's new command for localization generation
+          flutter gen-l10n
+
+      # 🔑 STEP 1: DECRYPT & COPY FIREBASE FILE (for Notification/Messaging)
+      # Codemagic mein GoogleService-Info.plist ko Secret Variable 'IOS_FIREBASE_PLIST' naam se base64 mein upload karein.
+      - name: Set up iOS Firebase configuration
+        script: |
+          echo "Setting up GoogleService-Info.plist for Firebase..."
+          # Decrypts the secret and places it in the required iOS path
+          echo $IOS_FIREBASE_PLIST | base64 --decode > ios/Runner/GoogleService-Info.plist
+
+      - name: Install Pods (Native iOS dependencies)
+        # Pods installation handles native code for permissions (like geolocator, permission_handler)
+        script: cd ios && pod install
+        
+      - name: Build IPA for testing
+        script: |
+          echo "Starting iOS build with Development signing..."
+          # Builds the IPA file using the FREE 7-day Development Certificate
+          flutter build ipa --release \
+            --export-method development \
+            --build-name=1.0.0 \
+            --build-number=$(($BUILD_NUMBER + 1))
+            
+    artifacts:
+      # Save the final signed IPA file
+      - $CM_BUILD_DIR/**/build/ios/ipa/*.ipa
+      # Save all Xcode logs for error tracking
+      - $CM_BUILD_DIR/ios/build/logs/build.log 
+      - /tmp/xcodebuild*.log 
+
+    publishing:
+      email:
+        recipients:
+          - pguptaapple@icloud.com
