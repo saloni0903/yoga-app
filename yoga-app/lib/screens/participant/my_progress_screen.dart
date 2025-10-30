@@ -23,31 +23,32 @@ class MyProgressScreen extends StatefulWidget {
 }
 
 class _MyProgressScreenState extends State<MyProgressScreen> {
+  late Future<Map<String, dynamic>> _progressDataFuture;
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
 
   Future<Map<String, dynamic>> _fetchProgressData(ApiService apiService) async {
     // Fetches real data without any mocks
     final results = await Future.wait([
-      apiService.getMyJoinedGroups(),
+      apiService.fetchMyJoinedGroups(forceRefresh: true), // This populates the cache
       apiService.getAttendanceHistory(),
     ]);
+    
+    // 2. Return data from the cache and the Future.wait result
     return {
-      'groups': results[0] as List<YogaGroup>,
-      'attendance': results[1] as List<AttendanceRecord>,
+      'groups': apiService.myJoinedGroups, // Get data from the cache
+      'attendance': results[1] as List<AttendanceRecord>, // Get this from the results
     };
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final apiService = Provider.of<ApiService>(context, listen: false);
-    final user = apiService.currentUser;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       body: FutureBuilder<Map<String, dynamic>>(
-        future: _fetchProgressData(apiService),
+        future: _progressDataFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -59,6 +60,7 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
           final data = snapshot.data!;
           final groups = data['groups'] as List<YogaGroup>;
           final attendance = data['attendance'] as List<AttendanceRecord>;
+          final user = Provider.of<ApiService>(context, listen: false).currentUser;
 
           return RefreshIndicator(
             onRefresh: () async => setState(() {}),

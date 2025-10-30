@@ -107,84 +107,83 @@ class AuthWrapper extends StatefulWidget {
   @override
   State<AuthWrapper> createState() => _AuthWrapperState();
 }
+
 class _AuthWrapperState extends State<AuthWrapper> {
-  ApiService? _apiService;
+  // 1. We store the Future here to prevent it from being called multiple times
+  late Future<bool> _autoLoginFuture;
   bool _notificationsInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    _attemptAutoLoginAndInitNotifications();
-    Provider.of<ApiService>(context, listen: false).tryAutoLogin();
+    // 2. We call tryAutoLogin ONCE and store the Future.
+    // The FutureBuilder will now listen to this.
+    _autoLoginFuture = Provider.of<ApiService>(context, listen: false).tryAutoLogin();
   }
 
-  Future<void> _attemptAutoLoginAndInitNotifications() async {
-    // Get ApiService once, without listening in initState
-    final apiService = Provider.of<ApiService>(context, listen: false);
-    final loggedIn = await apiService.tryAutoLogin();
-
-    // IMPORTANT: Check if the widget is still mounted after async work
-    if (loggedIn && mounted && !_notificationsInitialized) {
-      print("[AuthWrapper] Auto-login successful. Initializing notifications...");
-      try {
-        // Initialize notifications using the current context
-        await FirebaseNotificationService.initialize(context);
-        // Safely update state if still mounted
-        if (mounted) {
-          setState(() { _notificationsInitialized = true; });
+  // 3. This function will be safely called *after* the build is complete
+  //    to initialize notifications.
+  void _initializeNotifications() {
+    // We use addPostFrameCallback to avoid calling setState during a build
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Check if mounted and if we haven't already initialized
+      if (mounted && !_notificationsInitialized) {
+        print("[AuthWrapper] User authenticated. Initializing notifications...");
+        try {
+          await FirebaseNotificationService.initialize(context);
+          // Safely update state if still mounted
+          if (mounted) {
+            setState(() { _notificationsInitialized = true; });
+          }
+        } catch (e) {
+          print("[AuthWrapper] Error initializing notifications: $e");
         }
-      } catch (e) {
-        print("[AuthWrapper] Error initializing notifications after auto-login: $e");
-        // Handle potential errors (e.g., context issues if user navigates away fast)
       }
-    } else if (loggedIn) {
-         print("[AuthWrapper] Auto-login successful but notifications already initialized this session.");
-    } else {
-        print("[AuthWrapper] Auto-login failed.");
-    }
+    });
+  }
+
+  // 4. This function safely resets the flag when the user logs out.
+  void _resetNotifications() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _notificationsInitialized) {
+        print("[AuthWrapper] User logged out. Resetting notification flag.");
+        setState(() { _notificationsInitialized = false; });
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ApiService>(
-      builder: (context, apiService, child) {
-        if (apiService.isAuthenticated) {
-          if (!_notificationsInitialized) {
-             print("[AuthWrapper] Manual login detected or state restored. Initializing notifications...");
-             // Use addPostFrameCallback to run *after* the current build frame
-             WidgetsBinding.instance.addPostFrameCallback((_) async {
-               // Double-check mounted status and flag inside the callback
-               if (mounted && !_notificationsInitialized) {
-                 try {
-                     await FirebaseNotificationService.initialize(context);
-                     // Safely update state after async work inside callback
-                     if (mounted) {
-                        setState(() { _notificationsInitialized = true; });
-                     }
-                 } catch(e) {
-                     print("[AuthWrapper] Error initializing notifications after manual login/restore: $e");
-                 }
-               }
-            });
-          }
-          return HomeScreen(
-            apiService: apiService,
-            user: apiService.currentUser!,
-          );
-        } else {
-          if (_notificationsInitialized) {
-              print("[AuthWrapper] User logged out. Resetting notification flag.");
-             // Use addPostFrameCallback to safely update state *after* the build
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                 if (mounted) { // Check if widget is still in the tree
-                    setState(() { _notificationsInitialized = false; });
-                 } else {
-                     _notificationsInitialized = false; // Reset anyway if not mounted
-                 }
-              });
-          }
-          return const LoginScreen();
+    // 5. We use a FutureBuilder to wait for the _autoLoginFuture to complete
+    return FutureBuilder<bool>(
+      future: _autoLoginFuture,
+      builder: (context, snapshot) {
+        
+        // 6. While the token is being checked, show a loading spinner.
+        //    This is the proper "loading state" the issue mentioned.
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
+
+        // 7. Once the future is complete, we use Consumer to listen for
+        //    *all* auth state changes (auto-login, manual login, logout).
+        return Consumer<ApiService>(
+          builder: (context, apiService, child) {
+            if (apiService.isAuthenticated) {
+              // 8. Auth is successful. Queue the notification init.
+              //    The function has its own guard to only run once.
+              _initializeNotifications();
+              return HomeScreen(
+                apiService: apiService,
+                user: apiService.currentUser!,
+              );
+            } else {
+              // 9. Auth failed or user logged out. Reset notification flag.
+              _resetNotifications();
+              return const LoginScreen();
+            }
+          },
+        );
       },
     );
   }
