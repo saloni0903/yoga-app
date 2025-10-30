@@ -216,6 +216,136 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
       },
     );
   }
+  Widget _buildGroupCard(BuildContext context, YogaGroup g) {
+    final theme = Theme.of(context);
+
+    // 1. Parse the color string
+    Color groupColor = Color(0xFF4CAF50); // Default color
+    try {
+      final colorValue = int.parse(g.color.substring(1), radix: 16);
+      groupColor = Color(0xFF000000 | colorValue);
+    } catch (e) {
+      // ignore
+    }
+
+    // Formatters
+    final formattedStyle =
+        toBeginningOfSentenceCase(g.yogaStyle) ?? g.yogaStyle;
+    final formattedDifficulty = toBeginningOfSentenceCase(
+          g.difficultyLevel.replaceAll('-', ' '),
+        ) ??
+        g.difficultyLevel;
+
+    // This helper must exist in your project
+    final nextSessionText =
+        DateHelper.getNextSessionTextFromSchedule(g.schedule);
+
+    // 2. Wrap the Card in a Container with a colored border
+    return Container(
+      margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(color: groupColor, width: 5),
+        ),
+        borderRadius: const BorderRadius.only(
+          topRight: Radius.circular(16),
+          bottomRight: Radius.circular(16),
+        ),
+      ),
+      child: Card(
+        margin: EdgeInsets.zero,
+        elevation: 1,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            topRight: Radius.circular(16),
+            bottomRight: Radius.circular(16),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          borderRadius: const BorderRadius.only(
+            topRight: Radius.circular(16),
+            bottomRight: Radius.circular(16),
+          ),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GroupDetailScreen(groupId: g.id),
+            ),
+          ).then((_) {
+            // Refresh on return
+            _fetchGroups(force: true);
+          }),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  g.name,
+                  style: theme.textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                if (g.description != null && g.description!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    g.description!,
+                    style: theme.textTheme.bodyMedium,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                const Divider(height: 24),
+                _buildInfoRow(
+                  theme,
+                  g.groupType == 'online'
+                      ? Icons.videocam_outlined
+                      : Icons.location_on_outlined,
+                  g.displayLocation,
+                ),
+                const SizedBox(height: 8),
+                _buildInfoRow(
+                  theme,
+                  Icons.calendar_today_outlined,
+                  g.timingText,
+                ),
+                const SizedBox(height: 8),
+                _buildInfoRow(
+                  theme,
+                  Icons.next_plan_outlined,
+                  nextSessionText,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8.0,
+                  runSpacing: 4.0,
+                  children: [
+                    Chip(
+                      label: Text(formattedStyle),
+                      backgroundColor:
+                          theme.colorScheme.secondaryContainer.withOpacity(0.5),
+                      labelStyle: theme.textTheme.labelMedium,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    Chip(
+                      label: Text(formattedDifficulty),
+                      backgroundColor:
+                          theme.colorScheme.tertiaryContainer.withOpacity(0.5),
+                      labelStyle: theme.textTheme.labelMedium,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
   Widget _buildInfoRow(ThemeData theme, IconData icon, String text,
       {Color? color}) {
     return Row(

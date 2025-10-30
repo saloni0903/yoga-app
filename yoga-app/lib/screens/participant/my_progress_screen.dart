@@ -1,3 +1,4 @@
+// my_progress_screen.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -26,6 +27,30 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
   late Future<Map<String, dynamic>> _progressDataFuture;
   DateTime _selectedDay = DateTime.now();
   DateTime _focusedDay = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    // 1. Fetch data ONCE on init
+    _progressDataFuture = _fetchData();
+  }
+
+  // 2. Create a method for fetching
+  Future<Map<String, dynamic>> _fetchData() {
+    final apiService = Provider.of<ApiService>(context, listen: false);
+    // 3. Call your *existing* fetch function
+    return _fetchProgressData(apiService);
+  }
+
+  // 4. Create a method for refreshing
+  Future<void> _refreshData() async {
+    // 5. Set the state to a *new* future
+    setState(() {
+      _progressDataFuture = _fetchData();
+    });
+    // 6. Await the new future to complete the refresh
+    await _progressDataFuture;
+  }
 
   Future<Map<String, dynamic>> _fetchProgressData(ApiService apiService) async {
     // Fetches real data without any mocks
@@ -63,7 +88,7 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
           final user = Provider.of<ApiService>(context, listen: false).currentUser;
 
           return RefreshIndicator(
-            onRefresh: () async => setState(() {}),
+            onRefresh: _refreshData,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(

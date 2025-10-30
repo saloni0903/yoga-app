@@ -102,6 +102,10 @@ const groupSchema = new mongoose.Schema({
     type: [String],
     default: [],
   },
+  meetLink: {
+    type: String,
+    trim: true,
+  },
   created_at: {
     type: Date,
     default: Date.now,

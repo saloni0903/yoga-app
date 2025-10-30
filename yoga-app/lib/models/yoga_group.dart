@@ -61,6 +61,7 @@ class YogaGroup {
   final String? instructorName;
   final String? instructorEmail;
   final double? distance;
+  final String? meetLink;
 
   int get sessionDurationInMinutes {
     if (schedule.startTime.isEmpty || schedule.endTime.isEmpty) {
@@ -144,6 +145,7 @@ class YogaGroup {
     this.instructorName,
     this.instructorEmail,
     required this.color,
+    this.meetLink,
   });
 
   factory YogaGroup.fromJson(Map<String, dynamic> j) {
@@ -187,6 +189,7 @@ class YogaGroup {
       memberCount: j['memberCount'] as int?,
       instructorName: tempInstructorName,
       instructorEmail: tempInstructorEmail,
+      meetLink: j['meetLink']?.toString(),
     );
   }
 }
