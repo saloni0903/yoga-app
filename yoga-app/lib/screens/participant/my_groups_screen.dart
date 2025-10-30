@@ -1,5 +1,5 @@
 // lib/screens/participant/my_groups_screen.dart
-import 'package.intl/intl.dart'; 
+import 'package:intl/intl.dart';
 import 'group_detail_screen.dart';
 import '../../models/yoga_group.dart';
 import '../../utils/date_helper.dart';
@@ -92,62 +92,151 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
                 padding: const EdgeInsets.all(8),
                 itemCount: groups.length,
                 itemBuilder: (context, i) {
-                  final g = groups[i];
-                  final formattedStyle = toBeginningOfSentenceCase(g.yogaStyle);
-                  final formattedDifficulty = toBeginningOfSentenceCase(
-                    g.difficultyLevel.replaceAll('-', ' '),
-                  );
+                    final g = groups[i];
+                    final theme = Theme.of(context);
 
-                  // This helper must exist in your project for this to compile.
-                  final nextSessionText = DateHelper.getNextSessionTextFromSchedule(g.schedule);
+                    // Formatters
+                    final formattedStyle =
+                        toBeginningOfSentenceCase(g.yogaStyle) ?? g.yogaStyle;
+                    final formattedDifficulty = toBeginningOfSentenceCase(
+                          g.difficultyLevel.replaceAll('-', ' '),
+                        ) ??
+                        g.difficultyLevel;
 
-                  return Card(
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      title: Text(
-                        g.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 4.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Use the displayLocation getter from our previous fix
-                            Text('${g.displayLocation}\n${g.timingText}'),
-                            const SizedBox(height: 6),
-                            Text(
-                              nextSessionText,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).colorScheme.primary,
+                    // This helper must exist in your project
+                    final nextSessionText =
+                        DateHelper.getNextSessionTextFromSchedule(g.schedule);
+
+                    // --- NEW CARD ---
+                    return Card(
+                      margin: const EdgeInsets.fromLTRB(8, 8, 8, 0), // Match padding
+                      elevation: 1,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => GroupDetailScreen(groupId: g.id),
+                          ),
+                        ).then((_) {
+                          // This refresh on return is good practice
+                          _fetchGroups(force: true);
+                        }),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // 1. Group Name
+                              Text(
+                                g.name,
+                                style: theme.textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.bold),
                               ),
-                            ),
-                          ],
+
+                              // 2. Description (This was missing)
+                              if (g.description != null &&
+                                  g.description!.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  g.description!,
+                                  style: theme.textTheme.bodyMedium,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+
+                              const Divider(height: 24),
+
+                              // 3. Info Rows (Location & Schedule)
+                              _buildInfoRow(
+                                theme,
+                                g.groupType == 'online'
+                                    ? Icons.videocam_outlined
+                                    : Icons.location_on_outlined,
+                                g.displayLocation, // From our previous fix
+                              ),
+                              const SizedBox(height: 8),
+                              _buildInfoRow(
+                                theme,
+                                Icons.calendar_today_outlined,
+                                g.timingText, // From your model
+                              ),
+                              const SizedBox(height: 8),
+                              
+                              // 4. Next Session
+                              _buildInfoRow(
+                                theme,
+                                Icons.next_plan_outlined,
+                                nextSessionText,
+                                color: theme.colorScheme.primary, // Highlight this
+                              ),
+                              
+                              const SizedBox(height: 16),
+
+                              // 5. Chips (This was missing)
+                              Wrap(
+                                spacing: 8.0,
+                                runSpacing: 4.0,
+                                children: [
+                                  Chip(
+                                    label: Text(formattedStyle),
+                                    backgroundColor: theme
+                                        .colorScheme.secondaryContainer
+                                        .withOpacity(0.5),
+                                    labelStyle: theme.textTheme.labelMedium,
+                                    padding:
+                                        const EdgeInsets.symmetric(horizontal: 4),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                  Chip(
+                                    label: Text(formattedDifficulty),
+                                    backgroundColor: theme
+                                        .colorScheme.tertiaryContainer
+                                        .withOpacity(0.5),
+                                    labelStyle: theme.textTheme.labelMedium,
+                                    padding:
+                                        const EdgeInsets.symmetric(horizontal: 4),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      isThreeLine: true,
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => GroupDetailScreen(groupId: g.id),
-                        ),
-                      ).then((_) {
-                        // Optional: Refresh if returning from detail screen
-                        _fetchGroups(force: true);
-                      }),
-                    ),
-                  );
-                },
+                    );
+                  },
               ),
             );
           },
         );
       },
+    );
+  }
+  Widget _buildInfoRow(ThemeData theme, IconData icon, String text,
+      {Color? color}) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: color ?? theme.textTheme.bodySmall?.color,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: color,
+              fontWeight: color != null ? FontWeight.bold : FontWeight.normal,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }
