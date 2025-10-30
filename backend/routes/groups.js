@@ -6,6 +6,7 @@ const GroupMember = require('../model/GroupMember');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const axios = require('axios');
+const mongoose = require('mongoose');
 
 // const Session = require('../model/Session');
 const crypto = require('crypto');
@@ -14,22 +15,23 @@ const crypto = require('crypto');
 const notificationService = require('../services/notificationService');
 const { sendNotificationToUser } = require('../services/notificationService');
 
-// Get all groups
+// Get all groups (RE-ARCHITECTED FOR ONLINE/OFFLINE)
 router.get('/', async (req, res) => {
   try {
-    // 1. Destructure all possible query parameters
     const { search, latitude, longitude, page = 1, limit = 10, instructor_id } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
 
     let searchCoords;
 
-    // --- Geocoding Logic (no changes needed here) ---
+    // --- Geocoding Logic (no changes) ---
     if (search) {
       try {
         const geocodeUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(search)}&format=json&limit=1`;
         const geocodeResponse = await axios.get(geocodeUrl, {
           headers: { 'User-Agent': 'YogaApp/1.0' }
         });
-        
         if (geocodeResponse.data && geocodeResponse.data.length > 0) {
           searchCoords = [
             parseFloat(geocodeResponse.data[0].lon),
@@ -45,105 +47,134 @@ router.get('/', async (req, res) => {
     }
     // --- End of Geocoding Logic ---
 
-    // Scenario 1: Geospatial search (if coordinates are available)
-    if (searchCoords) {
-      const pipeline = [
-        {
-          $geoNear: {
-            near: {
-              type: 'Point',
-              coordinates: searchCoords,
-            },
-            distanceField: 'distance',
-            spherical: true,
-            maxDistance: 50000, // 50km radius
-          },
-        },
-      ];
-      
-      // ✅ Dynamically build the matching conditions
-      const matchConditions = {};
-      if (instructor_id) {
-        matchConditions.instructor_id = instructor_id;
-      }
-      if (search) {
-        matchConditions.$or = [
-          { group_name: { $regex: search, $options: 'i' } },
-          { location_text: { $regex: search, $options: 'i' } },
-        ];
-      }
-
-      // ✅ Add the match stage to the pipeline ONLY if there are conditions
-      if (Object.keys(matchConditions).length > 0) {
-        pipeline.push({ $match: matchConditions });
-      }
-
-      // --- Population and Pagination (no changes needed here) ---
-      pipeline.push({
-        $lookup: { from: 'users', localField: 'instructor_id', foreignField: '_id', as: 'instructor_id' }
-      }, {
-        $unwind: { path: '$instructor_id', preserveNullAndEmptyArrays: true }
-      });
-
-      const countPipeline = [...pipeline, { $count: 'total' }];
-      const paginatedPipeline = [
-        ...pipeline,
-        { $skip: (parseInt(page) - 1) * parseInt(limit) },
-        { $limit: parseInt(limit) }
-      ];
-
-      const [groups, totalResult] = await Promise.all([
-        Group.aggregate(paginatedPipeline),
-        Group.aggregate(countPipeline),
-      ]);
-      
-      const total = totalResult.length > 0 ? totalResult[0].total : 0;
-      
-      return res.json({
-        success: true,
-        data: {
-          groups,
-          pagination: {
-            current: parseInt(page),
-            pages: Math.ceil(total / limit),
-            total,
-          },
-        },
-      });
-
-    // Scenario 2: Simple text/ID search (no location data)
-    } else {
-      // ✅ Dynamically build the query object
-      const query = {};
-      if (instructor_id) {
-        query.instructor_id = instructor_id;
-      }
-      if (search) {
-        query.$or = [
-          { group_name: { $regex: search, $options: 'i' } },
-          { location_text: { $regex: search, $options: 'i' } },
-        ];
-      }
-      
-      const total = await Group.countDocuments(query);
-      const groups = await Group.find(query)
-        .populate('instructor_id', 'fullName')
-        .limit(parseInt(limit))
-        .skip((parseInt(page) - 1) * parseInt(limit))
-        .lean();
-      
-      return res.json({
-        success: true,
-        data: {
-          groups,
-          pagination: {
-            current: parseInt(page),
-            pages: Math.ceil(total / limit),
-            total,
-          },
-        },
-      });
+    // --- Build Text/ID Match Conditions ---
+    const baseMatchConditions = {};
+    if (instructor_id) {
+      // Ensure instructor_id is converted to ObjectId for matching
+      baseMatchConditions.instructor_id = new mongoose.Types.ObjectId(instructor_id);
     }
+    if (search) {
+      baseMatchConditions.$or = [
+        { group_name: { $regex: search, $options: 'i' } },
+        // Use the new virtual field in the search
+        { 'location.address': { $regex: search, $options: 'i' } }, 
+        { description: { $regex: search, $options: 'i' } },
+        { yoga_style: { $regex: search, $options: 'i' } },
+      ];
+    }
+    
+    // --- Main Aggregation Pipeline ---
+    const pipeline = [];
+
+    // 1. We use $facet to run two queries in parallel
+    pipeline.push({
+      $facet: {
+        // --- FACET 1: Offline Groups (Geospatial) ---
+        "offlineGroups": [
+          ...(searchCoords ? [{
+            // If coords are provided, $geoNear is the *best* first filter.
+            $geoNear: {
+              near: { type: 'Point', coordinates: searchCoords },
+              distanceField: 'distance',
+              spherical: true,
+              maxDistance: 50000, // 50km
+              // We also filter by text/ID *during* the geo-search for efficiency
+              query: {
+                ...baseMatchConditions,
+                groupType: 'offline' // Only search offline groups
+              }
+            }
+          }] : [
+            // If no coords, just do a normal match for offline groups
+            { $match: { ...baseMatchConditions, groupType: 'offline' } },
+            { $sort: { created_at: -1 } } // Add a default sort
+          ]),
+          // Populate instructor for offline groups
+          { $lookup: { from: 'users', localField: 'instructor_id', foreignField: '_id', as: 'instructor' } },
+          { $unwind: { path: '$instructor', preserveNullAndEmptyArrays: true } }
+        ],
+        
+        // --- FACET 2: Online Groups (Text/ID only) ---
+        // These are *always* returned if they match the text/ID, location is irrelevant
+        "onlineGroups": [
+          {
+            $match: {
+              ...baseMatchConditions,
+              groupType: 'online' // Only search online groups
+            }
+          },
+          { $sort: { created_at: -1 } },
+          // Populate instructor for online groups
+          { $lookup: { from: 'users', localField: 'instructor_id', foreignField: '_id', as: 'instructor' } },
+          { $unwind: { path: '$instructor', preserveNullAndEmptyArrays: true } }
+        ]
+      }
+    });
+
+    // 2. Combine the results from both facets
+    pipeline.push({
+      $project: {
+        allGroups: { $concatArrays: ["$offlineGroups", "$onlineGroups"] }
+      }
+    });
+    pipeline.push({ $unwind: "$allGroups" });
+    pipeline.push({ $replaceRoot: { newRoot: "$allGroups" } });
+    
+    // 3. We must re-sort *after* merging, prioritizing distance if it exists
+    pipeline.push({
+      $sort: {
+        distance: 1, // Groups with distance (offline) will come first
+        created_at: -1 // Then sort by creation date
+      }
+    });
+
+    // 4. Apply pagination to the *combined* results
+    const countPipeline = [...pipeline, { $count: 'total' }];
+    const paginatedPipeline = [
+      ...pipeline,
+      { $skip: skip },
+      { $limit: limitNum },
+      // Manual population of instructor (since $lookup returns an array)
+      {
+        $addFields: {
+          "instructor_id": {
+            _id: "$instructor._id",
+            firstName: "$instructor.firstName",
+            lastName: "$instructor.lastName",
+            email: "$instructor.email",
+          }
+        }
+      },
+      { $project: { instructor: 0 } } // Clean up the temporary instructor object
+    ];
+
+    // 5. Execute queries
+    const [groups, totalResult] = await Promise.all([
+      Group.aggregate(paginatedPipeline),
+      Group.aggregate(countPipeline),
+    ]);
+
+    const total = totalResult.length > 0 ? totalResult[0].total : 0;
+    
+    // Manually add the virtual 'location_text' for frontend compatibility
+    // because .aggregate() skips virtuals.
+    const groupsWithVirtuals = groups.map(group => ({
+      ...group,
+      location_text: (group.groupType === 'offline' && group.location) ? group.location.address : null,
+      id: group._id // ensure 'id' exists
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        groups: groupsWithVirtuals, // Send the processed groups
+        pagination: {
+          current: pageNum,
+          pages: Math.ceil(total / limitNum),
+          total,
+        },
+      },
+    });
 
   } catch (error) {
     console.error('Get groups error:', error);

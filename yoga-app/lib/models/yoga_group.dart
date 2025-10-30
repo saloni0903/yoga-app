@@ -1,5 +1,5 @@
-import 'package:intl/intl.dart';
 // lib/models/yoga_group.dart
+import 'package:intl/intl.dart';
 
 class Schedule {
   final String startTime; // "HH:mm"
@@ -47,6 +47,20 @@ class YogaGroup {
   final double? longitude;
   final Schedule schedule;
   final String color;
+  final String yogaStyle;
+  final String difficultyLevel;
+  final bool isActive;
+  final String? description;
+  final int maxParticipants;
+  final double pricePerSession;
+  final String currency;
+  final List<String> requirements;
+  final List<String> equipmentNeeded;
+  final int? memberCount;
+  final String instructorId;
+  final String? instructorName;
+  final String? instructorEmail;
+  final double? distance;
 
   int get sessionDurationInMinutes {
     if (schedule.startTime.isEmpty || schedule.endTime.isEmpty) {
@@ -98,20 +112,13 @@ class YogaGroup {
     return '$shortDays at $startTime';
   }
 
-  final String yogaStyle;
-  final String difficultyLevel;
-  final bool isActive;
-  final String? description;
-  final int maxParticipants;
-  final double pricePerSession;
-  final String currency;
-  final List<String> requirements;
-  final List<String> equipmentNeeded;
-  final int? memberCount;
-  final String instructorId;
-  final String? instructorName;
-  final String? instructorEmail;
-  final double? distance;
+  String get displayLocation {
+    if (groupType == 'online') {
+      return 'Online';
+    }
+    // locationText will be populated by the backend
+    return locationText.isNotEmpty ? locationText : 'No location set';
+  }
 
   YogaGroup({
     this.distance,
