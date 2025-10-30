@@ -224,7 +224,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
-                Text(group.locationText),
+                Text(group.displayLocation),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,

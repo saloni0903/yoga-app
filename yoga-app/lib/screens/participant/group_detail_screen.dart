@@ -182,7 +182,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               context,
               Icons.location_on_outlined,
               "Location",
-              group.locationText,
+              group.displayLocation,
             ),
           ],
         ),
