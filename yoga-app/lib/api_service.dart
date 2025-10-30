@@ -51,6 +51,10 @@ String get baseUrl {
   User? get currentUser => _currentUser;
   bool get isAuthenticated => _isAuthenticated;
 
+  List<YogaGroup> _myJoinedGroups = [];
+  List<YogaGroup> get myJoinedGroups => _myJoinedGroups; // Public getter
+  bool _myGroupsCacheValid = false;
+
   // Secure token helpers
   Future<void> _saveToken(String token) async {
     _token = token;
@@ -194,6 +198,8 @@ String get baseUrl {
     await _saveToken(token);
     _currentUser = User.fromJson(data['data']['user']);
     _isAuthenticated = true;
+    _myGroupsCacheValid = false;
+    _myJoinedGroups = [];
     notifyListeners();
     return _currentUser!;
   }
@@ -202,6 +208,8 @@ String get baseUrl {
     await _clearToken();
     _currentUser = null;
     _isAuthenticated = false;
+    _myGroupsCacheValid = false;
+    _myJoinedGroups = [];
     notifyListeners();
   }
 
@@ -409,19 +417,46 @@ String get baseUrl {
       body: jsonEncode({}),
     );
     _ensureOk(res, _decode(res));
+    await fetchMyJoinedGroups(forceRefresh: true);
   }
 
-  Future<List<YogaGroup>> getMyJoinedGroups() async {
-    final res = await _client.get(
-      Uri.parse('$baseUrl/api/groups/my-groups'),
-      headers: _authHeaders(), // This is a protected route
-    );
+  Future<void> fetchMyJoinedGroups({bool forceRefresh = false}) async {
+    // 1. If cache is valid and we're not forcing a refresh, do nothing.
+    if (_myGroupsCacheValid && !forceRefresh) {
+      return;
+    }
 
-    final data = _decode(res);
-    _ensureOk(res, data);
+    // 2. If no user, clear the list and exit.
+    if (_currentUser == null) {
+      _myJoinedGroups = [];
+      _myGroupsCacheValid = false;
+      notifyListeners();
+      return;
+    }
 
-    final List listJson = data['data']['groups'];
-    return listJson.map((e) => YogaGroup.fromJson(e)).toList();
+    // 3. Fetch from the network
+    try {
+      final res = await _client.get(
+        Uri.parse('$baseUrl/api/groups/my-groups'),
+        headers: _authHeaders(),
+      );
+
+      final data = _decode(res);
+      _ensureOk(res, data);
+
+      final List listJson = data['data']['groups'];
+      _myJoinedGroups = listJson.map((e) => YogaGroup.fromJson(e)).toList();
+      _myGroupsCacheValid = true;
+
+      // 4. CRITICAL: Notify all listening widgets that the list has changed.
+      notifyListeners();
+
+    } catch (e) {
+      // Don't poison the cache on a temporary network error
+      debugPrint("Failed to fetch joined groups: $e");
+      // Re-throw to let the UI handle the error (e.g., in a RefreshIndicator)
+      throw e;
+    }
   }
 
   Future<void> markAttendanceByQr({required String qrToken}) async {

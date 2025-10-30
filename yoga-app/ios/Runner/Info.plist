@@ -32,7 +32,11 @@
 		<string>This app needs camera access to scan session QR codes for attendance.</string>
 		<key>NSMotionUsageDescription</key>
 		<string>This app needs to access your motion data to count your steps.</string>
-		<key>UISupportedInterfaceOrientations</key>
+		<key>NSLocationWhenInUseUsageDescription</key>
+        <string>This app needs access to your location to find nearby yoga groups.</string>
+        <key>NSLocationAlwaysUsageDescription</key>
+        <string>This app needs access to your location to find nearby yoga groups.</string>
+        <key>UISupportedInterfaceOrientations</key>
 		<array>
 			<string>UIInterfaceOrientationPortrait</string>
 			<string>UIInterfaceOrientationLandscapeLeft</string>
