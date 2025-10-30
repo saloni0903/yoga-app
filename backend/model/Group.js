@@ -132,6 +132,13 @@ groupSchema.virtual('coordinates').get(function () {
   };
 });
 
+groupSchema.virtual('location_text').get(function () {
+  if (this.groupType === 'offline' && this.location) {
+    return this.location.address;
+  }
+  return null; // Online groups do not have a location.address
+});
+
 // Index for geospatial queries
 groupSchema.index({ location: '2dsphere' });
 // groupSchema.index({ latitude: 1, longitude: 1 });
