@@ -14,32 +14,27 @@ import 'package:http/http.dart' as http;
 import 'src/client_provider.dart' // This imports the mobile file by default
     if (dart.library.html) 'src/client_provider_web.dart'; // And this one for web
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 
 
 class ApiService with ChangeNotifier {
 String get baseUrl {
-    // 1. Define constants inside the getter or globally (inside the getter is cleaner here)
-    const bool useLocalIp = false; // <-- SET THIS TO FALSE WHEN BUILDING FINAL MOBILE APK
-    const String localMobileIp = 'http://10.104.65.41:3000';
-    const String deployedUrl = 'https://yoga-app-7drp.onrender.com';
+    // 1. Read from environment variables.
+    //    We default to the deployed URL.
+    const String apiUrl = String.fromEnvironment(
+      'API_URL',
+      defaultValue: 'https://yoga-app-7drp.onrender.com',
+    );
 
-    // 2. Check environment (kIsWeb is true when running on Chrome)
+    // 2. kIsWeb check for web-specific debugging is acceptable.
     if (kIsWeb) {
-      // Always use localhost for web debugging
-      return 'http://localhost:3000'; 
+      return 'http://localhost:3000';
     }
-    
-    // 3. Check local mobile debug flag
-    if (useLocalIp) {
-        // For mobile device/emulator testing against local machine IP
-        return localMobileIp;
-    }
-    
-    // 4. Default to deployed URL
-    return deployedUrl;
+
+    // 3. Return the environment-defined URL.
+    return apiUrl;
   }
 
   late http.Client _client;
@@ -144,6 +139,7 @@ String get baseUrl {
   }
 
   Future<bool> tryAutoLogin() async {
+    debugPrint("[tryAutoLogin] Attempting auto-login...");
     try {
       final token = await _loadToken();
       if (token == null) {
@@ -165,7 +161,7 @@ String get baseUrl {
         notifyListeners();
         return true;
       }
-
+      debugPrint("[tryAutoLogin] Failed. Status code: ${res.statusCode}. Clearing token.");
       // If token is invalid/expired (e.g., status 401), clear it.
       await _clearToken();
       _isAuthenticated = false;
@@ -173,6 +169,7 @@ String get baseUrl {
       return false;
     } catch (e) {
       // Catch network errors, server down, etc.
+      debugPrint("[tryAutoLogin] CRITICAL FAILURE: $e");
       await _clearToken();
       _isAuthenticated = false;
       notifyListeners();
