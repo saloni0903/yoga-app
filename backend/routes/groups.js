@@ -244,12 +244,13 @@ router.post('/', auth, async (req, res) => {
             latitude,
             longitude,
             schedule,
-            color, // <-- New field
+            color,
             description,
             yoga_style,
             difficulty_level,
             price_per_session,
             max_participants,
+            meetLink,
         } = req.body;
 
         const instructor_id = req.user.id;
@@ -267,13 +268,6 @@ router.post('/', auth, async (req, res) => {
             instructor_id,
             group_name,
             groupType,
-            // location: {
-            //     type: 'Point',
-            //     coordinates: [parseFloat(longitude), parseFloat(latitude)],
-            // },
-            // location_text,
-            // latitude: parseFloat(latitude),
-            // longitude: parseFloat(longitude),
             color,
             schedule,
             description,
@@ -281,6 +275,7 @@ router.post('/', auth, async (req, res) => {
             difficulty_level,
             price_per_session: parseFloat(price_per_session) || 0,
             max_participants: parseInt(max_participants) || 20,
+            meetLink: groupType === 'online' ? meetLink : null,
         };
 
         if (groupType === 'offline') {
@@ -324,7 +319,7 @@ router.post('/', auth, async (req, res) => {
 // Update group
 router.put('/:id', auth, async (req, res) => { // Added auth middleware
   try {
-    const { latitude, longitude, schedule, ...otherDetails } = req.body;
+    const { latitude, longitude, schedule, meetLink, ...otherDetails } = req.body;
     const updateData = { ...otherDetails };
 
     // If latitude and longitude are provided, construct the location object
@@ -338,6 +333,9 @@ router.put('/:id', auth, async (req, res) => { // Added auth middleware
     }
     if (schedule) {
         updateData.schedule = schedule;
+    }
+    if (meetLink) {
+        updateData.meetLink = meetLink;
     }
 
     const group = await Group.findByIdAndUpdate(

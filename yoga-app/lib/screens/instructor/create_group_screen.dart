@@ -46,6 +46,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
   final _priceController = TextEditingController();
   final _requirementsController = TextEditingController();
   final _equipmentController = TextEditingController();
+  final _meetLinkController = TextEditingController();
   
   // State Variables
   String _groupType = 'offline';
@@ -84,7 +85,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
       _isActive = existing.isActive;
       _latitudeController.text = existing.latitude?.toString() ?? '';
       _longitudeController.text = existing.longitude?.toString() ?? '';
-      // TODO: Populate requirements and equipment from model when added
+      _meetLinkController.text = existing.meetLink ?? '';
       
       final colorValue = int.tryParse(existing.color.substring(1), radix: 16);
       if (colorValue != null) {
@@ -136,6 +137,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     _priceController.dispose();
     _requirementsController.dispose();
     _equipmentController.dispose();
+    _meetLinkController.dispose();
     super.dispose();
   }
 
@@ -442,6 +444,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         'color': colorString,
         'is_active': _isActive,
         'schedule': scheduleObject,
+        'meetLink': _meetLinkController.text.trim(),
       };
 
       if (_groupType == 'offline') {
@@ -643,6 +646,29 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+
+            Visibility(
+                visible: _groupType == 'online',
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: TextFormField(
+                    controller: _meetLinkController,
+                    decoration: const InputDecoration(
+                      labelText: 'Online Meet Link',
+                      helperText: 'e.g., Google Meet or Zoom URL',
+                      prefixIcon: Icon(Icons.link),
+                    ),
+                    keyboardType: TextInputType.url,
+                    validator: (value) {
+                      if (_groupType == 'online' && (value == null || value.trim().isEmpty)) {
+                        return 'Meet link is required for online groups';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+              ),
             const SizedBox(height: 16),
 
             // --- SESSION DETAILS (OLD CARD UI) ---

@@ -306,6 +306,34 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const Divider(height: 20),
+            if (group.groupType == 'online' &&
+                group.meetLink != null &&
+                group.meetLink!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: FilledButton.icon(
+                  icon: const Icon(Icons.videocam),
+                  label: const Text('Join Online Session'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                  onPressed: () async {
+                    // Make sure you have url_launcher added to pubspec.yaml
+                    final uri = Uri.parse(group.meetLink!);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri,
+                          mode: LaunchMode.externalApplication);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Could not open link'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ),
             _buildInfoRow(
               context,
               Icons.calendar_today_outlined,
