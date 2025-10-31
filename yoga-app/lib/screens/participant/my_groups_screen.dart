@@ -92,123 +92,8 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
                 padding: const EdgeInsets.all(8),
                 itemCount: groups.length,
                 itemBuilder: (context, i) {
-                    final g = groups[i];
-                    final theme = Theme.of(context);
-
-                    // Formatters
-                    final formattedStyle =
-                        toBeginningOfSentenceCase(g.yogaStyle) ?? g.yogaStyle;
-                    final formattedDifficulty = toBeginningOfSentenceCase(
-                          g.difficultyLevel.replaceAll('-', ' '),
-                        ) ??
-                        g.difficultyLevel;
-
-                    // This helper must exist in your project
-                    final nextSessionText =
-                        DateHelper.getNextSessionTextFromSchedule(g.schedule);
-
-                    // --- NEW CARD ---
-                    return Card(
-                      margin: const EdgeInsets.fromLTRB(8, 8, 8, 0), // Match padding
-                      elevation: 1,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => GroupDetailScreen(groupId: g.id),
-                          ),
-                        ).then((_) {
-                          // This refresh on return is good practice
-                          _fetchGroups(force: true);
-                        }),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // 1. Group Name
-                              Text(
-                                g.name,
-                                style: theme.textTheme.titleLarge
-                                    ?.copyWith(fontWeight: FontWeight.bold),
-                              ),
-
-                              // 2. Description (This was missing)
-                              if (g.description != null &&
-                                  g.description!.isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  g.description!,
-                                  style: theme.textTheme.bodyMedium,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-
-                              const Divider(height: 24),
-
-                              // 3. Info Rows (Location & Schedule)
-                              _buildInfoRow(
-                                theme,
-                                g.groupType == 'online'
-                                    ? Icons.videocam_outlined
-                                    : Icons.location_on_outlined,
-                                g.displayLocation, // From our previous fix
-                              ),
-                              const SizedBox(height: 8),
-                              _buildInfoRow(
-                                theme,
-                                Icons.calendar_today_outlined,
-                                g.timingText, // From your model
-                              ),
-                              const SizedBox(height: 8),
-                              
-                              // 4. Next Session
-                              _buildInfoRow(
-                                theme,
-                                Icons.next_plan_outlined,
-                                nextSessionText,
-                                color: theme.colorScheme.primary, // Highlight this
-                              ),
-                              
-                              const SizedBox(height: 16),
-
-                              // 5. Chips (This was missing)
-                              Wrap(
-                                spacing: 8.0,
-                                runSpacing: 4.0,
-                                children: [
-                                  Chip(
-                                    label: Text(formattedStyle),
-                                    backgroundColor: theme
-                                        .colorScheme.secondaryContainer
-                                        .withOpacity(0.5),
-                                    labelStyle: theme.textTheme.labelMedium,
-                                    padding:
-                                        const EdgeInsets.symmetric(horizontal: 4),
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                  Chip(
-                                    label: Text(formattedDifficulty),
-                                    backgroundColor: theme
-                                        .colorScheme.tertiaryContainer
-                                        .withOpacity(0.5),
-                                    labelStyle: theme.textTheme.labelMedium,
-                                    padding:
-                                        const EdgeInsets.symmetric(horizontal: 4),
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+                  return _buildGroupCard(context, groups[i]);
+                },
               ),
             );
           },
@@ -216,11 +101,12 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
       },
     );
   }
+
   Widget _buildGroupCard(BuildContext context, YogaGroup g) {
     final theme = Theme.of(context);
 
     // 1. Parse the color string
-    Color groupColor = Color(0xFF4CAF50); // Default color
+    Color groupColor = Theme.of(context).colorScheme.primary; // Default
     try {
       final colorValue = int.parse(g.color.substring(1), radix: 16);
       groupColor = Color(0xFF000000 | colorValue);
@@ -235,117 +121,101 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
           g.difficultyLevel.replaceAll('-', ' '),
         ) ??
         g.difficultyLevel;
-
-    // This helper must exist in your project
     final nextSessionText =
         DateHelper.getNextSessionTextFromSchedule(g.schedule);
 
-    // 2. Wrap the Card in a Container with a colored border
-    return Container(
+    // 2. Build the Card with the color strip on the right
+    return Card(
       margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-      decoration: BoxDecoration(
-        border: Border(
-          left: BorderSide(color: groupColor, width: 5),
-        ),
-        borderRadius: const BorderRadius.only(
-          topRight: Radius.circular(16),
-          bottomRight: Radius.circular(16),
-        ),
-      ),
-      child: Card(
-        margin: EdgeInsets.zero,
-        elevation: 1,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.only(
-            topRight: Radius.circular(16),
-            bottomRight: Radius.circular(16),
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          borderRadius: const BorderRadius.only(
-            topRight: Radius.circular(16),
-            bottomRight: Radius.circular(16),
-          ),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => GroupDetailScreen(groupId: g.id),
-            ),
-          ).then((_) {
-            // Refresh on return
-            _fetchGroups(force: true);
-          }),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  g.name,
-                  style: theme.textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                if (g.description != null && g.description!.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    g.description!,
-                    style: theme.textTheme.bodyMedium,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 1,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // --- MAIN CONTENT ---
+            Expanded(
+              child: InkWell(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => GroupDetailScreen(groupId: g.id),
                   ),
-                ],
-                const Divider(height: 24),
-                _buildInfoRow(
-                  theme,
-                  g.groupType == 'online'
-                      ? Icons.videocam_outlined
-                      : Icons.location_on_outlined,
-                  g.displayLocation,
+                ).then((_) {
+                  _fetchGroups(force: true);
+                }),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        g.name,
+                        style: theme.textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      // --- DESCRIPTION (WAS MISSING) ---
+                      if (g.description != null &&
+                          g.description!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          g.description!,
+                          style: theme.textTheme.bodyMedium,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      const Divider(height: 24),
+                      _buildInfoRow(
+                        theme,
+                        g.groupType == 'online'
+                            ? Icons.videocam_outlined
+                            : Icons.location_on_outlined,
+                        g.displayLocation,
+                      ),
+                      const SizedBox(height: 8),
+                      _buildInfoRow(
+                        theme,
+                        Icons.calendar_today_outlined,
+                        g.timingText,
+                      ),
+                      const SizedBox(height: 8),
+                      _buildInfoRow(
+                        theme,
+                        Icons.next_plan_outlined,
+                        nextSessionText,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 8.0,
+                        runSpacing: 4.0,
+                        children: [
+                          Chip(
+                            label: Text(formattedStyle),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          Chip(
+                            label: Text(formattedDifficulty),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 8),
-                _buildInfoRow(
-                  theme,
-                  Icons.calendar_today_outlined,
-                  g.timingText,
-                ),
-                const SizedBox(height: 8),
-                _buildInfoRow(
-                  theme,
-                  Icons.next_plan_outlined,
-                  nextSessionText,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8.0,
-                  runSpacing: 4.0,
-                  children: [
-                    Chip(
-                      label: Text(formattedStyle),
-                      backgroundColor:
-                          theme.colorScheme.secondaryContainer.withOpacity(0.5),
-                      labelStyle: theme.textTheme.labelMedium,
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    Chip(
-                      label: Text(formattedDifficulty),
-                      backgroundColor:
-                          theme.colorScheme.tertiaryContainer.withOpacity(0.5),
-                      labelStyle: theme.textTheme.labelMedium,
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
-          ),
+            // --- COLOR STRIP "PATTI" (ON THE RIGHT) ---
+            Container(width: 10, color: groupColor),
+          ],
         ),
       ),
     );
   }
+
+  // --- ADD THIS HELPER METHOD ---
   Widget _buildInfoRow(ThemeData theme, IconData icon, String text,
       {Color? color}) {
     return Row(
