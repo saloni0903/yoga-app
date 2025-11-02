@@ -10,7 +10,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:yoga_app/generated/app_localizations.dart';
 
-
 class FindGroupScreen extends StatefulWidget {
   const FindGroupScreen({super.key});
 
@@ -59,7 +58,8 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
 
     if (permission == LocationPermission.deniedForever) {
       _showError(
-          'Location permissions are permanently denied, we cannot request permissions.');
+        'Location permissions are permanently denied, we cannot request permissions.',
+      );
       return;
     }
 
@@ -78,17 +78,14 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.redAccent,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
     );
   }
 
   Future<void> _searchGroups({bool isInitialLoad = false}) async {
     final query = _searchController.text.trim();
     if (query.isEmpty && !isInitialLoad) return;
-    
+
     if (!mounted) return;
     final apiService = Provider.of<ApiService>(context, listen: false);
 
@@ -108,7 +105,9 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
       if (mounted) setState(() => _groups = results);
     } catch (e) {
       if (mounted) {
-        _showError('Search failed: ${e.toString().replaceFirst("Exception: ", "")}');
+        _showError(
+          'Search failed: ${e.toString().replaceFirst("Exception: ", "")}',
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -131,7 +130,9 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _showError('Failed to join group: ${e.toString().replaceFirst("Exception: ", "")}');
+        _showError(
+          'Failed to join group: ${e.toString().replaceFirst("Exception: ", "")}',
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -142,7 +143,10 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(group.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(
+          group.name,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         duration: const Duration(seconds: 5),
         action: SnackBarAction(
           label: 'JOIN',
@@ -173,37 +177,45 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         ),
         MarkerLayer(
-          markers: _groups.map((group) {
-            if (group.latitude == null || group.longitude == null) {
-              return null;
-            }
-            return Marker(
-              width: 80.0,
-              height: 80.0,
-              point: LatLng(group.latitude!, group.longitude!),
-              child: GestureDetector(
-                onTap: () => _showGroupInfoSnackBar(group),
-                child: Tooltip(
-                  message: group.name,
-                  child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
-                ),
-              ),
-            );
-          }).whereType<Marker>().toList(),
+          markers: _groups
+              .map((group) {
+                if (group.latitude == null || group.longitude == null) {
+                  return null;
+                }
+                return Marker(
+                  point: LatLng(group.latitude!, group.longitude!),
+                  alignment: Alignment.bottomCenter,
+                  child: GestureDetector(
+                    onTap: () => _showGroupInfoSnackBar(group),
+                    child: Tooltip(
+                      message: group.name,
+                      child: const Icon(
+                        Icons.location_pin,
+                        color: Colors.red,
+                        size: 40,
+                      ),
+                    ),
+                  ),
+                );
+              })
+              .whereType<Marker>()
+              .toList(),
         ),
       ],
     );
   }
 
   Widget _buildListView() {
-    final l10n = AppLocalizations.of(context)!; 
+    final l10n = AppLocalizations.of(context)!;
     if (!_searchPerformed) {
-      return Center( // Remove 'const'
+      return Center(
+        // Remove 'const'
         child: Text(l10n.enterSearchTerm),
       );
     }
     if (_groups.isEmpty && !_isLoading) {
-      return Center( // Remove 'const'
+      return Center(
+        // Remove 'const'
         child: Text(l10n.noGroupsFoundSearch),
       );
     }
@@ -219,10 +231,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  group.name,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
+                Text(group.name, style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 8),
                 Text(group.displayLocation),
                 const SizedBox(height: 16),
@@ -265,8 +274,16 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
             padding: const EdgeInsets.symmetric(vertical: 8.0),
             child: SegmentedButton<bool>(
               segments: [
-                ButtonSegment(value: false, icon: Icon(Icons.list), label: Text(l10n.list)),
-                ButtonSegment(value: true, icon: Icon(Icons.map), label: Text(l10n.map)),
+                ButtonSegment(
+                  value: false,
+                  icon: Icon(Icons.list),
+                  label: Text(l10n.list),
+                ),
+                ButtonSegment(
+                  value: true,
+                  icon: Icon(Icons.map),
+                  label: Text(l10n.map),
+                ),
               ],
               selected: {_isMapView},
               onSelectionChanged: (newSelection) {
@@ -277,9 +294,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
             ),
           ),
           if (_isLoading) const LinearProgressIndicator(),
-          Expanded(
-            child: _isMapView ? _buildMapView() : _buildListView(),
-          ),
+          Expanded(child: _isMapView ? _buildMapView() : _buildListView()),
         ],
       ),
     );

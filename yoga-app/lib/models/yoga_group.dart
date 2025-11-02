@@ -162,17 +162,33 @@ class YogaGroup {
       return instructorField?.toString() ?? '';
     }
 
+    double? parsedLatitude;
+    double? parsedLongitude;
+
+    // Check for GeoJSON-style location
+    if (j['location'] is Map && j['location']['coordinates'] is List) {
+      final coords = List<dynamic>.from(j['location']['coordinates']);
+
+      // Standard GeoJSON is [longitude, latitude] (index 0 is lon, index 1 is lat)
+      if (coords.length == 2) {
+        parsedLongitude = (coords[0] as num?)?.toDouble();
+        parsedLatitude = (coords[1] as num?)?.toDouble();
+      }
+    }
+
     return YogaGroup(
       id: (j['_id'] ?? j['id'] ?? '').toString(),
       name: (j['group_name'] ?? '').toString(),
       groupType: j['groupType'] as String? ?? 'offline',
-      location: (j['location'] is Map // <-- ADD 'location:' KEY HERE
-              ? (j['location']['coordinates']?.toString() ?? '')
-              : (j['location'] ?? ''))
-          .toString(),
+      location:
+          (j['location']
+                      is Map // <-- ADD 'location:' KEY HERE
+                  ? (j['location']['coordinates']?.toString() ?? '')
+                  : (j['location'] ?? ''))
+              .toString(),
       locationText: (j['location_text'] ?? '').toString(),
-      latitude: (j['latitude'] as num?)?.toDouble(),
-      longitude: (j['longitude'] as num?)?.toDouble(),
+      latitude: parsedLatitude ?? (j['latitude'] as num?)?.toDouble(),
+      longitude: parsedLongitude ?? (j['longitude'] as num?)?.toDouble(),
       schedule: Schedule.fromJson(j['schedule'] ?? {}),
       yogaStyle: (j['yoga_style'] ?? 'hatha').toString(),
       color: (j['color'] ?? '#4CAF50').toString(),
