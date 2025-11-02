@@ -6,7 +6,7 @@ import 'models/user.dart';
 import 'models/yoga_group.dart';
 import 'models/attendance.dart';
 import 'models/session_qr_code.dart';
-import 'models/session.dart'; 
+import 'models/session.dart';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -17,20 +17,17 @@ import 'src/client_provider.dart' // This imports the mobile file by default
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-
-
 class ApiService with ChangeNotifier {
-String get baseUrl {
+  String get baseUrl {
     // 1. Read from environment variables.
     //    We default to the deployed URL.
     const String apiUrl = String.fromEnvironment(
       'API_URL',
-      defaultValue: 'https://yoga-app-7drp.onrender.com',
+      defaultValue: 'http://10.121.118.41:3000',
     );
-
     // 2. kIsWeb check for web-specific debugging is acceptable.
     if (kIsWeb) {
-      return 'http://localhost:3000';
+      return 'http://10.121.118.41:3000';
     }
 
     // 3. Return the environment-defined URL.
@@ -71,7 +68,10 @@ String get baseUrl {
     await _secureStorage.delete(key: 'jwt');
   }
 
-  Map<String, String> _authHeaders({bool includeContentType = true, bool optional = false}) {
+  Map<String, String> _authHeaders({
+    bool includeContentType = true,
+    bool optional = false,
+  }) {
     final headers = <String, String>{};
     if (includeContentType) headers['Content-Type'] = 'application/json';
 
@@ -151,7 +151,7 @@ String get baseUrl {
         notifyListeners();
         return false;
       }
-      
+
       // If token exists, try to get profile (which verifies the token's validity)
       final res = await _client.get(
         Uri.parse('$baseUrl/api/auth/profile'),
@@ -160,12 +160,16 @@ String get baseUrl {
 
       if (res.statusCode == 200) {
         final data = _decode(res);
-        _currentUser = User.fromJson(data['data']); // User is nested under 'data' in your backend response
+        _currentUser = User.fromJson(
+          data['data'],
+        ); // User is nested under 'data' in your backend response
         _isAuthenticated = true;
         notifyListeners();
         return true;
       }
-      debugPrint("[tryAutoLogin] Failed. Status code: ${res.statusCode}. Clearing token.");
+      debugPrint(
+        "[tryAutoLogin] Failed. Status code: ${res.statusCode}. Clearing token.",
+      );
       // If token is invalid/expired (e.g., status 401), clear it.
       await _clearToken();
       _isAuthenticated = false;
@@ -190,11 +194,14 @@ String get baseUrl {
     final data = _decode(res);
     _ensureOk(res, data);
 
-    final token = data['data']['token']; // Assuming your mobile backend sends JWT here
+    final token =
+        data['data']['token']; // Assuming your mobile backend sends JWT here
     if (token == null) {
-      throw Exception('Login succeeded but token was not returned in JSON body.');
+      throw Exception(
+        'Login succeeded but token was not returned in JSON body.',
+      );
     }
-    
+
     await _saveToken(token);
     _currentUser = User.fromJson(data['data']['user']);
     _isAuthenticated = true;
@@ -240,7 +247,8 @@ String get baseUrl {
     );
     final data = _decode(res);
     _ensureCreated(res, data);
-    final token = data['data']['token']; // Assuming token is returned on successful registration
+    final token =
+        data['data']['token']; // Assuming token is returned on successful registration
     if (token != null) {
       await _saveToken(token);
     }
@@ -450,7 +458,6 @@ String get baseUrl {
 
       // 4. CRITICAL: Notify all listening widgets that the list has changed.
       notifyListeners();
-
     } catch (e) {
       // Don't poison the cache on a temporary network error
       debugPrint("Failed to fetch joined groups: $e");
@@ -481,9 +488,7 @@ String get baseUrl {
       '$baseUrl/api/attendance/user/$userId',
     ).replace(queryParameters: {'group_id': groupId});
 
-    final res = await _client.get(uri, 
-      headers: _authHeaders()
-    );
+    final res = await _client.get(uri, headers: _authHeaders());
     final data = _decode(res);
     _ensureOk(res, data);
 
@@ -532,9 +537,7 @@ String get baseUrl {
         if (longitude != null) 'longitude': longitude.toString(),
       },
     );
-    final res = await _client.get(uri, 
-      headers: _authHeaders(optional: true)
-    );
+    final res = await _client.get(uri, headers: _authHeaders(optional: true));
     final data = _decode(res);
     _ensureOk(res, data);
     final payload = data['data'];
@@ -555,9 +558,7 @@ String get baseUrl {
             'lon': longitude.toString(),
           },
         );
-    final res = await _client.get(uri, 
-      headers: _authHeaders(optional: true)
-      );
+    final res = await _client.get(uri, headers: _authHeaders(optional: true));
     final data = _decode(res);
     _ensureOk(res, data);
 

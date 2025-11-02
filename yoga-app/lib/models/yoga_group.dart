@@ -186,7 +186,11 @@ class YogaGroup {
                   ? (j['location']['coordinates']?.toString() ?? '')
                   : (j['location'] ?? ''))
               .toString(),
-      locationText: (j['location_text'] ?? '').toString(),
+      locationText:
+          (j['location'] is Map
+                  ? (j['location']['address'] ?? '').toString()
+                  : (j['location_text'] ?? ''))
+              .toString(),
       latitude: parsedLatitude ?? (j['latitude'] as num?)?.toDouble(),
       longitude: parsedLongitude ?? (j['longitude'] as num?)?.toDouble(),
       schedule: Schedule.fromJson(j['schedule'] ?? {}),
