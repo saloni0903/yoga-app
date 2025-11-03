@@ -18,7 +18,6 @@ const { sendNotificationToUser } = require('../services/notificationService');
 // Get all groups (RE-ARCHITECTED FOR ONLINE/OFFLINE)
 router.get('/', async (req, res) => {
   try {
-    // 1. GET ALL QUERY PARAMS (including new 'groupType')
     const {
       search,
       latitude,
@@ -26,22 +25,22 @@ router.get('/', async (req, res) => {
       page = 1,
       limit = 10,
       instructor_id,
-      groupType = 'all', // 'all', 'offline', 'online'
     } = req.query;
 
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    // 2. BUILD BASE TEXT/ID MATCH
-    const baseMatchConditions = {};
+    let query = {};
+
+    // Filter by instructor if provided
     if (instructor_id) {
-      baseMatchConditions.instructor_id = new mongoose.Types.ObjectId(
-        instructor_id,
-      );
+      query.instructor_id = new mongoose.Types.ObjectId(instructor_id);
     }
+
+    // Text search across multiple fields
     if (search) {
-      baseMatchConditions.$or = [
+      query.$or = [
         { group_name: { $regex: search, $options: 'i' } },
         { 'location.address': { $regex: search, $options: 'i' } },
         { description: { $regex: search, $options: 'i' } },
@@ -49,94 +48,75 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    // 3. BUILD THE PIPELINE
-    const pipeline = [];
-    let searchCoords;
+    // Separate offline and online groups
+    const offlineQuery = { ...query, groupType: 'offline' };
+    const onlineQuery = { ...query, groupType: 'online' };
 
+    let offlineGroups = [];
+    let onlineGroups = [];
+
+    // Fetch offline groups with distance if lat/long provided
     if (latitude && longitude) {
-      searchCoords = [parseFloat(longitude), parseFloat(latitude)];
-    }
-
-    // Check if this is a location-based search (user wants 'offline' or 'all' and provides location)
-    const isLocationSearch = searchCoords && groupType !== 'online';
-
-    if (isLocationSearch) {
-      // --- SCENARIO 1: LOCATION-BASED SEARCH (Nearby) ---
-      // This *only* returns offline groups, sorted by distance.
-      pipeline.push({
-        $geoNear: {
-          near: { type: 'Point', coordinates: searchCoords },
-          distanceField: 'distance',
-          spherical: true,
-          maxDistance: 50000, // 50km
-          query: {
-            ...baseMatchConditions,
-            groupType: 'offline', // $geoNear requires a location, so only offline
-          },
-        },
-      });
-      // We add a match for base conditions *again* just in case the query optimizer
-      // doesn't catch it in $geoNear
-      pipeline.push({ $match: { ...baseMatchConditions, groupType: 'offline' } });
-
-    } else {
-      // --- SCENARIO 2: TEXT-BASED SEARCH (No location or Online-only) ---
-      // This search is sorted by date, not distance.
+      const userCoords = [parseFloat(longitude), parseFloat(latitude)];
       
-      if (groupType === 'online') {
-        baseMatchConditions.groupType = 'online';
-      } else if (groupType === 'offline') {
-        baseMatchConditions.groupType = 'offline';
-      }
-      // If groupType is 'all', we add no filter, so it finds both.
-
-      pipeline.push({ $match: baseMatchConditions });
-      pipeline.push({ $sort: { created_at: -1 } });
+      offlineGroups = await Group.aggregate([
+        {
+          $geoNear: {
+            near: { type: 'Point', coordinates: userCoords },
+            distanceField: 'distance',
+            spherical: true,
+            maxDistance: 50000, // 50km radius
+            query: offlineQuery,
+          }
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'instructor_id',
+            foreignField: '_id',
+            as: 'instructor',
+          }
+        },
+        { $unwind: { path: '$instructor', preserveNullAndEmptyArrays: true } },
+        {
+          $addFields: {
+            instructor_id: {
+              _id: '$instructor._id',
+              firstName: '$instructor.firstName',
+              lastName: '$instructor.lastName',
+              email: '$instructor.email',
+            }
+          }
+        },
+        { $project: { instructor: 0 } }
+      ]);
+    } else {
+      // No location - fetch all offline groups
+      offlineGroups = await Group.find(offlineQuery)
+        .populate('instructor_id', 'firstName lastName email')
+        .sort({ created_at: -1 })
+        .lean();
     }
 
-    // 4. COMMON STAGES: Populate, Paginate, and Execute
-    
-    // Create count pipeline *before* pagination
-    const countPipeline = [...pipeline, { $count: 'total' }];
+    // Fetch all online groups (no distance)
+    onlineGroups = await Group.find(onlineQuery)
+      .populate('instructor_id', 'firstName lastName email')
+      .sort({ created_at: -1 })
+      .lean();
 
-    // Add pagination and instructor lookup to main pipeline
-    pipeline.push(
-      { $skip: skip },
-      { $limit: limitNum },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'instructor_id',
-          foreignField: '_id',
-          as: 'instructor',
-        },
-      },
-      { $unwind: { path: '$instructor', preserveNullAndEmptyArrays: true } },
-      {
-        $addFields: {
-          'instructor_id': {
-            _id: '$instructor._id',
-            firstName: '$instructor.firstName',
-            lastName: '$instructor.lastName',
-            email: '$instructor.email',
-          },
-        },
-      },
-      { $project: { instructor: 0 } },
-    );
+    // Combine results
+    let allGroups = [...offlineGroups, ...onlineGroups];
 
-    // 5. EXECUTE QUERIES
-    const [groups, totalResult] = await Promise.all([
-      Group.aggregate(pipeline),
-      Group.aggregate(countPipeline),
-    ]);
+    // Apply pagination
+    const total = allGroups.length;
+    const paginatedGroups = allGroups.slice(skip, skip + limitNum);
 
-    const total = totalResult.length > 0 ? totalResult[0].total : 0;
-
-    // Manually add virtuals (aggregate skips them)
-    const groupsWithVirtuals = groups.map(group => ({
+    // Add location_text virtual
+    const groupsWithVirtuals = paginatedGroups.map(group => ({
       ...group,
-      location_text: (group.groupType === 'offline' && group.location) ? group.location.address : null,
+      location_text: (group.groupType === 'offline' && group.location) 
+        ? group.location.address 
+        : null,
       id: group._id,
     }));
 
@@ -148,15 +128,16 @@ router.get('/', async (req, res) => {
           current: pageNum,
           pages: Math.ceil(total / limitNum),
           total,
-        },
-      },
+        }
+      }
     });
+
   } catch (error) {
     console.error('Get groups error:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch groups',
-      error: error.message,
+      error: error.message
     });
   }
 });
@@ -182,27 +163,43 @@ router.get('/my-groups', auth, async (req, res) => {
 });
 
 // Get group by ID (This one can still populate for detail views)
+// ==================== GET SINGLE GROUP ====================
 router.get('/:id', async (req, res) => {
   try {
     const group = await Group.findById(req.params.id)
-      .populate('instructor_id', 'firstName lastName email phone');
+      .populate('instructor_id', 'firstName lastName email')
+      .lean(); // Add .lean() to get plain object
     
     if (!group) {
-      return res.status(404).json({ success: false, message: 'Group not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'Group not found'
+      });
     }
 
-    const memberCount = await GroupMember.countDocuments({ 
-      group_id: req.params.id, 
-      status: 'active' 
-    });
+    // Add location_text virtual and member count
+    const groupData = {
+      ...group,
+      location_text: (group.groupType === 'offline' && group.location) 
+        ? group.location.address 
+        : null,
+      id: group._id.toString(),
+    };
+    
+    // Add member count
+    const memberCount = await GroupMember.countDocuments({ group_id: group._id });
+    groupData.memberCount = memberCount;
+
+    // CRITICAL FIX: Ensure meetLink is always present for online groups
+    if (group.groupType === 'online') {
+      groupData.meetLink = group.meetLink || null;
+    }
 
     res.json({
       success: true,
-      data: {
-        ...group.toObject({ virtuals: true }), // Ensure virtuals are included
-        memberCount
-      }
+      data: groupData
     });
+
   } catch (error) {
     console.error('Get group error:', error);
     res.status(500).json({
@@ -296,50 +293,117 @@ router.post('/', auth, async (req, res) => {
 // All other routes (PUT, DELETE, /join, etc.) remain the same.
 // ... (paste the rest of your original groups.js file here) ...
 // Update group
-router.put('/:id', auth, async (req, res) => { // Added auth middleware
+router.put('/:id', auth, async (req, res) => {
   try {
-    const { latitude, longitude, schedule, meetLink, ...otherDetails } = req.body;
-    const updateData = { ...otherDetails };
-
-    // If latitude and longitude are provided, construct the location object
-    if (latitude && longitude) {
-      updateData.location = {
-        type: 'Point',
-        coordinates: [parseFloat(longitude), parseFloat(latitude)],
-      };
-      updateData.latitude = parseFloat(latitude);
-      updateData.longitude = parseFloat(longitude);
-    }
-    if (schedule) {
-        updateData.schedule = schedule;
-    }
-    if (meetLink) {
-        updateData.meetLink = meetLink;
-    }
-
-    const group = await Group.findByIdAndUpdate(
-      req.params.id,
-      { $set: updateData }, // Use $set for safer updates
-      { new: true, runValidators: true }
-    ).populate('instructor_id', 'firstName lastName email');
-
-    if (!group) {
+    const groupId = req.params.id;
+    
+    // Find existing group
+    const existingGroup = await Group.findById(groupId);
+    if (!existingGroup) {
       return res.status(404).json({
         success: false,
         message: 'Group not found'
       });
     }
 
+    // Check authorization
+    if (existingGroup.instructor_id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this group'
+      });
+    }
+
+    const {
+      group_name,
+      groupType,
+      latitude,
+      longitude,
+      location_text,
+      schedule,
+      yoga_style,
+      difficulty_level,
+      description,
+      max_participants,
+      price_per_session,
+      currency,
+      requirements,
+      equipment_needed,
+      is_active,
+      color,
+      meetLink,
+    } = req.body;
+
+    const updateData = {};
+    const unsetData = {};
+
+    // Update basic fields if provided
+    if (group_name !== undefined) updateData.group_name = group_name;
+    if (groupType !== undefined) updateData.groupType = groupType;
+    if (schedule !== undefined) updateData.schedule = schedule;
+    if (yoga_style !== undefined) updateData.yoga_style = yoga_style;
+    if (difficulty_level !== undefined) updateData.difficulty_level = difficulty_level;
+    if (description !== undefined) updateData.description = description;
+    if (max_participants !== undefined) updateData.max_participants = max_participants;
+    if (price_per_session !== undefined) updateData.price_per_session = price_per_session;
+    if (currency !== undefined) updateData.currency = currency;
+    if (requirements !== undefined) updateData.requirements = requirements;
+    if (equipment_needed !== undefined) updateData.equipment_needed = equipment_needed;
+    if (is_active !== undefined) updateData.is_active = is_active;
+    if (color !== undefined) updateData.color = color;
+
+    // Determine final groupType
+    const finalGroupType = groupType || existingGroup.groupType;
+
+    // Handle location/meetLink based on groupType
+    if (finalGroupType === 'offline') {
+      // Update location if all coordinates provided
+      if (latitude && longitude && location_text) {
+        updateData.location = {
+          type: 'Point',
+          coordinates: [parseFloat(longitude), parseFloat(latitude)],
+          address: location_text
+        };
+      }
+      // Clear meetLink for offline groups
+      unsetData.meetLink = '';
+      
+    } else if (finalGroupType === 'online') {
+      // Update meetLink if provided
+      if (meetLink !== undefined) {
+        updateData.meetLink = meetLink;
+      }
+      // Clear location for online groups
+      unsetData.location = '';
+    }
+
+    // Build update query
+    const updateQuery = { $set: updateData };
+    if (Object.keys(unsetData).length > 0) {
+      updateQuery.$unset = unsetData;
+    }
+
+    // Perform update
+    const updatedGroup = await Group.findByIdAndUpdate(
+      groupId,
+      updateQuery,
+      { new: true, runValidators: true }
+    ).populate('instructor_id', 'firstName lastName email');
+
     res.json({
       success: true,
       message: 'Group updated successfully',
-      data: group
+      data: updatedGroup
     });
+
   } catch (error) {
     console.error('Update group error:', error);
-    // Add specific validation error handling
     if (error.name === 'ValidationError') {
-      return res.status(400).json({ success: false, message: 'Group validation failed', error: error.message });
+      return res.status(400).json({
+        success: false,
+        message: 'Group validation failed',
+        error: error.message
+      });
     }
     res.status(500).json({
       success: false,
@@ -348,7 +412,6 @@ router.put('/:id', auth, async (req, res) => { // Added auth middleware
     });
   }
 });
-
 // // ADD THIS NEW ROUTE
 // router.get('/:id/sessions', async (req, res) => {
 //   try {

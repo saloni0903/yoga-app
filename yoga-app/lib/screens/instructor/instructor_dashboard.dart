@@ -19,6 +19,7 @@ import 'package:yoga_app/generated/app_localizations.dart';
 import '../../utils/date_helper.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:intl/intl.dart';
+import 'package:intl/intl.dart';
 
 class InstructorDashboard extends StatefulWidget {
   const InstructorDashboard({super.key});
@@ -94,6 +95,9 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
                 (currentUser.firstName.isNotEmpty)
                     ? currentUser.firstName[0].toUpperCase()
                     : 'I',
+                (currentUser.firstName.isNotEmpty)
+                    ? currentUser.firstName[0].toUpperCase()
+                    : 'I',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
@@ -132,7 +136,9 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
           ),
         ],
       ),
-      floatingActionButton: _currentIndex == 1 // Only show FAB on "My Groups" tab
+      floatingActionButton:
+          _currentIndex ==
+              1 // Only show FAB on "My Groups" tab
           ? FloatingActionButton.extended(
               icon: const Icon(Icons.add),
               label: Text(l10n.newGroupButton),
@@ -460,15 +466,33 @@ class _InstructorMyGroupsTabState extends State<InstructorMyGroupsTab> {
 class _GroupListItem extends StatelessWidget {
   final YogaGroup group;
   final VoidCallback onUpdate;
-
   const _GroupListItem({required this.group, required this.onUpdate});
 
   @override
   Widget build(BuildContext context) {
     final apiService = Provider.of<ApiService>(context, listen: false);
     final currentUser = apiService.currentUser;
+    final theme = Theme.of(context);
 
     if (currentUser == null) return const SizedBox.shrink();
+
+    // Parse color
+    Color groupColor = theme.colorScheme.primary;
+    try {
+      final colorValue = int.parse(group.color.substring(1), radix: 16);
+      groupColor = Color(0xFF000000 | colorValue);
+    } catch (e) {
+      // Use default color
+    }
+
+    // Format text
+    final formattedStyle = toBeginningOfSentenceCase(group.yogaStyle);
+    final formattedDifficulty = toBeginningOfSentenceCase(
+      group.difficultyLevel.replaceAll('-', ' '),
+    );
+    final nextSessionText = DateHelper.getNextSessionTextFromSchedule(
+      group.schedule,
+    );
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),

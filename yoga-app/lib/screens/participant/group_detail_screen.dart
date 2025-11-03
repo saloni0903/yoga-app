@@ -43,7 +43,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   }
 
   Future<void> _launchMaps(double latitude, double longitude) async {
-    final uri = Uri.parse('https://maps.google.com/?q=$latitude,$longitude');
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude',
+    );
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
@@ -52,6 +54,49 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           const SnackBar(
             content: Text('Could not open maps application.'),
             backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _launchMeetLink(String meetLink) async {
+    try {
+      // Trim whitespace
+      String cleanedLink = meetLink.trim();
+
+      // Add https:// if no protocol is specified
+      if (!cleanedLink.startsWith('http://') &&
+          !cleanedLink.startsWith('https://')) {
+        cleanedLink = 'https://$cleanedLink';
+      }
+
+      final uri = Uri.parse(cleanedLink);
+
+      // Validate the URI
+      if (!uri.hasScheme || uri.host.isEmpty) {
+        throw Exception('Invalid URL format');
+      }
+
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        throw Exception('No app can handle this link');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not open meeting link: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: 'Copy Link',
+              textColor: Colors.white,
+              onPressed: () {
+                // Optional: Add clipboard copy functionality
+                // Clipboard.setData(ClipboardData(text: meetLink));
+              },
+            ),
           ),
         );
       }
@@ -87,6 +132,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
           final group = snapshot.data!.$1;
           final attendanceHistory = snapshot.data!.$2;
+          final isOffline = group.groupType == 'offline';
 
           return RefreshIndicator(
             onRefresh: () async => _loadDetails(),
@@ -98,16 +144,29 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   _buildAttendanceCard(context),
                 if(group.groupType == 'offline')
                   const SizedBox(height: 20),
+                // Action card - QR scan or Join Online
+                _buildActionCard(context, group),
+                const SizedBox(height: 20),
+
+                // About section with map/link
                 _buildAboutCard(context, group),
                 const SizedBox(height: 16),
-                _buildScheduleAndStyleCard(context, group),
+
+                // Class Details
+                _buildClassDetailsCard(context, group),
                 const SizedBox(height: 16),
+
+                // Logistics
                 _buildLogisticsCard(context, group),
                 const SizedBox(height: 16),
+
+                // Instructor
                 if (group.instructorName != null &&
                     group.instructorName!.isNotEmpty)
                   _buildInstructorCard(context, group),
                 const SizedBox(height: 16),
+
+                // Attendance History
                 _buildAttendanceHistoryCard(context, attendanceHistory),
               ],
             ),
@@ -121,8 +180,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   // ✨ --- ALL HELPER FUNCTIONS ARE NOW *OUTSIDE* BUILD, AS CLASS METHODS ---
   //
 
-  Widget _buildAttendanceCard(BuildContext context) {
+  Widget _buildActionCard(BuildContext context, YogaGroup group) {
+    final isOnline = group.groupType == 'online';
     final apiService = Provider.of<ApiService>(context, listen: false);
+
     return Card(
       elevation: 2,
       shadowColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
@@ -135,68 +196,109 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
-            FilledButton.icon(
-              icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('Scan to Mark Attendance'),
-              onPressed: () async {
-                final String? qrToken = await Navigator.push<String>(
-                  context,
-                  MaterialPageRoute(builder: (_) => const QrScannerScreen()),
-                );
-                if (qrToken != null && mounted) {
-                  try {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Marking attendance...')),
-                    );
-                    await apiService.markAttendanceByQr(qrToken: qrToken);
-                    ScaffoldMessenger.of(context).removeCurrentSnackBar();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Attendance Marked Successfully!'),
-                        backgroundColor: Colors.green,
+
+            // Online: Show Join + Scan side by side
+            if (isOnline &&
+                group.meetLink != null &&
+                group.meetLink!.isNotEmpty)
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.videocam),
+                      label: const Text('Join Session'),
+                      onPressed: () => _launchMeetLink(group.meetLink!),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 48),
                       ),
-                    );
-                    _loadDetails();
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).removeCurrentSnackBar();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Scan Failed: ${e.toString().replaceFirst("Exception: ", "")}',
-                        ),
-                        backgroundColor: Colors.red,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton.tonalIcon(
+                      icon: const Icon(Icons.qr_code_scanner),
+                      label: const Text('Scan'),
+                      onPressed: () => _scanQrAndMarkAttendance(apiService),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 48),
                       ),
-                    );
-                  }
-                }
-              },
-            ),
+                    ),
+                  ),
+                ],
+              )
+            else if (isOnline)
+              // Online but no link: Only scan
+              FilledButton.icon(
+                icon: const Icon(Icons.qr_code_scanner),
+                label: const Text('Scan to Mark Attendance'),
+                onPressed: () => _scanQrAndMarkAttendance(apiService),
+              )
+            else
+              // Offline: Only scan
+              FilledButton.icon(
+                icon: const Icon(Icons.qr_code_scanner),
+                label: const Text('Scan to Mark Attendance'),
+                onPressed: () => _scanQrAndMarkAttendance(apiService),
+              ),
           ],
         ),
       ),
     );
   }
 
-Widget _buildAboutCard(BuildContext context, YogaGroup group) {
-    final isOffline = group.groupType == 'offline' &&
-        group.latitude != null &&
-        group.longitude != null;
+  Future<void> _scanQrAndMarkAttendance(ApiService apiService) async {
+    final String? qrToken = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const QrScannerScreen()),
+    );
+    if (qrToken != null && mounted) {
+      try {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Marking attendance...')));
+        await apiService.markAttendanceByQr(qrToken: qrToken);
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Attendance Marked Successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _loadDetails();
+      } catch (e) {
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Scan Failed: ${e.toString().replaceFirst("Exception: ", "")}',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildAboutCard(BuildContext context, YogaGroup group) {
+    final isOffline = group.groupType == 'offline';
+    final hasLocation = group.latitude != null && group.longitude != null;
 
     return Card(
-      clipBehavior: Clip.antiAlias, // Important for the map
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --- MAP PREVIEW (YEH MISSING THA) ---
-          if (isOffline)
+          // MAP for offline groups with valid coordinates
+          if (isOffline && hasLocation)
             SizedBox(
               height: 200,
               child: Stack(
                 children: [
                   FlutterMap(
                     options: MapOptions(
-                      initialCenter:
-                          LatLng(group.latitude!, group.longitude!),
+                      initialCenter: LatLng(group.latitude!, group.longitude!),
                       initialZoom: 15.0,
                     ),
                     children: [
@@ -209,8 +311,7 @@ Widget _buildAboutCard(BuildContext context, YogaGroup group) {
                           Marker(
                             width: 80.0,
                             height: 80.0,
-                            point:
-                                LatLng(group.latitude!, group.longitude!),
+                            point: LatLng(group.latitude!, group.longitude!),
                             child: Icon(
                               Icons.location_pin,
                               color: Theme.of(context).colorScheme.primary,
@@ -230,8 +331,7 @@ Widget _buildAboutCard(BuildContext context, YogaGroup group) {
                       onPressed: () =>
                           _launchMaps(group.latitude!, group.longitude!),
                       style: FilledButton.styleFrom(
-                        backgroundColor:
-                            Theme.of(context).colorScheme.surface,
+                        backgroundColor: Theme.of(context).colorScheme.surface,
                       ),
                     ),
                   ),
@@ -247,12 +347,14 @@ Widget _buildAboutCard(BuildContext context, YogaGroup group) {
               children: [
                 Text(
                   "About this Group",
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const Divider(height: 20),
+
+                // Description
+                if (group.description != null && group.description!.isNotEmpty)
                 if (group.description != null &&
                     group.description!.isNotEmpty)
                   Padding(
@@ -267,17 +369,28 @@ Widget _buildAboutCard(BuildContext context, YogaGroup group) {
                     padding: EdgeInsets.only(bottom: 12.0),
                     child: Text(
                       'No description provided for this group.',
-                      style: TextStyle(fontStyle: FontStyle.italic),
+                      style: TextStyle(
+                        fontStyle: FontStyle.italic,
+                        color: Colors.grey,
+                      ),
                     ),
                   ),
-                _buildInfoRow(
-                  context,
-                  isOffline
-                      ? Icons.location_on_outlined
-                      : Icons.videocam_outlined,
-                  "Location",
-                  group.displayLocation,
-                ),
+
+                // Location/Online info
+                if (isOffline && group.locationText.isNotEmpty)
+                  _buildInfoRow(
+                    context,
+                    Icons.location_on_outlined,
+                    "Location",
+                    group.locationText,
+                  )
+                else if (!isOffline)
+                  _buildInfoRow(
+                    context,
+                    Icons.videocam_outlined,
+                    "Session Type",
+                    "Online",
+                  ),
               ],
             ),
           ),
@@ -286,7 +399,7 @@ Widget _buildAboutCard(BuildContext context, YogaGroup group) {
     );
   }
 
-  Widget _buildScheduleAndStyleCard(BuildContext context, YogaGroup group) {
+  Widget _buildClassDetailsCard(BuildContext context, YogaGroup group) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -432,7 +545,8 @@ Widget _buildAboutCard(BuildContext context, YogaGroup group) {
               "Name",
               group.instructorName!,
             ),
-            if (group.instructorEmail != null)
+            if (group.instructorEmail != null &&
+                group.instructorEmail!.isNotEmpty)
               _buildInfoRow(
                 context,
                 Icons.alternate_email_outlined,
@@ -466,7 +580,13 @@ Widget _buildAboutCard(BuildContext context, YogaGroup group) {
               const Center(
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 16.0),
-                  child: Text("No attendance records found for this group."),
+                  child: Text(
+                    "No attendance records found for this group.",
+                    style: TextStyle(
+                      fontStyle: FontStyle.italic,
+                      color: Colors.grey,
+                    ),
+                  ),
                 ),
               )
             else

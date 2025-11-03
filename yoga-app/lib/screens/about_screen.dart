@@ -87,7 +87,7 @@ class AboutScreen extends StatelessWidget {
                         onPressed: () {
                           // ❗ IMPORTANT: Replace this with the actual URL of your PDF file
                           const pdfUrl =
-                              'https://drive.google.com/file/d/1OntCVlAN_rmmNYrY1dCSnYReCnQfil7C/view?usp=drivesdk';
+                              'https://drive.google.com/file/d/1pRUboC_Uq7P_QSo_O9OY_h4zB05BdyNL/view?usp=drive_link';
                           _launchURL(context, pdfUrl);
                         },
                       ),
