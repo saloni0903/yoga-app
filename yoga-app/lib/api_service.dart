@@ -23,11 +23,11 @@ class ApiService with ChangeNotifier {
     //    We default to the deployed URL.
     const String apiUrl = String.fromEnvironment(
       'API_URL',
-      defaultValue: 'http://10.121.118.41:3000',
+      defaultValue: 'https://yoga-app-7drp.onrender.com',
     );
     // 2. kIsWeb check for web-specific debugging is acceptable.
     if (kIsWeb) {
-      return 'http://10.121.118.41:3000';
+      return 'http://localhost:3000';
     }
 
     // 3. Return the environment-defined URL.
