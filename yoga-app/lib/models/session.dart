@@ -7,6 +7,7 @@ class Session {
   final String groupColor;
   final DateTime sessionDate;
   final String status; // 'upcoming', 'attended', 'missed'
+  final DateTime endTime; // Optional end time for the session
 
   Session({
     required this.id,
@@ -15,6 +16,7 @@ class Session {
     required this.groupColor,
     required this.sessionDate,
     required this.status,
+    required this.endTime,
   });
 
   factory Session.fromJson(Map<String, dynamic> json) {
@@ -27,6 +29,7 @@ class Session {
       groupColor: groupInfo['color'] ?? '#808080', // Default grey
       sessionDate: DateTime.parse(json['session_date']).toLocal(),
       status: json['status'] ?? 'upcoming',
+      endTime: DateTime.parse(json['endTime']),
     );
   }
 }

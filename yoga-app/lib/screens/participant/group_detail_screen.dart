@@ -1,4 +1,5 @@
-// lib/screens/participant/group_detail_screen.dart
+// REPLACE YOUR ENTIRE lib/screens/participant/group_detail_screen.dart FILE WITH THIS
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../api_service.dart';
@@ -31,25 +32,21 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   void _loadDetails() {
     final apiService = Provider.of<ApiService>(context, listen: false);
     setState(() {
-      _detailsFuture =
-          Future.wait([
-            apiService.getGroupById(widget.groupId),
-            apiService.getAttendanceForGroup(widget.groupId),
-          ]).then(
-            (results) =>
-                (results[0] as YogaGroup, results[1] as List<AttendanceRecord>),
-          );
+      _detailsFuture = Future.wait([
+        apiService.getGroupById(widget.groupId),
+        apiService.getAttendanceForGroup(widget.groupId),
+      ]).then(
+        (results) =>
+            (results[0] as YogaGroup, results[1] as List<AttendanceRecord>),
+      );
     });
   }
 
   Future<void> _launchMaps(double latitude, double longitude) async {
-    // This creates a cross-platform Google Maps URL
-    final uri = Uri.parse(
-        'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude');
+    final uri = Uri.parse('https://maps.google.com/?q=$latitude,$longitude');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
-      // Handle error
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -65,7 +62,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // The title now dynamically updates once the group name is loaded.
         title: FutureBuilder<(YogaGroup, List<AttendanceRecord>)>(
           future: _detailsFuture,
           builder: (context, snapshot) {
@@ -97,16 +93,17 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
               children: [
-                // Action card is placed first for easy access.
-                _buildAttendanceCard(context),
-                const SizedBox(height: 20),
+                // ✨ All functions are now called correctly as class methods
+                if(group.groupType == 'Offline')
+                  _buildAttendanceCard(context),
+                if(group.groupType == 'offline')
+                  const SizedBox(height: 20),
                 _buildAboutCard(context, group),
                 const SizedBox(height: 16),
                 _buildScheduleAndStyleCard(context, group),
                 const SizedBox(height: 16),
                 _buildLogisticsCard(context, group),
                 const SizedBox(height: 16),
-                // Only show the instructor card if their name is available.
                 if (group.instructorName != null &&
                     group.instructorName!.isNotEmpty)
                   _buildInstructorCard(context, group),
@@ -118,10 +115,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         },
       ),
     );
-  }
+  } // <-- BUILD METHOD ENDS HERE
+
+  //
+  // ✨ --- ALL HELPER FUNCTIONS ARE NOW *OUTSIDE* BUILD, AS CLASS METHODS ---
+  //
 
   Widget _buildAttendanceCard(BuildContext context) {
-    // This widget remains the same as it was already functional.
     final apiService = Provider.of<ApiService>(context, listen: false);
     return Card(
       elevation: 2,
@@ -177,7 +177,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  Widget _buildAboutCard(BuildContext context, YogaGroup group) {
+Widget _buildAboutCard(BuildContext context, YogaGroup group) {
     final isOffline = group.groupType == 'offline' &&
         group.latitude != null &&
         group.longitude != null;
@@ -187,7 +187,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --- 1. MAP PREVIEW (for offline groups) ---
+          // --- MAP PREVIEW (YEH MISSING THA) ---
           if (isOffline)
             SizedBox(
               height: 200,
@@ -221,7 +221,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                       ),
                     ],
                   ),
-                  // --- 2. "OPEN IN MAPS" BUTTON ---
                   Positioned(
                     bottom: 12,
                     right: 12,
@@ -240,7 +239,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               ),
             ),
           
-          // --- 3. DETAILS SECTION (for all groups) ---
+          // --- DETAILS SECTION (YEH PEHLE SE THA) ---
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -254,8 +253,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                       ?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const Divider(height: 20),
-                
-                // --- 4. DESCRIPTION (This was missing) ---
                 if (group.description != null &&
                     group.description!.isNotEmpty)
                   Padding(
@@ -266,7 +263,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     ),
                   )
                 else
-                  // Show a fallback if description is empty
                   const Padding(
                     padding: EdgeInsets.only(bottom: 12.0),
                     child: Text(
@@ -274,8 +270,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                       style: TextStyle(fontStyle: FontStyle.italic),
                     ),
                   ),
-                    
-                // --- 5. LOCATION TEXT (now uses displayLocation) ---
                 _buildInfoRow(
                   context,
                   isOffline
@@ -318,8 +312,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     minimumSize: const Size(double.infinity, 48),
                   ),
                   onPressed: () async {
-                    // Make sure you have url_launcher added to pubspec.yaml
-                    final uri = Uri.parse(group.meetLink!);
+                    String url = group.meetLink!;
+                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                      url = 'https://$url';
+                    }
+                    final uri = Uri.parse(url); // <-- 'url' variable use karo
                     if (await canLaunchUrl(uri)) {
                       await launchUrl(uri,
                           mode: LaunchMode.externalApplication);
@@ -385,7 +382,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               context,
               Icons.payments_outlined,
               "Price",
-              // Handle "Free" case
               group.pricePerSession == 0
                   ? "Free"
                   : "${group.pricePerSession.toStringAsFixed(0)} ${group.currency}",
@@ -396,25 +392,19 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               "Class Size",
               "Up to ${group.maxParticipants} participants",
             ),
-            
-            // --- 1. REQUIREMENTS (This was missing) ---
             if (group.requirements.isNotEmpty)
               _buildInfoRow(
                 context,
                 Icons.checklist_outlined,
                 "Requirements",
-                // Join the list into a comma-separated string
-                group.requirements.join(', '), 
+                group.requirements.join(', '),
               ),
-              
-            // --- 2. EQUIPMENT (This was missing) ---
             if (group.equipmentNeeded.isNotEmpty)
               _buildInfoRow(
                 context,
                 Icons.fitness_center_outlined,
                 "Equipment Provided",
-                // Join the list into a comma-separated string
-                group.equipmentNeeded.join(', '), 
+                group.equipmentNeeded.join(', '),
               ),
           ],
         ),
@@ -535,4 +525,4 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       ),
     );
   }
-}
+} // <-- CLASS ENDS HERE

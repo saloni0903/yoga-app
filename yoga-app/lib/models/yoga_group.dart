@@ -6,7 +6,7 @@ class Schedule {
   final String endTime; // "HH:mm"
   final List<String> days; // ["Monday", "Friday"]
   final DateTime startDate;
-  final DateTime endDate;
+  // final Time endDate;
 
   Schedule({
     required this.startTime,

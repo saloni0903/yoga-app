@@ -1,21 +1,84 @@
-// backend/routes/attendance.js
+// REPLACE YOUR ENTIRE backend/routes/attendance.js FILE WITH THIS
+
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const Attendance = require('../model/Attendance');
 const GroupMember = require('../model/GroupMember');
 const SessionQRCode = require('../model/SessionQRCode');
+const User = require('../model/User'); // <-- REQUIRED FOR STREAK
+const Group = require('../model/Group'); // <-- REQUIRED FOR STREAK
 
-const isAdmin = require('../middleware/isAdmin'); // ADD THIS LINE if not present
-const Group = require('../model/Group'); // ADD THIS LINE if not present
-const User = require('../model/User'); // ADD THIS LINE if not present
+const isAdmin = require('../middleware/isAdmin');
+
+// --- ✨ NEW HELPER FUNCTION FOR STREAK & STATS ---
+async function updateUserStats(userId, groupId, sessionDate) {
+  try {
+    const user = await User.findById(userId);
+    const group = await Group.findById(groupId);
+
+    if (!user || !group) {
+      console.log('User or Group not found, cannot update stats.');
+      return;
+    }
+
+    // 1. Update Total Sessions & Minutes
+    const [startHour, startMin] = group.schedule.startTime.split(':').map(Number);
+    const [endHour, endMin] = group.schedule.endTime.split(':').map(Number);
+    const durationInMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
+
+    user.totalSessionsAttended = (user.totalSessionsAttended || 0) + 1;
+    if (durationInMinutes > 0) {
+      user.totalMinutesPracticed = (user.totalMinutesPracticed || 0) + durationInMinutes;
+    }
+
+    // 2. Update Streak Logic
+    const currentSessionDay = new Date(sessionDate);
+    currentSessionDay.setHours(0, 0, 0, 0);
+
+    const yesterday = new Date(currentSessionDay);
+    yesterday.setDate(currentSessionDay.getDate() - 1);
+
+    // Find the most recent attendance *before* this session's day
+    const lastAttendance = await Attendance.findOne({
+      user_id: userId,
+      session_date: { $lt: currentSessionDay }
+    }).sort({ session_date: -1 });
+
+    if (!lastAttendance) {
+      // This is the user's first-ever attendance (or first in a long time)
+      user.currentStreak = 1;
+    } else {
+      const lastSessionDate = new Date(lastAttendance.session_date);
+      lastSessionDate.setHours(0, 0, 0, 0);
+
+      if (lastSessionDate.getTime() === yesterday.getTime()) {
+        // Consecutive day!
+        user.currentStreak = (user.currentStreak || 0) + 1;
+      } else if (lastSessionDate.getTime() < yesterday.getTime()) {
+        // Streak was broken (last attendance was > 1 day ago)
+        user.currentStreak = 1;
+      }
+      // If lastSessionDate.getTime() === currentSessionDay.getTime(),
+      // it means they already attended today, so we do nothing (streak doesn't increase twice).
+      // But our $lt query prevents this case anyway.
+    }
+
+    await user.save();
+    console.log(`Stats updated for user ${userId}: Streak ${user.currentStreak}`);
+
+  } catch (error) {
+    console.error(`Failed to update stats for user ${userId}:`, error.message);
+  }
+}
+// --- ✨ END OF HELPER FUNCTION ---
+
 
 // Mark attendance
 router.post('/mark', async (req, res) => {
   try {
     const { user_id, group_id, session_date, qr_code_id, attendance_type = 'present' } = req.body;
 
-    // Check if user is a member of the group
     const membership = await GroupMember.findOne({
       user_id,
       group_id,
@@ -29,34 +92,47 @@ router.post('/mark', async (req, res) => {
       });
     }
 
-    // Check if attendance already exists for this session
+    const sessionDay = new Date(session_date);
+    // Set to start of the day for accurate checking
+    sessionDay.setHours(0, 0, 0, 0); 
+    const nextDay = new Date(sessionDay);
+    nextDay.setDate(sessionDay.getDate() + 1);
+
     const existingAttendance = await Attendance.findOne({
       user_id,
       group_id,
-      session_date: new Date(session_date)
+      session_date: {
+        $gte: sessionDay,
+        $lt: nextDay
+      }
     });
 
     if (existingAttendance) {
       return res.status(400).json({
         success: false,
-        message: 'Attendance already marked for this session'
+        message: 'Attendance already marked for this session date'
       });
     }
 
     const attendance = new Attendance({
       user_id,
       group_id,
-      session_date: new Date(session_date),
+      session_date: new Date(session_date), // Store exact time
       qr_code_id,
       attendance_type
     });
 
     await attendance.save();
 
-    // Update membership attendance count
-    membership.attendance_count += 1;
-    membership.last_attended = new Date();
+    membership.attendance_count = (membership.attendance_count || 0) + 1;
+    membership.last_attended = new Date(session_date);
     await membership.save();
+
+    // --- ✨ ADDED STREAK LOGIC ---
+    if (attendance_type === 'present') {
+      await updateUserStats(user_id, group_id, attendance.session_date);
+    }
+    // ---
 
     res.status(201).json({
       success: true,
@@ -189,6 +265,10 @@ router.put('/:id', async (req, res) => {
         message: 'Attendance record not found'
       });
     }
+    
+    // Note: You might want to re-calculate streak here if attendance_type changes
+    // from 'absent' to 'present', but that's a more complex logic.
+    // For now, streak is only calculated on *new* 'present' marks.
 
     res.json({
       success: true,
@@ -217,7 +297,6 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
-    // Update membership attendance count
     const membership = await GroupMember.findOne({
       user_id: attendance.user_id,
       group_id: attendance.group_id
@@ -227,6 +306,9 @@ router.delete('/:id', async (req, res) => {
       membership.attendance_count -= 1;
       await membership.save();
     }
+    
+    // Note: Deleting an attendance record *should* trigger a streak re-calculation,
+    // but that is complex. For now, we'll just let the next check fix it.
 
     res.json({
       success: true,
@@ -242,52 +324,67 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Scan QR Code
 router.post('/scan', auth, async (req, res) => {
   try {
     const { token } = req.body;
-    const userId = req.user.id;
+    const userId = req.user.id; // User ID from auth middleware
 
     if (!token) {
       return res.status(400).json({ success: false, message: 'QR token is required.' });
     }
 
-    // 1. Find the QR code in the database
     const qrCode = await SessionQRCode.findOne({ token: token });
     if (!qrCode) {
       return res.status(404).json({ success: false, message: 'Invalid or incorrect QR code.' });
     }
 
-    // 2. Check if the QR code has expired
     if (new Date() > qrCode.expires_at) {
       return res.status(400).json({ success: false, message: 'This QR code has expired.' });
     }
 
-    // 3. Check if user is a member of the group associated with the QR code
     const groupId = qrCode.group_id;
-    const membership = await GroupMember.findOne({ user_id: userId, group_id: groupId });
+    const membership = await GroupMember.findOne({ user_id: userId, group_id: groupId, status: 'active' }); // Check status
     if (!membership) {
-      return res.status(403).json({ success: false, message: 'You are not a member of this group.' });
+      return res.status(403).json({ success: false, message: 'You are not an active member of this group.' });
     }
 
-    // 4. Check if attendance has already been marked for this specific session
+    // Check if attendance already marked for this *specific session date*
+    const sessionDay = new Date(qrCode.session_date);
+    sessionDay.setHours(0, 0, 0, 0);
+    const nextDay = new Date(sessionDay);
+    nextDay.setDate(sessionDay.getDate() + 1);
+
     const existingAttendance = await Attendance.findOne({
       user_id: userId,
       group_id: groupId,
-      session_date: qrCode.session_date
+      session_date: {
+        $gte: sessionDay,
+        $lt: nextDay
+      }
     });
 
     if (existingAttendance) {
-      return res.status(400).json({ success: false, message: 'Attendance already marked for this specific session.' });
+      return res.status(400).json({ success: false, message: 'Attendance already marked for this session date.' });
     }
 
-    // 5. All checks passed! Create the attendance record.
     const attendance = new Attendance({
       user_id: userId,
       group_id: groupId,
-      session_date: qrCode.session_date,
+      session_date: qrCode.session_date, // Use the exact date from QR code
       qr_code_id: qrCode._id,
+      attendance_type: 'present' // Scanning always marks 'present'
     });
     await attendance.save();
+
+    // Update membership stats
+    membership.attendance_count = (membership.attendance_count || 0) + 1;
+    membership.last_attended = qrCode.session_date;
+    await membership.save();
+
+    // --- ✨ ADDED STREAK LOGIC ---
+    await updateUserStats(userId, groupId, attendance.session_date);
+    // ---
 
     res.status(201).json({ success: true, message: 'Attendance marked successfully!', data: attendance });
 
@@ -297,66 +394,50 @@ router.post('/scan', auth, async (req, res) => {
   }
 });
 
-// --- NEW: GET All Attendance Records (For Past Sessions Page) ---
-router.get('/', auth, isAdmin, async (req, res) => { // Protected for Admin view
+
+// GET All Attendance Records (For Admin)
+router.get('/', auth, isAdmin, async (req, res) => {
   try {
     const { 
         page = 1, 
-        limit = 20, // Add pagination
-        sort = '-marked_at', // Default sort: newest first
-        populate = '' // Comma-separated fields: group_id,user_id,instructor_id
+        limit = 20,
+        sort = '-marked_at', 
+        populate = ''
     } = req.query;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
-    let query = Attendance.find(); // Start building the query
+    let query = Attendance.find();
 
-    // Handle Sorting
     if (sort) {
-        // Replace comma with space for Mongoose sort syntax e.g., "-marked_at,group_id" -> "-marked_at group_id"
         const sortQuery = sort.split(',').join(' '); 
         query = query.sort(sortQuery);
     }
 
-    // Handle Population
-    const fieldsToPopulate = populate.split(',').filter(field => field); // Split and remove empty strings
+    const fieldsToPopulate = populate.split(',').filter(field => field);
     if (fieldsToPopulate.includes('group_id')) {
         query = query.populate({ 
             path: 'group_id', 
-            select: 'group_name color instructor_id' // Include instructor_id if needed for nested populate
+            select: 'group_name color instructor_id'
         });
     }
     if (fieldsToPopulate.includes('user_id')) {
         query = query.populate({
             path: 'user_id',
-            select: 'firstName lastName email' // Select specific fields
+            select: 'firstName lastName email'
         });
     }
-     if (fieldsToPopulate.includes('instructor_id')) {
-        // Check if Attendance model has instructor_id directly
-         // If yes:
-        //  query = query.populate({
-        //      path: 'instructor_id', // Make sure this path exists in Attendance schema
-        //      select: 'firstName lastName' 
-        //  });
-         // If instructor is only linked via Group (nested populate):
-         // Ensure 'group_id' population above includes 'instructor_id'
-         query = query.populate({ 
-             path: 'group_id', 
-             populate: { path: 'instructor_id', select: 'firstName lastName' } 
-         });
-         // Choose the correct population method based on your schema.
-     }
+    if (fieldsToPopulate.includes('instructor_id')) {
+        query = query.populate({ 
+            path: 'group_id', 
+            populate: { path: 'instructor_id', select: 'firstName lastName' } 
+        });
+    }
 
-
-    // Apply Pagination
     query = query.skip(skip).limit(parseInt(limit));
 
-    // Execute Query
-    const attendanceRecords = await query.lean(); // Use lean() for performance
-
-    // Get Total Count for Pagination (without skip/limit, but with filters if added later)
-    const total = await Attendance.countDocuments(/* add filter conditions here if needed */);
+    const attendanceRecords = await query.lean();
+    const total = await Attendance.countDocuments();
 
     res.json({
       success: true,

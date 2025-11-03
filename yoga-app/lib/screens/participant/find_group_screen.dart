@@ -1,5 +1,4 @@
-// lib/screens/participant/find_group_screen.dart
-// REPLACE THE ENTIRE FILE WITH THIS CORRECTED VERSION
+// REPLACE YOUR ENTIRE lib/screens/participant/find_group_screen.dart FILE WITH THIS
 
 import '../../api_service.dart';
 import '../../models/yoga_group.dart';
@@ -10,7 +9,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:yoga_app/generated/app_localizations.dart';
 
-
 class FindGroupScreen extends StatefulWidget {
   const FindGroupScreen({super.key});
 
@@ -19,8 +17,6 @@ class FindGroupScreen extends StatefulWidget {
 }
 
 class _FindGroupScreenState extends State<FindGroupScreen> {
-  // --- ALL VARIABLES AND METHODS ARE NOW CORRECTLY INSIDE THE CLASS ---
-
   Position? _currentPosition;
   final MapController _mapController = MapController();
   final _searchController = TextEditingController();
@@ -28,6 +24,7 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
   bool _isLoading = false;
   bool _searchPerformed = false;
   bool _isMapView = false;
+  String _groupType = 'all'; // State for group type filter
 
   @override
   void initState() {
@@ -67,7 +64,8 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
     try {
       _currentPosition = await Geolocator.getCurrentPosition();
       if (!mounted) return;
-      await _searchGroups(isInitialLoad: true);
+      // Search nearby groups on initial load
+      await _searchGroups(isInitialLoad: true, groupType: 'all');
     } catch (e) {
       if (mounted) _showError(e.toString());
     } finally {
@@ -85,10 +83,9 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
     );
   }
 
-  Future<void> _searchGroups({bool isInitialLoad = false}) async {
+  Future<void> _searchGroups(
+      {bool isInitialLoad = false, String? groupType}) async {
     final query = _searchController.text.trim();
-    if (query.isEmpty && !isInitialLoad) return;
-    
     if (!mounted) return;
     final apiService = Provider.of<ApiService>(context, listen: false);
 
@@ -99,16 +96,21 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
       _groups = [];
     });
 
+    // Use the passed groupType, or the state's _groupType
+    final typeToSearch = groupType ?? _groupType;
+
     try {
       final results = await apiService.getGroups(
         search: query,
         latitude: _currentPosition?.latitude,
         longitude: _currentPosition?.longitude,
+        groupType: typeToSearch,
       );
       if (mounted) setState(() => _groups = results);
     } catch (e) {
       if (mounted) {
-        _showError('Search failed: ${e.toString().replaceFirst("Exception: ", "")}');
+        _showError(
+            'Search failed: ${e.toString().replaceFirst("Exception: ", "")}');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -131,7 +133,8 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
       }
     } catch (e) {
       if (mounted) {
-        _showError('Failed to join group: ${e.toString().replaceFirst("Exception: ", "")}');
+        _showError(
+            'Failed to join group: ${e.toString().replaceFirst("Exception: ", "")}');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -142,7 +145,8 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(group.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(group.name,
+            style: const TextStyle(fontWeight: FontWeight.bold)),
         duration: const Duration(seconds: 5),
         action: SnackBarAction(
           label: 'JOIN',
@@ -185,7 +189,8 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
                 onTap: () => _showGroupInfoSnackBar(group),
                 child: Tooltip(
                   message: group.name,
-                  child: const Icon(Icons.location_pin, color: Colors.red, size: 40),
+                  child:
+                      const Icon(Icons.location_pin, color: Colors.red, size: 40),
                 ),
               ),
             );
@@ -196,14 +201,14 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
   }
 
   Widget _buildListView() {
-    final l10n = AppLocalizations.of(context)!; 
+    final l10n = AppLocalizations.of(context)!;
     if (!_searchPerformed) {
-      return Center( // Remove 'const'
+      return Center(
         child: Text(l10n.enterSearchTerm),
       );
     }
     if (_groups.isEmpty && !_isLoading) {
-      return Center( // Remove 'const'
+      return Center(
         child: Text(l10n.noGroupsFoundSearch),
       );
     }
@@ -255,18 +260,41 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
                 labelText: l10n.searchPlaceholder,
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.search),
-                  onPressed: _isLoading ? null : _searchGroups,
+                  onPressed:
+                      _isLoading ? null : () => _searchGroups(groupType: _groupType),
                 ),
               ),
-              onSubmitted: (_) => _searchGroups(),
+              onSubmitted: (_) => _searchGroups(groupType: _groupType),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'all', label: Text('All')),
+                ButtonSegment(value: 'offline', label: Text('Offline')),
+                ButtonSegment(value: 'online', label: Text('Online')),
+              ],
+              selected: {_groupType},
+              onSelectionChanged: (newSelection) {
+                setState(() {
+                  _groupType = newSelection.first;
+                });
+                _searchGroups(groupType: _groupType);
+              },
+              style: SegmentedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
             child: SegmentedButton<bool>(
               segments: [
-                ButtonSegment(value: false, icon: Icon(Icons.list), label: Text(l10n.list)),
-                ButtonSegment(value: true, icon: Icon(Icons.map), label: Text(l10n.map)),
+                ButtonSegment(
+                    value: false, icon: Icon(Icons.list), label: Text(l10n.list)),
+                ButtonSegment(
+                    value: true, icon: Icon(Icons.map), label: Text(l10n.map)),
               ],
               selected: {_isMapView},
               onSelectionChanged: (newSelection) {
@@ -284,4 +312,4 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
       ),
     );
   }
-} // THIS IS THE FINAL CLOSING BRACE FOR THE CLASS
+}

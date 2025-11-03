@@ -71,6 +71,17 @@ String get baseUrl {
     await _secureStorage.delete(key: 'jwt');
   }
 
+  Future<YogaGroup> getGroupById(String groupId) async {
+    final res = await _client.get(
+      Uri.parse('$baseUrl/api/groups/$groupId'),
+      headers: _authHeaders(),
+    );
+    final data = _decode(res);
+    _ensureOk(res, data);
+    // The group data is directly in 'data' for this endpoint
+    return YogaGroup.fromJson(data['data']);
+  }
+
   Map<String, String> _authHeaders({bool includeContentType = true, bool optional = false}) {
     final headers = <String, String>{};
     if (includeContentType) headers['Content-Type'] = 'application/json';
@@ -381,17 +392,6 @@ String get baseUrl {
     return listJson.map((e) => Session.fromJson(e)).toList();
   }
 
-  Future<YogaGroup> getGroupById(String groupId) async {
-    final res = await _client.get(
-      Uri.parse('$baseUrl/api/groups/$groupId'),
-      headers: _authHeaders(),
-    );
-    final data = _decode(res);
-    _ensureOk(res, data);
-    // The group data is directly in 'data' for this endpoint
-    return YogaGroup.fromJson(data['data']);
-  }
-
   Future<void> createGroup(Map<String, dynamic> groupData) async {
     final res = await _client.post(
       Uri.parse('$baseUrl/api/groups'),
@@ -517,11 +517,13 @@ String get baseUrl {
     }
   }
 
+  // In lib/api_service.dart, REPLACE your getGroups function with this one:
   Future<List<YogaGroup>> getGroups({
     String? search,
     String? instructorId,
     double? latitude,
     double? longitude,
+    String? groupType, // <-- 1. ADD THIS PARAMETER
   }) async {
     final uri = Uri.parse('$baseUrl/api/groups').replace(
       queryParameters: {
@@ -530,17 +532,15 @@ String get baseUrl {
           'instructor_id': instructorId,
         if (latitude != null) 'latitude': latitude.toString(),
         if (longitude != null) 'longitude': longitude.toString(),
+        if (groupType != null) 'groupType': groupType, // <-- 2. ADD THIS LINE
       },
     );
-    final res = await _client.get(uri, 
-      headers: _authHeaders(optional: true)
-    );
+    final res = await _client.get(uri, headers: _authHeaders(optional: true));
     final data = _decode(res);
     _ensureOk(res, data);
     final payload = data['data'];
-    List listJson = (payload is Map && payload['groups'] is List)
-        ? payload['groups']
-        : [];
+    List listJson =
+        (payload is Map && payload['groups'] is List) ? payload['groups'] : [];
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
   }
 
