@@ -107,7 +107,7 @@ router.post('/login', async (req, res) => {
     httpOnly: true, // Makes the cookie inaccessible to client-side JavaScript
     secure: process.env.NODE_ENV === 'production', // Use secure cookies in production (HTTPS)
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days (same as JWT expiry)
-    // sameSite: 'strict' // Optional: Helps prevent CSRF attacks
+    sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'lax', // Optional: Helps prevent CSRF attacks
   };
 
     if (user.role === 'admin') {
