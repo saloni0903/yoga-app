@@ -91,6 +91,12 @@ const userSchema = new mongoose.Schema({
     type: [String],
     default: [],
   },
+  resetPasswordOtp: {
+    type: String,
+  },
+  resetPasswordExpires: {
+    type: Date,
+  },
 }, {
   timestamps: true,
   toJSON: {

@@ -3,6 +3,8 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../model/User');
 const auth = require('../middleware/auth');  
+const crypto = require('crypto');
+const { sendEmail } = require('../services/emailService');
 const router = express.Router();
 
 
@@ -138,6 +140,100 @@ router.post('/login', async (req, res) => {
       success: false,
       message: 'Login failed',
       error: error.message
+    });
+  }
+});
+
+// Step 1: User requests an OTP
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+
+    // Security Best Practice:
+    // Always send a generic success response, even if the user isn't found.
+    // This prevents attackers from checking which emails are registered.
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: 'If an account with this email exists, a password reset OTP has been sent.',
+      });
+    }
+
+    // Generate a 6-digit OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    // Set an expiration time (e.g., 10 minutes from now)
+    const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    // Save the OTP and expiry to the user document
+    user.resetPasswordOtp = otp;
+    user.resetPasswordExpires = expires;
+    await user.save();
+
+    // Send the email
+    const subject = 'Your Password Reset OTP';
+    const text = `You are receiving this email because you (or someone else) requested a password reset for your account.\n\nYour OTP is: ${otp}\n\nThis OTP is valid for 10 minutes.\n\nIf you did not request this, please ignore this email.\n`;
+    const html = `<p>You are receiving this email because you (or someone else) requested a password reset for your account.</p>
+                  <p>Your OTP is: <strong>${otp}</strong></p>
+                  <p>This OTP is valid for 10 minutes.</p>
+                  <p>If you did not request this, please ignore this email.</p>`;
+
+    await sendEmail({ to: user.email, subject, text, html });
+
+    res.status(200).json({
+      success: true,
+      message: 'If an account with this email exists, a password reset OTP has been sent.',
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred while trying to send the reset OTP.',
+      error: error.message,
+    });
+  }
+});
+
+// Step 2: User sends email, OTP, and new password
+router.post('/reset-password', async (req, res) => {
+  const { email, otp, password } = req.body;
+
+  if (!email || !otp || !password) {
+    return res.status(400).json({ success: false, message: 'Email, OTP, and new password are required.' });
+  }
+
+  try {
+    // Find the user based on email, matching OTP, and unexpired time
+    const user = await User.findOne({
+      email: email,
+      resetPasswordOtp: otp,
+      resetPasswordExpires: { $gt: Date.now() }, // Check if expiry is in the future
+    });
+
+    // If no user matches, the OTP is invalid or expired
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP. Please try again.' });
+    }
+
+    // Set the new password. The 'pre-save' hook in User.js will hash it.
+    user.password = password;
+    // Clear the OTP fields so it can't be used again
+    user.resetPasswordOtp = undefined;
+    user.resetPasswordExpires = undefined;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password has been reset successfully. You can now log in.',
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred while resetting the password.',
+      error: error.message,
     });
   }
 });

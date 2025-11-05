@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
 import '../../services/notification_service.dart';
 import 'package:yoga_app/generated/app_localizations.dart';
+import 'package:yoga_app/screens/auth/forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -191,7 +192,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               alignment: Alignment.centerRight,
                               child: TextButton(
                                 onPressed: () {
-                                  // TODO: Forgot password flow
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const ForgotPasswordScreen(),
+                                    ),
+                                  );
                                 },
                                 child: const Text('Forgot password?'),
                               ),

@@ -213,6 +213,46 @@ class ApiService with ChangeNotifier {
       );
     }
 
+    Future<void> forgotPassword(String email) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/api/auth/forgot-password'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode(<String, String>{
+        'email': email,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      final data = jsonDecode(response.body);
+      throw Exception(data['message'] ?? 'Failed to send OTP');
+    }
+    // No data is returned on success, just a 200 OK.
+  }
+
+  /// Sends the new password, email, and OTP to the server.
+  /// Throws an exception if the request fails.
+  Future<void> resetPassword(String email, String otp, String password) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/api/auth/reset-password'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode(<String, String>{
+        'email': email,
+        'otp': otp,
+        'password': password,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      final data = jsonDecode(response.body);
+      throw Exception(data['message'] ?? 'Failed to reset password');
+    }
+    // No data is returned on success, just a 200 OK.
+  }
+
     await _saveToken(token);
     _currentUser = User.fromJson(data['data']['user']);
     _isAuthenticated = true;
