@@ -141,7 +141,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               children: [
                 // ✨ All functions are now called correctly as class methods
                 if(group.groupType == 'Offline')
-                  _buildAttendanceCard(context),
+                  _buildActionCard(context),
                 if(group.groupType == 'offline')
                   const SizedBox(height: 20),
                 // Action card - QR scan or Join Online
