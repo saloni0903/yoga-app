@@ -139,11 +139,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
               children: [
-                // ✨ All functions are now called correctly as class methods
-                if(group.groupType == 'Offline')
-                  _buildActionCard(context),
-                if(group.groupType == 'offline')
-                  const SizedBox(height: 20),
                 // Action card - QR scan or Join Online
                 _buildActionCard(context, group),
                 const SizedBox(height: 20),
