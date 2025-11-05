@@ -213,9 +213,18 @@ class ApiService with ChangeNotifier {
       );
     }
 
-    Future<void> forgotPassword(String email) async {
+    await _saveToken(token);
+    _currentUser = User.fromJson(data['data']['user']);
+    _isAuthenticated = true;
+    _myGroupsCacheValid = false;
+    _myJoinedGroups = [];
+    notifyListeners();
+    return _currentUser!;
+  }
+
+  Future<void> forgotPassword(String email) async {
     final response = await http.post(
-      Uri.parse('$_baseUrl/api/auth/forgot-password'),
+      Uri.parse('$baseUrl/api/auth/forgot-password'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
       },
@@ -235,7 +244,7 @@ class ApiService with ChangeNotifier {
   /// Throws an exception if the request fails.
   Future<void> resetPassword(String email, String otp, String password) async {
     final response = await http.post(
-      Uri.parse('$_baseUrl/api/auth/reset-password'),
+      Uri.parse('$baseUrl/api/auth/reset-password'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
       },
@@ -252,16 +261,6 @@ class ApiService with ChangeNotifier {
     }
     // No data is returned on success, just a 200 OK.
   }
-
-    await _saveToken(token);
-    _currentUser = User.fromJson(data['data']['user']);
-    _isAuthenticated = true;
-    _myGroupsCacheValid = false;
-    _myJoinedGroups = [];
-    notifyListeners();
-    return _currentUser!;
-  }
-
   Future<void> logout() async {
     await _clearToken();
     _currentUser = null;
