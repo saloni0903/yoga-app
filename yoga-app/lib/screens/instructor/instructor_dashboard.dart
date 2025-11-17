@@ -18,7 +18,7 @@ import '../qr/qr_display_screen.dart';
 import 'package:yoga_app/generated/app_localizations.dart';
 import '../../utils/date_helper.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 
 class InstructorDashboard extends StatefulWidget {
@@ -92,9 +92,6 @@ class _InstructorDashboardState extends State<InstructorDashboard> {
             child: CircleAvatar(
               backgroundColor: Theme.of(context).colorScheme.primaryContainer,
               child: Text(
-                (currentUser.firstName.isNotEmpty)
-                    ? currentUser.firstName[0].toUpperCase()
-                    : 'I',
                 (currentUser.firstName.isNotEmpty)
                     ? currentUser.firstName[0].toUpperCase()
                     : 'I',
@@ -215,13 +212,23 @@ class InstructorHomeTab extends StatefulWidget {
 class _InstructorHomeTabState extends State<InstructorHomeTab> {
   late Future<PermissionStatus> _permissionStatusFuture;
   late Future<List<Session>> _scheduleFuture;
+  Stream<StepCount>? _stepCountStream;
+  int _stepsAtMidnight = 0;
+  static const String PREF_STEPS_BASELINE = 'pedometer_baseline';
+  static const String PREF_LAST_SAVED_DATE = 'pedometer_last_saved_date';
 
   @override
-  void initState() {
-    super.initState();
-    _permissionStatusFuture = Permission.activityRecognition.request();
-    _loadSchedule();
-  }
+    void initState() {
+      super.initState();
+      _permissionStatusFuture = Permission.activityRecognition.request(); 
+      
+      _permissionStatusFuture.then((status) {
+        if (status == PermissionStatus.granted) {
+          _initializeStepBaseline();
+        }
+      });
+      _loadSchedule();
+    }
 
   void _loadSchedule() {
     if (!mounted) return;
@@ -253,6 +260,35 @@ class _InstructorHomeTabState extends State<InstructorHomeTab> {
     );
   }
 
+  Future<void> _initializeStepBaseline() async {
+    final prefs = await SharedPreferences.getInstance();
+    final todayString = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final lastSavedDate = prefs.getString(PREF_LAST_SAVED_DATE);
+    
+    int baseline = 0;
+
+    if (lastSavedDate == todayString) {
+      baseline = prefs.getInt(PREF_STEPS_BASELINE) ?? 0;
+    } else {
+      try {
+        final StepCount event = await Pedometer.stepCountStream.first;
+        baseline = event.steps;
+        await prefs.setInt(PREF_STEPS_BASELINE, baseline);
+        await prefs.setString(PREF_LAST_SAVED_DATE, todayString);
+      } catch (e) {
+        print("Failed to get initial step count: $e");
+        baseline = 0;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _stepsAtMidnight = baseline;
+        _stepCountStream = Pedometer.stepCountStream; 
+      });
+    }
+  }
+
   Widget _buildStepCounterCard(TextTheme textTheme, ThemeData theme) {
     return Card(
       child: Padding(
@@ -271,12 +307,26 @@ class _InstructorHomeTabState extends State<InstructorHomeTab> {
 
                 final status = snapshot.data;
                 if (status == PermissionStatus.granted) {
+                  // If permission is granted, but we haven't loaded our baseline yet,
+                  // show a loader. _initializeStepBaseline (in initState) will set
+                  // _stepCountStream and rebuild this widget.
+                  if (_stepCountStream == null) {
+                    return const CircularProgressIndicator();
+                  }
+
+                  // If _stepCountStream is ready, it means our baseline is ready.
                   return StreamBuilder<StepCount>(
-                    stream: Pedometer.stepCountStream,
+                    stream: _stepCountStream, // Use the state stream
                     builder: (context, snapshot) {
                       String steps = '...';
                       if (snapshot.hasData) {
-                        steps = snapshot.data!.steps.toString();
+                        // ✨ THE FIX: Subtract baseline from current
+                        final int currentTotalSteps = snapshot.data!.steps;
+                        final int stepsToday = currentTotalSteps - _stepsAtMidnight;
+                        
+                        // Handle sensor/phone reboot (steps < 0)
+                        steps = (stepsToday < 0 ? 0 : stepsToday).toString();
+
                       } else if (snapshot.hasError) {
                         steps = 'Sensor Error';
                       }

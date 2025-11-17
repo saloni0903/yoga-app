@@ -85,7 +85,6 @@ class AboutScreen extends StatelessWidget {
                         icon: const Icon(Icons.description_outlined),
                         label: const Text('Download User Manual'),
                         onPressed: () {
-                          // ❗ IMPORTANT: Replace this with the actual URL of your PDF file
                           const pdfUrl =
                               'https://docs.google.com/document/d/1svPXe2R8nSMmSGjmI1dy_1CGKGKLNw3qILFhWwC-uX0/edit?usp=sharing';
                           _launchURL(context, pdfUrl);

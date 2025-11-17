@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:yoga_app/api_service.dart';
 import 'package:yoga_app/widgets/streak_dialog.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 
 class DashboardHomeTab extends StatefulWidget {
   const DashboardHomeTab({super.key});
@@ -16,12 +18,21 @@ class DashboardHomeTab extends StatefulWidget {
 class _DashboardHomeTabState extends State<DashboardHomeTab> {
   // ✨ We only need to store the result of the permission check now.
   late Future<PermissionStatus> _permissionStatusFuture;
+  Stream<StepCount>? _stepCountStream;
+  int _stepsAtMidnight = 0;
+  static const String PREF_STEPS_BASELINE = 'pedometer_baseline';
+  static const String PREF_LAST_SAVED_DATE = 'pedometer_last_saved_date';
 
   @override
   void initState() {
     super.initState();
     // ✨ Request permission once when the widget is created.
     _permissionStatusFuture = Permission.activityRecognition.request();
+    _permissionStatusFuture.then((status) {
+      if (status == PermissionStatus.granted) {
+        _initializeStepBaseline();
+      }
+    });
   }
   
   String getGreeting() {
@@ -148,6 +159,41 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
     );
   }
 
+  Future<void> _initializeStepBaseline() async {
+    final prefs = await SharedPreferences.getInstance();
+    final todayString = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final lastSavedDate = prefs.getString(PREF_LAST_SAVED_DATE);
+    
+    int baseline = 0;
+
+    if (lastSavedDate == todayString) {
+      // It's the same day. Just load the saved baseline.
+      baseline = prefs.getInt(PREF_STEPS_BASELINE) ?? 0;
+    } else {
+      // It's a new day or the first time launching.
+      // Get the *current* total steps and save it as today's baseline.
+      try {
+        // We use .first to get a single value from the stream
+        final StepCount event = await Pedometer.stepCountStream.first;
+        baseline = event.steps;
+
+        // Save the new baseline and date
+        await prefs.setInt(PREF_STEPS_BASELINE, baseline);
+        await prefs.setString(PREF_LAST_SAVED_DATE, todayString);
+      } catch (e) {
+        print("Failed to get initial step count: $e");
+        baseline = 0; // Default to 0 on error
+      }
+    }
+
+    // IMPORTANT: Update the state so the StreamBuilder can start
+    if (mounted) {
+      setState(() {
+        _stepsAtMidnight = baseline;
+        _stepCountStream = Pedometer.stepCountStream; 
+      });
+    }
+  }
   // ✨ This widget now perfectly manages the pedometer stream state.
   Widget _buildStepCounterCard(TextTheme textTheme, ThemeData theme) {
     return Card(
@@ -167,13 +213,17 @@ class _DashboardHomeTabState extends State<DashboardHomeTab> {
 
                 final status = snapshot.data;
                 if (status == PermissionStatus.granted) {
-                  // If permission is granted, use StreamBuilder to listen for steps.
+                  if (_stepCountStream == null) {
+                    return const CircularProgressIndicator();
+                  }
                   return StreamBuilder<StepCount>(
-                    stream: Pedometer.stepCountStream,
+                    stream: _stepCountStream, 
                     builder: (context, snapshot) {
                       String steps = '...';
                       if (snapshot.hasData) {
-                        steps = snapshot.data!.steps.toString();
+                        final int currentTotalSteps = snapshot.data!.steps;
+                        final int stepsToday = currentTotalSteps - _stepsAtMidnight;
+                        steps = (stepsToday < 0 ? 0 : stepsToday).toString();
                       } else if (snapshot.hasError) {
                         steps = 'Sensor Error';
                       }

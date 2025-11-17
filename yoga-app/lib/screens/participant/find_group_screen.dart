@@ -483,26 +483,26 @@ class _FindGroupScreenState extends State<FindGroupScreen> {
               onSubmitted: (_) => _searchGroups(groupType: _groupType),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-            child: SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'all', label: Text('All')),
-                ButtonSegment(value: 'offline', label: Text('Offline')),
-                ButtonSegment(value: 'online', label: Text('Online')),
-              ],
-              selected: {_groupType},
-              onSelectionChanged: (newSelection) {
-                setState(() {
-                  _groupType = newSelection.first;
-                });
-                _searchGroups(groupType: _groupType);
-              },
-              style: SegmentedButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-              ),
-            ),
-          ),
+          // Padding(
+          //   padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+          //   child: SegmentedButton<String>(
+          //     segments: const [
+          //       ButtonSegment(value: 'all', label: Text('All')),
+          //       ButtonSegment(value: 'offline', label: Text('Offline')),
+          //       ButtonSegment(value: 'online', label: Text('Online')),
+          //     ],
+          //     selected: {_groupType},
+          //     onSelectionChanged: (newSelection) {
+          //       setState(() {
+          //         _groupType = newSelection.first;
+          //       });
+          //       _searchGroups(groupType: _groupType);
+          //     },
+          //     style: SegmentedButton.styleFrom(
+          //       visualDensity: VisualDensity.compact,
+          //     ),
+          //   ),
+          // ),
 
           // Filter Chips
           SingleChildScrollView(
