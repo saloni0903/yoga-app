@@ -55,14 +55,17 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
   Future<Map<String, dynamic>> _fetchProgressData(ApiService apiService) async {
     // Fetches real data without any mocks
     final results = await Future.wait([
-      apiService.fetchMyJoinedGroups(forceRefresh: true), // This populates the cache
+      apiService.fetchMyJoinedGroups(
+        forceRefresh: true,
+      ), // This populates the cache
       apiService.getAttendanceHistory(),
     ]);
-    
+
     // 2. Return data from the cache and the Future.wait result
     return {
       'groups': apiService.myJoinedGroups, // Get data from the cache
-      'attendance': results[1] as List<AttendanceRecord>, // Get this from the results
+      'attendance':
+          results[1] as List<AttendanceRecord>, // Get this from the results
     };
   }
 
@@ -85,7 +88,10 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
           final data = snapshot.data!;
           final groups = data['groups'] as List<YogaGroup>;
           final attendance = data['attendance'] as List<AttendanceRecord>;
-          final user = Provider.of<ApiService>(context, listen: false).currentUser;
+          final user = Provider.of<ApiService>(
+            context,
+            listen: false,
+          ).currentUser;
 
           return RefreshIndicator(
             onRefresh: _refreshData,
@@ -413,6 +419,7 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const SizedBox(height: 16),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
           child: Text(

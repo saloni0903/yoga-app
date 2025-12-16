@@ -32,13 +32,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   void _loadDetails() {
     final apiService = Provider.of<ApiService>(context, listen: false);
     setState(() {
-      _detailsFuture = Future.wait([
-        apiService.getGroupById(widget.groupId),
-        apiService.getAttendanceForGroup(widget.groupId),
-      ]).then(
-        (results) =>
-            (results[0] as YogaGroup, results[1] as List<AttendanceRecord>),
-      );
+      _detailsFuture =
+          Future.wait([
+            apiService.getGroupById(widget.groupId),
+            apiService.getAttendanceForGroup(widget.groupId),
+          ]).then(
+            (results) =>
+                (results[0] as YogaGroup, results[1] as List<AttendanceRecord>),
+          );
     });
   }
 
@@ -226,9 +227,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             else if (isOnline)
               // Online but no link: Only scan
               FilledButton.icon(
-                icon: const Icon(Icons.qr_code_scanner),
-                label: const Text('Scan to Mark Attendance'),
-                onPressed: () => _scanQrAndMarkAttendance(apiService),
+                icon: const Icon(Icons.videocam),
+                label: const Text('Join Session'),
+                onPressed: () => _launchMeetLink(group.meetLink ?? ''),
               )
             else
               // Offline: Only scan
@@ -333,7 +334,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 ],
               ),
             ),
-          
+
           // --- DETAILS SECTION (YEH PEHLE SE THA) ---
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -350,26 +351,26 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
                 // Description
                 if (group.description != null && group.description!.isNotEmpty)
-                if (group.description != null &&
-                    group.description!.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12.0),
-                    child: Text(
-                      group.description!,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  )
-                else
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 12.0),
-                    child: Text(
-                      'No description provided for this group.',
-                      style: TextStyle(
-                        fontStyle: FontStyle.italic,
-                        color: Colors.grey,
+                  if (group.description != null &&
+                      group.description!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: Text(
+                        group.description!,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                    )
+                  else
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 12.0),
+                      child: Text(
+                        'No description provided for this group.',
+                        style: TextStyle(
+                          fontStyle: FontStyle.italic,
+                          color: Colors.grey,
+                        ),
                       ),
                     ),
-                  ),
 
                 // Location/Online info
                 if (isOffline && group.locationText.isNotEmpty)
@@ -421,13 +422,16 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   ),
                   onPressed: () async {
                     String url = group.meetLink!;
-                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                    if (!url.startsWith('http://') &&
+                        !url.startsWith('https://')) {
                       url = 'https://$url';
                     }
                     final uri = Uri.parse(url); // <-- 'url' variable use karo
                     if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri,
-                          mode: LaunchMode.externalApplication);
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
