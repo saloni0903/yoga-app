@@ -1,15 +1,15 @@
-// REPLACE YOUR ENTIRE lib/screens/participant/group_detail_screen.dart FILE WITH THIS
-
+// lib/screens/participant/group_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../api_service.dart';
-import '../../models/attendance.dart';
-import '../../models/yoga_group.dart';
-import '../qr/qr_scanner_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../../api_service.dart';
+import '../../models/attendance.dart';
+import '../../models/yoga_group.dart';
+import '../qr/qr_scanner_screen.dart';
 
 class GroupDetailScreen extends StatefulWidget {
   final String groupId;
@@ -43,80 +43,95 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     });
   }
 
+  // --- Actions ---
+
   Future<void> _launchMaps(double latitude, double longitude) async {
     final uri = Uri.parse(
       'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude',
     );
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not open maps application.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Could not launch maps.';
       }
+    } catch (e) {
+      if (mounted) _showErrorSnackBar('Could not open maps application.');
     }
   }
 
   Future<void> _launchMeetLink(String meetLink) async {
     try {
-      // Trim whitespace
       String cleanedLink = meetLink.trim();
-
-      // Add https:// if no protocol is specified
       if (!cleanedLink.startsWith('http://') &&
           !cleanedLink.startsWith('https://')) {
         cleanedLink = 'https://$cleanedLink';
       }
-
       final uri = Uri.parse(cleanedLink);
 
-      // Validate the URI
-      if (!uri.hasScheme || uri.host.isEmpty) {
-        throw Exception('Invalid URL format');
-      }
+      if (!uri.hasScheme || uri.host.isEmpty) throw 'Invalid URL format';
 
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
-        throw Exception('No app can handle this link');
+        throw 'No app can handle this link';
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted) _showErrorSnackBar('Could not open link: ${e.toString()}');
+    }
+  }
+
+  Future<void> _scanQrAndMarkAttendance(ApiService apiService) async {
+    final String? qrToken = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const QrScannerScreen()),
+    );
+
+    if (qrToken != null && mounted) {
+      try {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not open meeting link: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            action: SnackBarAction(
-              label: 'Copy Link',
-              textColor: Colors.white,
-              onPressed: () {
-                // Optional: Add clipboard copy functionality
-                // Clipboard.setData(ClipboardData(text: meetLink));
-              },
-            ),
-          ),
+          const SnackBar(content: Text('Processing attendance...')),
         );
+        await apiService.markAttendanceByQr(qrToken: qrToken);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Attendance Marked Successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadDetails(); // Refresh history
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          _showErrorSnackBar(
+            'Scan Failed: ${e.toString().replaceAll("Exception: ", "")}',
+          );
+        }
       }
     }
   }
 
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
+  // --- Build ---
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor:
+          Colors.grey[50], // Light background for better card contrast
       appBar: AppBar(
-        title: FutureBuilder<(YogaGroup, List<AttendanceRecord>)>(
-          future: _detailsFuture,
-          builder: (context, snapshot) {
-            if (snapshot.hasData) {
-              return Text(snapshot.data!.$1.name);
-            }
-            return const Text('Group Details');
-          },
-        ),
+        title: const Text('Group Details'),
+        centerTitle: true,
+        elevation: 0,
       ),
       body: FutureBuilder<(YogaGroup, List<AttendanceRecord>)>(
         future: _detailsFuture,
@@ -125,7 +140,32 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Failed to load details.\n${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: _loadDetails,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
           if (!snapshot.hasData) {
             return const Center(child: Text('Group not found.'));
@@ -133,163 +173,302 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
           final group = snapshot.data!.$1;
           final attendanceHistory = snapshot.data!.$2;
-          final isOffline = group.groupType == 'offline';
 
           return RefreshIndicator(
             onRefresh: () async => _loadDetails(),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-              children: [
-                // Action card - QR scan or Join Online
-                _buildActionCard(context, group),
-                const SizedBox(height: 20),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 1. Header (Name & Tags)
+                  _buildHeaderSection(context, group),
+                  const SizedBox(height: 20),
 
-                // About section with map/link
-                _buildAboutCard(context, group),
-                const SizedBox(height: 16),
+                  // 2. Primary Action Card (Join / Scan)
+                  _buildActionCard(context, group),
+                  const SizedBox(height: 16),
 
-                // Class Details
-                _buildClassDetailsCard(context, group),
-                const SizedBox(height: 16),
+                  // 3. Description Section (Isolated)
+                  _buildDescriptionCard(context, group),
+                  const SizedBox(height: 16),
 
-                // Logistics
-                _buildLogisticsCard(context, group),
-                const SizedBox(height: 16),
+                  // 4. Location OR Platform Section (Segregated)
+                  _buildLocationOrPlatformCard(context, group),
+                  const SizedBox(height: 16),
 
-                // Instructor
-                if (group.instructorName != null &&
-                    group.instructorName!.isNotEmpty)
-                  _buildInstructorCard(context, group),
-                const SizedBox(height: 16),
+                  // 5. Logistics & Essentials
+                  _buildEssentialsCard(context, group),
+                  const SizedBox(height: 16),
 
-                // Attendance History
-                _buildAttendanceHistoryCard(context, attendanceHistory),
-              ],
+                  // 6. Instructor
+                  if (group.instructorName?.isNotEmpty == true)
+                    _buildInstructorCard(context, group),
+                  const SizedBox(height: 16),
+
+                  // 7. Attendance History
+                  _buildAttendanceHistoryCard(context, attendanceHistory),
+                  const SizedBox(height: 32),
+                ],
+              ),
             ),
           );
         },
       ),
     );
-  } // <-- BUILD METHOD ENDS HERE
+  }
 
-  //
-  // ✨ --- ALL HELPER FUNCTIONS ARE NOW *OUTSIDE* BUILD, AS CLASS METHODS ---
-  //
+  // --- Component Widgets ---
+
+  Widget _buildHeaderSection(BuildContext context, YogaGroup group) {
+    final isOnline = group.groupType == 'online';
+    final theme = Theme.of(context);
+
+    return Column(
+      children: [
+        Text(
+          group.name,
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8.0,
+          runSpacing: 8.0,
+          children: [
+            _buildChip(
+              label: isOnline ? 'Online' : 'Offline',
+              color: isOnline ? Colors.blue.shade100 : Colors.orange.shade100,
+              textColor: isOnline
+                  ? Colors.blue.shade900
+                  : Colors.orange.shade900,
+              icon: isOnline ? Icons.videocam : Icons.location_on,
+            ),
+            _buildChip(
+              label:
+                  toBeginningOfSentenceCase(group.yogaStyle) ?? group.yogaStyle,
+              color: Colors.purple.shade50,
+              textColor: Colors.purple.shade900,
+              icon: Icons.spa,
+            ),
+            _buildChip(
+              label:
+                  toBeginningOfSentenceCase(group.difficultyLevel) ?? 'General',
+              color: Colors.green.shade50,
+              textColor: Colors.green.shade900,
+              icon: Icons.trending_up,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChip({
+    required String label,
+    required Color color,
+    required Color textColor,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: textColor),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: textColor,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildActionCard(BuildContext context, YogaGroup group) {
     final isOnline = group.groupType == 'online';
+    final hasLink = group.meetLink != null && group.meetLink!.isNotEmpty;
     final apiService = Provider.of<ApiService>(context, listen: false);
 
     return Card(
-      elevation: 2,
-      shadowColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+      elevation: 3,
+      shadowColor: Colors.black12,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
             Text(
-              "Ready for today's session?",
-              style: Theme.of(context).textTheme.titleMedium,
+              "Session Actions",
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 12),
-
-            // Online: Show Join + Scan side by side
-            if (isOnline &&
-                group.meetLink != null &&
-                group.meetLink!.isNotEmpty)
-              Row(
-                children: [
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                // Primary Action
+                if (isOnline && hasLink)
                   Expanded(
-                    flex: 3,
                     child: FilledButton.icon(
-                      icon: const Icon(Icons.videocam),
-                      label: const Text('Join Session'),
+                      icon: const Icon(Icons.videocam_outlined),
+                      label: const Text('Join Now'),
                       onPressed: () => _launchMeetLink(group.meetLink!),
                       style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 48),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.qr_code_scanner),
+                      label: const Text('Mark Attendance'),
+                      onPressed: () => _scanQrAndMarkAttendance(apiService),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        backgroundColor: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ),
+
+                // Secondary Action (Scan for Online)
+                if (isOnline && hasLink) ...[
                   const SizedBox(width: 12),
                   Expanded(
-                    flex: 2,
-                    child: FilledButton.tonalIcon(
+                    child: OutlinedButton.icon(
                       icon: const Icon(Icons.qr_code_scanner),
-                      label: const Text('Scan'),
+                      label: const Text('Scan QR'),
                       onPressed: () => _scanQrAndMarkAttendance(apiService),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 48),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),
                 ],
-              )
-            else if (isOnline)
-              // Online but no link: Only scan
-              FilledButton.icon(
-                icon: const Icon(Icons.videocam),
-                label: const Text('Join Session'),
-                onPressed: () => _launchMeetLink(group.meetLink ?? ''),
-              )
-            else
-              // Offline: Only scan
-              FilledButton.icon(
-                icon: const Icon(Icons.qr_code_scanner),
-                label: const Text('Scan to Mark Attendance'),
-                onPressed: () => _scanQrAndMarkAttendance(apiService),
-              ),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _scanQrAndMarkAttendance(ApiService apiService) async {
-    final String? qrToken = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (_) => const QrScannerScreen()),
-    );
-    if (qrToken != null && mounted) {
-      try {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Marking attendance...')));
-        await apiService.markAttendanceByQr(qrToken: qrToken);
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Attendance Marked Successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        _loadDetails();
-      } catch (e) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Scan Failed: ${e.toString().replaceFirst("Exception: ", "")}',
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  Widget _buildAboutCard(BuildContext context, YogaGroup group) {
-    final isOffline = group.groupType == 'offline';
-    final hasLocation = group.latitude != null && group.longitude != null;
+  Widget _buildDescriptionCard(BuildContext context, YogaGroup group) {
+    final hasDesc = group.description != null && group.description!.isNotEmpty;
 
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  "About this Group",
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            Text(
+              hasDesc
+                  ? group.description!
+                  : 'No description provided by the instructor.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: hasDesc ? Colors.black87 : Colors.grey,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLocationOrPlatformCard(BuildContext context, YogaGroup group) {
+    final isOnline = group.groupType == 'online';
+
+    if (isOnline) {
+      return Card(
+        color: Colors.blue.shade50,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.cloud_outlined, color: Colors.blue),
+                  SizedBox(width: 8),
+                  Text(
+                    "Platform Details",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                group.meetLink != null && group.meetLink!.isNotEmpty
+                    ? "Sessions are held online via video call."
+                    : "Online session link will be updated by the instructor.",
+                style: const TextStyle(color: Colors.black87),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Offline Case
+    final hasCoords = group.latitude != null && group.longitude != null;
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // MAP for offline groups with valid coordinates
-          if (isOffline && hasLocation)
+          // Map Header
+          if (hasCoords)
             SizedBox(
-              height: 200,
+              height: 180,
               child: Stack(
                 children: [
                   FlutterMap(
@@ -305,13 +484,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                       MarkerLayer(
                         markers: [
                           Marker(
-                            width: 80.0,
-                            height: 80.0,
                             point: LatLng(group.latitude!, group.longitude!),
-                            child: Icon(
+                            child: const Icon(
                               Icons.location_pin,
-                              color: Theme.of(context).colorScheme.primary,
-                              size: 40.0,
+                              color: Colors.red,
+                              size: 40,
                             ),
                           ),
                         ],
@@ -319,74 +496,50 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     ],
                   ),
                   Positioned(
-                    bottom: 12,
-                    right: 12,
+                    bottom: 8,
+                    right: 8,
                     child: FilledButton.tonalIcon(
-                      icon: const Icon(Icons.directions),
-                      label: const Text('Get Directions'),
+                      icon: const Icon(Icons.directions, size: 18),
+                      label: const Text('Directions'),
+                      style: FilledButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                      ),
                       onPressed: () =>
                           _launchMaps(group.latitude!, group.longitude!),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.surface,
-                      ),
                     ),
                   ),
                 ],
               ),
             ),
 
-          // --- DETAILS SECTION (YEH PEHLE SE THA) ---
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  "About this Group",
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const Divider(height: 20),
-
-                // Description
-                if (group.description != null && group.description!.isNotEmpty)
-                  if (group.description != null &&
-                      group.description!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12.0),
-                      child: Text(
-                        group.description!,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                    )
-                  else
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 12.0),
-                      child: Text(
-                        'No description provided for this group.',
-                        style: TextStyle(
-                          fontStyle: FontStyle.italic,
-                          color: Colors.grey,
-                        ),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.place_outlined,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      "Location",
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
                     ),
-
-                // Location/Online info
-                if (isOffline && group.locationText.isNotEmpty)
-                  _buildInfoRow(
-                    context,
-                    Icons.location_on_outlined,
-                    "Location",
-                    group.locationText,
-                  )
-                else if (!isOffline)
-                  _buildInfoRow(
-                    context,
-                    Icons.videocam_outlined,
-                    "Session Type",
-                    "Online",
-                  ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  group.locationText.isNotEmpty
+                      ? group.locationText
+                      : "Location details not provided.",
+                  style: const TextStyle(height: 1.4),
+                ),
               ],
             ),
           ),
@@ -395,57 +548,29 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  Widget _buildClassDetailsCard(BuildContext context, YogaGroup group) {
+  Widget _buildEssentialsCard(BuildContext context, YogaGroup group) {
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Class Details",
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const Divider(height: 20),
-            if (group.groupType == 'online' &&
-                group.meetLink != null &&
-                group.meetLink!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.videocam),
-                  label: const Text('Join Online Session'),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 48),
-                  ),
-                  onPressed: () async {
-                    String url = group.meetLink!;
-                    if (!url.startsWith('http://') &&
-                        !url.startsWith('https://')) {
-                      url = 'https://$url';
-                    }
-                    final uri = Uri.parse(url); // <-- 'url' variable use karo
-                    if (await canLaunchUrl(uri)) {
-                      await launchUrl(
-                        uri,
-                        mode: LaunchMode.externalApplication,
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Could not open link'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
-                ),
+              "Session Essentials",
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
               ),
+            ),
+            const Divider(height: 24),
             _buildInfoRow(
               context,
-              Icons.calendar_today_outlined,
+              Icons.schedule,
               "Schedule",
               group.timingText,
             ),
@@ -453,43 +578,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               context,
               Icons.timer_outlined,
               "Duration",
-              "${group.sessionDurationInMinutes} minutes",
+              "${group.sessionDurationInMinutes} mins",
             ),
-            _buildInfoRow(
-              context,
-              Icons.spa_outlined,
-              "Yoga Style",
-              toBeginningOfSentenceCase(group.yogaStyle) ?? group.yogaStyle,
-            ),
-            _buildInfoRow(
-              context,
-              Icons.trending_up,
-              "Difficulty",
-              toBeginningOfSentenceCase(
-                    group.difficultyLevel.replaceAll('-', ' '),
-                  ) ??
-                  group.difficultyLevel,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLogisticsCard(BuildContext context, YogaGroup group) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Logistics",
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const Divider(height: 20),
             _buildInfoRow(
               context,
               Icons.payments_outlined,
@@ -500,23 +590,16 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             ),
             _buildInfoRow(
               context,
-              Icons.groups_outlined,
-              "Class Size",
-              "Up to ${group.maxParticipants} participants",
+              Icons.group_outlined,
+              "Capacity",
+              "Up to ${group.maxParticipants} people",
             ),
             if (group.requirements.isNotEmpty)
               _buildInfoRow(
                 context,
-                Icons.checklist_outlined,
+                Icons.rule,
                 "Requirements",
                 group.requirements.join(', '),
-              ),
-            if (group.equipmentNeeded.isNotEmpty)
-              _buildInfoRow(
-                context,
-                Icons.fitness_center_outlined,
-                "Equipment Provided",
-                group.equipmentNeeded.join(', '),
               ),
           ],
         ),
@@ -526,34 +609,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
   Widget _buildInstructorCard(BuildContext context, YogaGroup group) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Your Instructor",
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+      elevation: 0,
+      color: Colors.grey.shade100,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+          child: Text(
+            group.instructorName![0].toUpperCase(),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onPrimaryContainer,
             ),
-            const Divider(height: 20),
-            _buildInfoRow(
-              context,
-              Icons.school_outlined,
-              "Name",
-              group.instructorName!,
-            ),
-            if (group.instructorEmail != null &&
-                group.instructorEmail!.isNotEmpty)
-              _buildInfoRow(
-                context,
-                Icons.alternate_email_outlined,
-                "Email",
-                group.instructorEmail!,
-              ),
-          ],
+          ),
         ),
+        title: Text(group.instructorName!),
+        subtitle: group.instructorEmail != null
+            ? Text(group.instructorEmail!)
+            : const Text("Instructor"),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
     );
   }
@@ -562,81 +635,123 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     BuildContext context,
     List<AttendanceRecord> history,
   ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Your Attendance History",
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4.0),
+          child: Text(
+            "Your Attendance History",
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: Colors.grey.shade700,
             ),
-            const Divider(height: 20),
-            if (history.isEmpty)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16.0),
-                  child: Text(
-                    "No attendance records found for this group.",
-                    style: TextStyle(
-                      fontStyle: FontStyle.italic,
-                      color: Colors.grey,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (history.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: const Center(
+              child: Text(
+                "No attendance recorded yet.",
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+          )
+        else
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Colors.grey.shade200),
+            ),
+            child: ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: history.length,
+              separatorBuilder: (ctx, i) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final record = history[index];
+                final dateStr = DateFormat.yMMMMEEEEd().format(
+                  record.sessionDate,
+                );
+                final timeStr = DateFormat.jm().format(record.sessionDate);
+
+                return ListTile(
+                  leading: const Icon(Icons.check_circle, color: Colors.green),
+                  title: Text(dateStr, style: const TextStyle(fontSize: 14)),
+                  subtitle: Text(timeStr, style: const TextStyle(fontSize: 12)),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Text(
+                      toBeginningOfSentenceCase(record.attendanceType) ??
+                          'Present',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.green.shade800,
+                      ),
                     ),
                   ),
-                ),
-              )
-            else
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: history.length,
-                itemBuilder: (context, index) {
-                  final record = history[index];
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
-                      Icons.check_circle,
-                      color: Colors.green,
-                    ),
-                    title: Text(DateFormat.yMMMMd().format(record.sessionDate)),
-                    subtitle: Text(
-                      'Status: ${toBeginningOfSentenceCase(record.attendanceType)}',
-                    ),
-                  );
-                },
-              ),
-          ],
-        ),
-      ),
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
+
+  // --- Helper ---
 
   Widget _buildInfoRow(
     BuildContext context,
     IconData icon,
-    String title,
+    String label,
     String value,
   ) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.only(bottom: 12.0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 22),
-          const SizedBox(width: 16),
+          Icon(icon, size: 20, color: Colors.grey.shade600),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const SizedBox(height: 2),
-                Text(value, style: Theme.of(context).textTheme.bodyLarge),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
             ),
           ),
@@ -644,4 +759,4 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       ),
     );
   }
-} // <-- CLASS ENDS HERE
+}
