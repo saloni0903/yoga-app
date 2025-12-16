@@ -1,14 +1,22 @@
 import { useState, useEffect } from 'react';
-import { Search, Eye, X, FileHeart } from 'lucide-react';
+import { Search, Eye, X } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL;
+
+// Define which keys belong to which category
+const POSITIVE_KEYS = [
+  'sugar', 'snacking', 'lateDinner', 'physicalActivity', 
+  'screenTime', 'socialMedia', 'music', 'sleep'
+];
+
+const NEGATIVE_KEYS = [
+  'alcohol', 'smoking', 'tobacco'
+];
 
 export default function HealthProfilesPage({ darkMode }) {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // Modal State
   const [selectedProfile, setSelectedProfile] = useState(null);
 
   useEffect(() => {
@@ -17,19 +25,9 @@ export default function HealthProfilesPage({ darkMode }) {
 
   const fetchProfiles = async () => {
     try {
-      // Assuming you store token in localStorage or cookie. 
-      // Adjust authorization header logic based on your existing auth flow.
-      // const token = localStorage.getItem('token') || sessionStorage.getItem('token'); 
-      
-      // const res = await fetch(`${API_URL}/api/health`, {
-      //   headers: {
-      //     'Authorization': `Bearer ${token}` // Ensure your Admin has a token
-      //   }
-      // });
-
       const res = await fetch(`${API_URL}/api/health`, {
         method: 'GET',
-        credentials: 'include', // <--- This sends the Cookie!
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
         }
@@ -46,10 +44,21 @@ export default function HealthProfilesPage({ darkMode }) {
     }
   };
 
-  // Filter logic
   const filteredProfiles = profiles.filter(p => 
     p.user_id?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.user_id?.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Helper to render a single response card
+  const renderResponseCard = (key, value) => (
+    <div key={key} className={`p-4 rounded-xl border ${darkMode ? 'border-gray-700 bg-gray-700/30' : 'border-gray-100 bg-gray-50'}`}>
+      <p className={`text-xs font-medium uppercase tracking-wider mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+        {key.replace(/([A-Z])/g, ' $1').trim()}
+      </p>
+      <p className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+        {value || 'Not Answered'}
+      </p>
+    </div>
   );
 
   if (loading) {
@@ -155,11 +164,17 @@ export default function HealthProfilesPage({ darkMode }) {
       {/* Details Modal */}
       {selectedProfile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className={`w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-2xl shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className={`w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            {/* Modal Header */}
             <div className={`sticky top-0 z-10 px-6 py-4 border-b flex items-center justify-between ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
-              <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                Health Details: {selectedProfile.user_id?.firstName}
-              </h3>
+              <div>
+                <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Health Details: {selectedProfile.user_id?.firstName}
+                </h3>
+                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                   Total Score: <span className="font-bold">{selectedProfile.totalScore}</span>
+                </p>
+              </div>
               <button 
                 onClick={() => setSelectedProfile(null)}
                 className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
@@ -168,19 +183,37 @@ export default function HealthProfilesPage({ darkMode }) {
               </button>
             </div>
             
-            <div className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {Object.entries(selectedProfile.responses || {}).map(([key, value]) => (
-                  <div key={key} className={`p-4 rounded-xl border ${darkMode ? 'border-gray-700 bg-gray-700/30' : 'border-gray-100 bg-gray-50'}`}>
-                    <p className={`text-xs font-medium uppercase tracking-wider mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {key.replace(/([A-Z])/g, ' $1').trim()} {/* Adds space before capitals */}
-                    </p>
-                    <p className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {value}
-                    </p>
-                  </div>
-                ))}
+            {/* Modal Content */}
+            <div className="p-6 space-y-8">
+              
+              {/* SECTION 1: POSITIVE HABITS */}
+              <div>
+                <h4 className="text-sm font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider mb-4 border-b border-teal-200 dark:border-teal-800 pb-2">
+                  Positive Habits (सकारात्मक आदतें)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {POSITIVE_KEYS.map(key => {
+                    const value = selectedProfile.responses?.[key];
+                    if (!value) return null; // Skip if not answered
+                    return renderResponseCard(key, value);
+                  })}
+                </div>
               </div>
+
+              {/* SECTION 2: NEGATIVE HABITS */}
+              <div>
+                <h4 className="text-sm font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-4 border-b border-red-200 dark:border-red-800 pb-2">
+                  Negative Habits (नकारात्मक आदतें)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {NEGATIVE_KEYS.map(key => {
+                     const value = selectedProfile.responses?.[key];
+                     if (!value) return null; // Skip if not answered
+                     return renderResponseCard(key, value);
+                  })}
+                </div>
+              </div>
+
             </div>
           </div>
         </div>

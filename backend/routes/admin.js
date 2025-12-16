@@ -320,4 +320,25 @@ router.get('/stats/top-groups', async (req, res) => {
   }
 });
 
+router.get('/sessions', async (req, res) => {
+  try {
+    const sessions = await Attendance.find()
+      .sort({ marked_at: -1 }) // Newest first
+      .populate('user_id', 'firstName lastName email') // Get Participant details
+      .populate({
+        path: 'group_id',
+        select: 'group_name location instructor_id', // Get Group Name and Location
+        populate: {
+          path: 'instructor_id',
+          select: 'firstName lastName' // Get Instructor Name (Nested inside Group)
+        }
+      });
+
+    res.json({ success: true, data: sessions });
+  } catch (error) {
+    console.error('Error fetching admin sessions:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
+
 module.exports = router;
