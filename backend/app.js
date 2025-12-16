@@ -2,6 +2,7 @@
 const cors = require('cors');
 const dotenv = require('dotenv');
 const express = require('express');
+const path = require('path');
 const cookieParser = require('cookie-parser');
 const connectDB = require('./config/database');
 const {initializeScheduler} = require('./services/notificationService');
@@ -54,6 +55,7 @@ app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/schedule', require('./routes/schedule'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Request logging middleware
 app.use((req, res, next) => {

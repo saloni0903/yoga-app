@@ -147,6 +147,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return null;
   }
 
+  String? _getProfileImageUrl(String? relativePath) {
+  if (relativePath == null || relativePath.isEmpty) return null;
+  // If it's already a full URL (e.g. from Google Auth), return it
+  if (relativePath.startsWith('http')) return relativePath;
+  
+  // Otherwise append your base URL
+  // Access the ApiService to get the baseUrl dynamically or hardcode it
+  final apiService = Provider.of<ApiService>(context, listen: false);
+  // Ensure your baseUrl doesn't end with a slash if path starts with one
+  return '${apiService.baseUrl}/$relativePath'; 
+}
+
   @override
   Widget build(BuildContext context) {
     return Consumer<ApiService>(
@@ -205,9 +217,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           backgroundImage: _profileImageFile != null
                               ? FileImage(_profileImageFile!)
                               : (user.profileImage != null
-                                        ? NetworkImage(user.profileImage!)
-                                        : null)
-                                    as ImageProvider?,
+                                        ? NetworkImage(_getProfileImageUrl(user.profileImage)!)
+                                        : null) as ImageProvider?,
                           child:
                               (_profileImageFile == null &&
                                   user.profileImage == null)

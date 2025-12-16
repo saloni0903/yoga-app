@@ -3,6 +3,40 @@ const express = require('express');
 const User = require('../model/User');
 const auth = require('../middleware/auth');
 const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    // Check if directory exists, if not create it
+    const uploadDir = 'uploads/';
+    if (!fs.existsSync(uploadDir)){
+        fs.mkdirSync(uploadDir);
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Create unique filename: user-id-timestamp.ext
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+// Filter to accept only images
+const fileFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Not an image!'), false);
+  }
+};
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 1024 * 1024 * 5 }, // Limit 5MB
+  fileFilter: fileFilter
+});
 
 // Get all users (admin only)
 router.get('/', async (req, res) => {
@@ -165,48 +199,50 @@ router.get('/:id', async (req, res) => {
     });
   }
 });
-const multer = require('multer');
-const upload = multer(); // Using basic in-memory storage
+// const multer = require('multer');
+// const upload = multer(); // Using basic in-memory storage
 
 // Update user profile
 router.put('/:id', upload.single('profileImage'), async (req, res) => {
   try {
-    // Destructure all possible text fields from the multipart body
-    const { firstName, lastName, phone, samagraId, location, dateOfBirth, emergencyContact, medicalInfo, preferences } = req.body;
+    const { firstName, lastName, phone, samagraId, location, dateOfBirth } = req.body;
     
-    // The uploaded file (if any) is available in req.file
-    const profileImageFile = req.file;
+    // Parse JSON strings if they come as strings (common in Multipart requests)
+    let preferences, emergencyContact, medicalInfo;
+    try {
+        if(req.body.preferences) preferences = JSON.parse(req.body.preferences);
+        if(req.body.emergencyContact) emergencyContact = JSON.parse(req.body.emergencyContact);
+        if(req.body.medicalInfo) medicalInfo = JSON.parse(req.body.medicalInfo);
+    } catch(e) {
+        console.log("JSON Parse error for nested fields", e);
+    }
 
     const updateData = {};
     if (firstName) updateData.firstName = firstName;
     if (lastName) updateData.lastName = lastName;
     if (phone) updateData.phone = phone;
     if (samagraId) updateData.samagraId = samagraId;
-    if (location) updateData.location = location; // Added location field
+    if (location) updateData.location = location;
     if (dateOfBirth) updateData.dateOfBirth = dateOfBirth;
     if (emergencyContact) updateData.emergencyContact = emergencyContact;
     if (medicalInfo) updateData.medicalInfo = medicalInfo;
     if (preferences) updateData.preferences = preferences;
 
-    if (profileImageFile) {
-      // In a real application, you would upload this file to a cloud storage
-      // service (like AWS S3, Google Cloud Storage, or Cloudinary)
-      // and get a public URL back. For now, we'll just log it.
-      console.log('Received profile image:', profileImageFile.originalname);
-      // Example: updateData.profileImage = 'URL_from_cloud_storage';
+    // 3. Handle the Image File
+    if (req.file) {
+      // Normalize path to use forward slashes (works for Windows/Linux)
+      // Stores: uploads/filename.jpg
+      updateData.profileImage = req.file.path.replace(/\\/g, "/"); 
     }
 
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { $set: updateData }, // Using $set is safer for updates
+      { $set: updateData },
       { new: true, runValidators: true }
     ).select('-password');
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
     res.json({

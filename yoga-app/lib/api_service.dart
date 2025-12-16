@@ -342,11 +342,11 @@ class ApiService with ChangeNotifier {
     final uri = Uri.parse('$baseUrl/api/users/${_currentUser!.id}');
     http.Response res;
 
-    // ⭐ CHANGE: Use a multipart request if an image file is provided.
+    // Ensure this logic exists in your updateMyProfile method:
     if (imageBytes != null && imageFileName != null) {
       var request = http.MultipartRequest('PUT', uri);
-
-      // Add headers
+      
+      // Add headers (Auth token)
       request.headers.addAll(_authHeaders(includeContentType: false));
 
       // Add text fields
@@ -354,10 +354,10 @@ class ApiService with ChangeNotifier {
         request.fields[key] = value.toString();
       });
 
-      // Add the image file
+      // Add the file
       request.files.add(
         http.MultipartFile.fromBytes(
-          'profileImage',
+          'profileImage', // This must match upload.single('profileImage') in backend
           imageBytes,
           filename: imageFileName,
         ),
