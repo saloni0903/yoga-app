@@ -22,6 +22,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 import 'package:yoga_app/generated/app_localizations.dart';
 
+import 'screens/health_questionnaire_screen.dart';
 
 final seed = const Color(0xFF2E7D6E);
 final surfaceTint = const Color(0xFF204D45);
@@ -173,10 +174,16 @@ class _AuthWrapperState extends State<AuthWrapper> {
               // 8. Auth is successful. Queue the notification init.
               //    The function has its own guard to only run once.
               _initializeNotifications();
-              return HomeScreen(
-                apiService: apiService,
-                user: apiService.currentUser!,
-              );
+              //ESIS: Check if health profile is completed
+              if (apiService.currentUser?.isHealthProfileCompleted == true) {
+                return HomeScreen(
+                  apiService: apiService,
+                  user: apiService.currentUser!,
+                );
+              } else {
+                // If not done, show the form
+                return const HealthQuestionnaireScreen();
+              }
             } else {
               // 9. Auth failed or user logged out. Reset notification flag.
               _resetNotifications();
@@ -468,6 +475,7 @@ class MyApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
         '/qr-scanner': (context) => const QrScannerScreen(),
+        '/health-questionnaire': (context) => const HealthQuestionnaireScreen(),
       },
     );
   }

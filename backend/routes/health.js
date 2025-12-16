@@ -32,4 +32,18 @@ router.post('/submit', auth, async (req, res) => {
   }
 });
 
+router.get('/', auth, async (req, res) => {
+  try {
+    // We populate user_id to show Name/Email instead of just an ID
+    const profiles = await HealthProfile.find()
+      .populate('user_id', 'firstName lastName email phone') 
+      .sort({ date: -1 }); // Newest first
+
+    res.json({ success: true, data: profiles });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+});
+
 module.exports = router;
