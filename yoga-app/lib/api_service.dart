@@ -228,9 +228,7 @@ class ApiService with ChangeNotifier {
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
       },
-      body: jsonEncode(<String, String>{
-        'email': email,
-      }),
+      body: jsonEncode(<String, String>{'email': email}),
     );
 
     if (response.statusCode != 200) {
@@ -261,6 +259,7 @@ class ApiService with ChangeNotifier {
     }
     // No data is returned on success, just a 200 OK.
   }
+
   Future<void> logout() async {
     await _clearToken();
     _currentUser = null;
@@ -467,10 +466,12 @@ class ApiService with ChangeNotifier {
     await fetchMyJoinedGroups(forceRefresh: true);
   }
 
-  Future<void> fetchMyJoinedGroups({bool forceRefresh = false}) async {
+  Future<List<YogaGroup>> fetchMyJoinedGroups({
+    bool forceRefresh = false,
+  }) async {
     // 1. If cache is valid and we're not forcing a refresh, do nothing.
     if (_myGroupsCacheValid && !forceRefresh) {
-      return;
+      return _myJoinedGroups;
     }
 
     // 2. If no user, clear the list and exit.
@@ -478,7 +479,7 @@ class ApiService with ChangeNotifier {
       _myJoinedGroups = [];
       _myGroupsCacheValid = false;
       notifyListeners();
-      return;
+      return [];
     }
 
     // 3. Fetch from the network
@@ -497,6 +498,7 @@ class ApiService with ChangeNotifier {
 
       // 4. CRITICAL: Notify all listening widgets that the list has changed.
       notifyListeners();
+      return _myJoinedGroups;
     } catch (e) {
       // Don't poison the cache on a temporary network error
       debugPrint("Failed to fetch joined groups: $e");
@@ -583,8 +585,9 @@ class ApiService with ChangeNotifier {
     final data = _decode(res);
     _ensureOk(res, data);
     final payload = data['data'];
-    List listJson =
-        (payload is Map && payload['groups'] is List) ? payload['groups'] : [];
+    List listJson = (payload is Map && payload['groups'] is List)
+        ? payload['groups']
+        : [];
     return listJson.map((e) => YogaGroup.fromJson(e)).toList();
   }
 
