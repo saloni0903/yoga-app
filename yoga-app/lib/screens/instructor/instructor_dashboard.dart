@@ -1,5 +1,3 @@
-// REPLACE YOUR ENTIRE lib/screens/instructor/instructor_dashboard.dart FILE WITH THIS
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -645,7 +643,7 @@ class _InstructorHomeTabState extends State<InstructorHomeTab> {
 }
 
 // ===============================================================
-// TAB 2: INSTRUCTOR MY GROUPS TAB
+// TAB 2: INSTRUCTOR MY GROUPS TAB (REFINED UI)
 // ===============================================================
 
 class InstructorMyGroupsTab extends StatefulWidget {
@@ -661,12 +659,11 @@ class _InstructorMyGroupsTabState extends State<InstructorMyGroupsTab> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadGroups();
-    });
+    _loadGroups(); // Call directly in initState
   }
 
   Future<void> _loadGroups() async {
+    // Ensure context is available for Provider
     if (!mounted) return;
     final apiService = Provider.of<ApiService>(context, listen: false);
     setState(() {
@@ -691,12 +688,24 @@ class _InstructorMyGroupsTabState extends State<InstructorMyGroupsTab> {
         }
         final groups = snapshot.data ?? [];
         if (groups.isEmpty) {
-          return Center(child: Text(l10n.noGroupsFoundInstructor));
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.groups_outlined, size: 64, color: Colors.grey[400]),
+                const SizedBox(height: 16),
+                Text(
+                  l10n.noGroupsFoundInstructor,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                ),
+              ],
+            ),
+          );
         }
         return RefreshIndicator(
           onRefresh: _loadGroups,
           child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 88),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
             itemCount: groups.length,
             itemBuilder: (_, index) {
               final group = groups[index];
@@ -710,69 +719,247 @@ class _InstructorMyGroupsTabState extends State<InstructorMyGroupsTab> {
 }
 
 // ===============================================================
-// HELPER WIDGETS
+// REFINED GROUP LIST ITEM & HELPERS
 // ===============================================================
 
 class _GroupListItem extends StatelessWidget {
   final YogaGroup group;
   final VoidCallback onUpdate;
+
   const _GroupListItem({required this.group, required this.onUpdate});
 
   @override
   Widget build(BuildContext context) {
     final apiService = Provider.of<ApiService>(context, listen: false);
     final currentUser = apiService.currentUser;
+    final theme = Theme.of(context);
 
     if (currentUser == null) return const SizedBox.shrink();
 
+    // 1. Parse Color
+    Color groupColor = theme.colorScheme.primary;
+    try {
+      if (group.color.isNotEmpty) {
+        String hex = group.color.replaceAll('#', '');
+        if (hex.length == 6) hex = 'FF$hex';
+        groupColor = Color(int.parse(hex, radix: 16));
+      }
+    } catch (e) {
+      // Fallback to primary
+    }
+
+    // 2. Format Data
+    final formattedStyle =
+        toBeginningOfSentenceCase(group.yogaStyle) ?? group.yogaStyle;
+    final formattedDifficulty =
+        toBeginningOfSentenceCase(group.difficultyLevel.replaceAll('-', ' ')) ??
+        group.difficultyLevel;
+    final nextSessionText = DateHelper.getNextSessionTextFromSchedule(
+      group.schedule,
+    );
+
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      child: ListTile(
-        title: Text(
-          group.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(
-          "${group.displayLocation}\n${DateHelper.getNextSessionTextFromSchedule(group.schedule)}",
-        ),
-        isThreeLine: true,
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
+      margin: const EdgeInsets.only(bottom: 16),
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 2,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            IconButton(
-              icon: const Icon(Icons.people_outline),
-              tooltip: 'View Participants',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => GroupMembersScreen(
-                    groupId: group.id,
-                    groupName: group.name,
-                    apiService: apiService,
-                  ),
+            // --- MAIN CONTENT ---
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 0, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    Text(
+                      group.name,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+
+                    // Description
+                    if (group.description != null &&
+                        group.description!.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        group.description!,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey[700],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+
+                    const SizedBox(height: 16),
+
+                    // Info Rows
+                    _buildInfoRow(
+                      theme,
+                      group.groupType == 'online'
+                          ? Icons.videocam_outlined
+                          : Icons.location_on_outlined,
+                      group.displayLocation,
+                    ),
+                    const SizedBox(height: 6),
+                    _buildInfoRow(
+                      theme,
+                      Icons.calendar_today_outlined,
+                      group.timingText,
+                    ),
+                    const SizedBox(height: 6),
+                    _buildInfoRow(
+                      theme,
+                      Icons.next_plan_outlined,
+                      nextSessionText,
+                      color: theme.colorScheme.primary,
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Chips
+                    Wrap(
+                      spacing: 8.0,
+                      runSpacing: 4.0,
+                      children: [
+                        _buildCompactChip(
+                          formattedStyle,
+                          Colors.blue.shade50,
+                          Colors.blue.shade800,
+                        ),
+                        _buildCompactChip(
+                          formattedDifficulty,
+                          Colors.orange.shade50,
+                          Colors.orange.shade800,
+                        ),
+                      ],
+                    ),
+
+                    const Divider(height: 24),
+
+                    // --- ACTION BUTTONS (Instructor Functions) ---
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildActionButton(
+                          icon: Icons.people_outline,
+                          label: "Members",
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => GroupMembersScreen(
+                                groupId: group.id,
+                                groupName: group.name,
+                                apiService: apiService,
+                              ),
+                            ),
+                          ),
+                        ),
+                        _buildActionButton(
+                          icon: Icons.qr_code_2,
+                          label: "QR Code",
+                          onTap: () =>
+                              _generateQrCode(context, apiService, currentUser),
+                        ),
+                        _buildActionButton(
+                          icon: Icons.edit_outlined,
+                          label: "Edit",
+                          onTap: () async {
+                            final bool? groupWasUpdated =
+                                await Navigator.push<bool>(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        CreateGroupScreen(existingGroup: group),
+                                  ),
+                                );
+                            if (groupWasUpdated == true) {
+                              onUpdate();
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                 ),
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.qr_code_2),
-              tooltip: 'Generate Session QR Code',
-              onPressed: () =>
-                  _generateQrCode(context, apiService, currentUser),
+
+            // --- COLOR STRIP ---
+            Container(width: 8, color: groupColor),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(
+    ThemeData theme,
+    IconData icon,
+    String text, {
+    Color? color,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: color ?? Colors.grey[600]),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: color ?? Colors.grey[800],
+              fontWeight: color != null ? FontWeight.w600 : FontWeight.normal,
             ),
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: 'Edit Group',
-              onPressed: () async {
-                final bool? groupWasUpdated = await Navigator.push<bool>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => CreateGroupScreen(existingGroup: group),
-                  ),
-                );
-                if (groupWasUpdated == true) {
-                  onUpdate();
-                }
-              },
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactChip(String label, Color bg, Color text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: text.withOpacity(0.2)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          color: text,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
+        child: Column(
+          children: [
+            Icon(icon, size: 22, color: Colors.grey[800]),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(fontSize: 10, color: Colors.grey[700]),
             ),
           ],
         ),
@@ -797,7 +984,7 @@ class _GroupListItem extends StatelessWidget {
         createdBy: user.id,
       );
       if (!context.mounted) return;
-      Navigator.pop(context); // Close the loading dialog
+      Navigator.pop(context); // Close dialog
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -807,12 +994,9 @@ class _GroupListItem extends StatelessWidget {
       );
     } catch (e) {
       if (!context.mounted) return;
-      Navigator.pop(context); // Close the loading dialog
+      Navigator.pop(context); // Close dialog
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to generate QR Code: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
       );
     }
   }
