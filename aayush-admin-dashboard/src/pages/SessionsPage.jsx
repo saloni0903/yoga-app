@@ -30,7 +30,7 @@ export default function SessionsPage({ darkMode }) {
       try {
         // Assuming an endpoint that returns attendance records, sorted by date descending
         // This endpoint needs population to get group/user names
-        const res = await fetch(`${API_URL}/api/attendance?sort=-marked_at&populate=group_id,user_id,instructor_id`, { 
+        const res = await fetch(`${API_URL}/api/admin/sessions`, {
           credentials: 'include' 
         }); 
 
@@ -110,14 +110,27 @@ export default function SessionsPage({ darkMode }) {
                   <span className="font-medium">Participant:</span> {session.user_id?.firstName || 'N/A'} {session.user_id?.lastName || ''}
                 </p>
                 <p className={darkMode ? 'text-gray-400' : 'text-gray-500'}>
-                  <span className="font-medium">Instructor:</span> {session.instructor_id?.firstName || 'N/A'} {session.instructor_id?.lastName || ''}
+                  <span className="font-medium">Instructor:</span> {session.group_id?.instructor_id?.firstName || 'N/A'} {session.group_id?.instructor_id?.lastName || ''}
                 </p>
                 <p className={darkMode ? 'text-gray-400' : 'text-gray-500'}>
                   <span className="font-medium">Marked At:</span> {formatDate(session.marked_at)}
                 </p>
                  <p className={darkMode ? 'text-gray-400' : 'text-gray-500'}>
-                   <span className="font-medium">Location:</span> {session.location?.coordinates ? `${session.location.coordinates[1]}, ${session.location.coordinates[0]}` : 'N/A'}
-                 </p>
+                  <span className="font-medium">Location:</span> {
+                    // 1. Try to get the address string from the Session-specific location
+                    session.location?.address 
+                      ? session.location.address 
+                      
+                    // 2. If not found, try the Group's default location address
+                    : (session.group_id?.location?.address 
+                        ? session.group_id.location.address 
+                        
+                    // 3. Fallback: If no address string exists, show Coordinates (Lat, Long)
+                    : (session.group_id?.location?.coordinates 
+                        ? `${session.group_id.location.coordinates[1].toFixed(4)}, ${session.group_id.location.coordinates[0].toFixed(4)}`
+                        : 'Online / N/A'))
+                  }
+                </p>
                  {/* Add more fields as needed, e.g., session.status if applicable */}
               </div>
             </div>
