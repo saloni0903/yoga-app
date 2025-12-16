@@ -88,6 +88,7 @@ app.use('/api/admin', (req, res, next) => {
   next();
 }, auth, require('./routes/admin'));
 app.use('/api/schedule', require('./routes/schedule'));
+app.use('/api/health', require('./routes/health'));
 
 // 404 handler - catch all unmatched routes
 app.use((req, res, next) => {

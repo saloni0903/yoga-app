@@ -2,6 +2,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const { type } = require('os');
 
 const userSchema = new mongoose.Schema({
   // Mongoose will add it by default.
@@ -96,6 +97,12 @@ const userSchema = new mongoose.Schema({
   },
   resetPasswordExpires: {
     type: Date,
+  },
+
+  //ESIS form for sugar health questions
+  isHealthProfileCompleted: {
+    type: Boolean,
+    default: false,
   },
 }, {
   timestamps: true,
