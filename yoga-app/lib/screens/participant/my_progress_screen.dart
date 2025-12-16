@@ -461,6 +461,26 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
     final dayOfWeek = DateFormat('EEEE').format(day).toLowerCase();
 
     for (final group in groups) {
+      // ⭐ ADDITION: Check if the day is within the group's schedule date range
+      final scheduleStartDate = DateTime(
+        group.schedule.startDate.year,
+        group.schedule.startDate.month,
+        group.schedule.startDate.day,
+      );
+      final scheduleEndDate = DateTime(
+        group.schedule.endDate.year,
+        group.schedule.endDate.month,
+        group.schedule.endDate.day,
+      );
+      final checkDay = DateTime(day.year, day.month, day.day);
+
+      // Skip if the day is outside the schedule date range
+      if (checkDay.isBefore(scheduleStartDate) ||
+          checkDay.isAfter(scheduleEndDate)) {
+        continue;
+      }
+
+      // Check if this day of the week is scheduled
       if (group.schedule.days.any((d) => d.toLowerCase() == dayOfWeek)) {
         sessions.add(
           SessionInfo(
