@@ -15,6 +15,9 @@ class User {
   // ⭐ ADDITION: Added the missing profileImage field.
   final String? profileImage;
 
+  // ESIS: Added field to track health profile completion 
+  final bool isHealthProfileCompleted;  
+
   // Stats for the dashboard
   final int totalMinutesPracticed;
   final int totalSessionsAttended;
@@ -33,7 +36,8 @@ class User {
     this.samagraId,
     this.token,
     required this.status,
-    this.profileImage, // ⭐ ADDITION
+    this.profileImage,
+    this.isHealthProfileCompleted = false,
     required this.totalMinutesPracticed,
     required this.totalSessionsAttended,
     required this.currentStreak,
@@ -52,10 +56,12 @@ class User {
       samagraId: userJson['samagraId'] as String?,
       token: '', // Member lists don't include tokens
       status: userJson['status'] ?? 'approved',
-      profileImage: userJson['profileImage'] as String?, // ⭐ ADDITION
+      profileImage: userJson['profileImage'] as String?, 
       totalMinutesPracticed: 0,
       totalSessionsAttended: 0,
       currentStreak: 0,
+      isHealthProfileCompleted: false,
+
     );
   }
 
@@ -72,7 +78,8 @@ class User {
       samagraId: userJson['samagraId'] as String?,
       token: json['token'] as String?,
       status: userJson['status'] ?? 'approved',
-      profileImage: userJson['profileImage'] as String?, // ⭐ ADDITION
+      profileImage: userJson['profileImage'] as String?, 
+      isHealthProfileCompleted: userJson['isHealthProfileCompleted'] ?? false,
       totalMinutesPracticed: userJson['totalMinutesPracticed'] ?? 0,
       totalSessionsAttended: userJson['totalSessionsAttended'] ?? 0,
       currentStreak: userJson['currentStreak'] ?? 0,
@@ -90,7 +97,8 @@ class User {
       phone: userJson['phone'] as String?,
       samagraId: userJson['samagraId'] as String?,
       status: userJson['status'] ?? 'approved',
-      profileImage: userJson['profileImage'] as String?, // ⭐ ADDITION
+      profileImage: userJson['profileImage'] as String?, 
+      isHealthProfileCompleted: userJson['isHealthProfileCompleted'] ?? false,
       totalMinutesPracticed: userJson['totalMinutesPracticed'] ?? 0,
       totalSessionsAttended: userJson['totalSessionsAttended'] ?? 0,
       currentStreak: userJson['currentStreak'] ?? 0,
@@ -112,6 +120,7 @@ class User {
     int? totalMinutesPracticed,
     int? totalSessionsAttended,
     int? currentStreak,
+    bool? isHealthProfileCompleted,  // ESIS: Added copyWith field
   }) {
     return User(
       id: id ?? this.id,
@@ -124,7 +133,8 @@ class User {
       samagraId: samagraId ?? this.samagraId,
       token: token ?? this.token,
       status: status ?? this.status,
-      profileImage: profileImage ?? this.profileImage, // ⭐ ADDITION
+      profileImage: profileImage ?? this.profileImage, 
+      isHealthProfileCompleted: isHealthProfileCompleted ?? this.isHealthProfileCompleted,
       totalMinutesPracticed:
           totalMinutesPracticed ?? this.totalMinutesPracticed,
       totalSessionsAttended:

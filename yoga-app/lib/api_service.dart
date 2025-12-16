@@ -612,4 +612,25 @@ class ApiService with ChangeNotifier {
       'city': data['data']['city'] ?? '',
     };
   }
+
+  //ESIS: New method to submit health profile
+  Future<void> submitHealthProfile(Map<String, dynamic> responses, int totalScore) async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/health/submit'),
+      headers: _authHeaders(), // Uses your existing token logic
+      body: json.encode({
+        'responses': responses,
+        'totalScore': totalScore,
+      }),
+    );
+
+    final data = _decode(res);
+    _ensureOk(res, data);
+
+    // ⭐ CRITICAL: Update the local user object so the app redirects immediately
+    if (_currentUser != null) {
+      _currentUser = _currentUser!.copyWith(isHealthProfileCompleted: true);
+      notifyListeners(); // This triggers AuthWrapper to rebuild and show HomeScreen
+    }
+  }
 }

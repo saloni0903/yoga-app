@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { LogOut, Users, BarChart3, Moon, Sun, Menu, X, Map, Clock } from 'lucide-react'; // Added Map, Clock
+import { LogOut, Users, BarChart3, Moon, Sun, Menu, X, Map, Clock, HeartPulse } from 'lucide-react'; // Added Map, Clock
 import DashboardPage from '../pages/DashboardPage';
 import InstructorsPage from '../pages/InstructorsPage';
 import GroupsMapPage from '../pages/GroupsMapPage';
 import SessionsPage from '../pages/SessionsPage';
+import HealthProfilesPage from '../pages/HealthProfilesPage';
 
 export default function DashboardLayout({ onLogout, darkMode, setDarkMode }) {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -19,6 +20,8 @@ export default function DashboardLayout({ onLogout, darkMode, setDarkMode }) {
         return <GroupsMapPage darkMode={darkMode} />;
       case 'sessions':
         return <SessionsPage darkMode={darkMode} />;
+      case 'health': // ESIS: Health Profiles View
+        return <HealthProfilesPage darkMode={darkMode} />;
       default:
         return <DashboardPage darkMode={darkMode} />;
     }
@@ -126,6 +129,23 @@ export default function DashboardLayout({ onLogout, darkMode, setDarkMode }) {
              <Clock className="w-5 h-5" />
              <span className="font-medium">Past Sessions</span>
            </button>
+
+           {/* ESIS */}
+          <button
+            onClick={() => { setCurrentView('health'); setSidebarOpen(false); }}
+            className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-xl transition-all duration-200 ${
+              currentView === 'health'
+                ? darkMode
+                  ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/30'
+                  : 'bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-lg shadow-teal-500/30'
+                : darkMode
+                  ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+          >
+            <HeartPulse className="w-5 h-5" />
+            <span className="font-medium">Health Data</span>
+          </button>
 
         </nav>
         
