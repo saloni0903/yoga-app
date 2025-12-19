@@ -547,7 +547,7 @@ router.post('/:id/join', auth, async (req, res) => {
     await sendNotificationToUser(
         user_id,
         'Welcome!', // Notification Title
-        `Hurray!! "${groupName}" : You have successfully joined the group!!`, // Notification Body
+        `Hurray!! "${GroupMember}" : You have successfully joined the group!!`, // Notification Body
         { type: 'group_joined', groupId: group_id } // Optional data payload
     );
     // --- End Notifications ---

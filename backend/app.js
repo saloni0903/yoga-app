@@ -30,7 +30,7 @@ initializeScheduler();
 const app = express();
 
 // cors config:
-const whitelist = ['https://aayush-dashboard.onrender.com']; // Base whitelist for production
+const whitelist = ['https://shram-dashboard.onrender.com']; // Base whitelist for production
 const corsOptions = {
     origin: function (origin, callback) {
         // Allow Render URLs, whitelisted sites, localhost, and no origin (Postman/mobile)

@@ -17,7 +17,7 @@ const createAdmin = async () => {
     }
 
     const admin = new User({
-      firstName: 'Aayush',
+      firstName: 'shram',
       lastName: 'Admin',
       email: adminEmail,
       password: adminPassword, 
@@ -27,7 +27,7 @@ const createAdmin = async () => {
     });
 
     await admin.save();
-    console.log(' Aayush admin account created successfully!');
+    console.log(' shram admin account created successfully!');
     console.log(`   Email: ${adminEmail}`);
     console.log(`   Password: ${adminPassword}`);
   } catch (error) {
