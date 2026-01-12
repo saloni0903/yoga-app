@@ -1,133 +1,167 @@
-// backend/model/User.js
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
 const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
-const { type } = require('os');
+const sequelize = require('../config/sequelize');
 
-const userSchema = new mongoose.Schema({
-  // Mongoose will add it by default.
-  // _id: { 
-  //   type: String, 
-  //   default: () => crypto.randomUUID() 
-  // },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    lowercase: true,
-    trim: true,
-  },
-  password: {
-    type: String,
-    required: true,
-    minlength: 8,
-  },
-  firstName: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  lastName: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  phone: {
-    type: String,
-    trim: true,
-  },
-  samagraId: {
-    type: String,
-    trim: true,
-  },
-  role: {
-    type: String,
-    enum: ['instructor', 'participant','admin'],
-    default: 'participant',
-  },
-  location: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  isActive: {
-    type: Boolean,
-    default: true,
-  },
-  profileImage: {
-    type: String,
-    default: null,
-  },
-  dateOfBirth: {
-    type: Date,
-  },
-  emergencyContact: {
-    name: String,
-    phone: String,
-    relationship: String,
-  },
-  medicalInfo: {
-    allergies: [String],
-    conditions: [String],
-    medications: [String],
-  },
-  status: {
-    type: String,
-    enum: ['pending', 'approved', 'rejected', 'suspended'],
-    default: 'approved', // Default to approved for participants and admins
-  },
-  preferences: {
-    notifications: {
-      email: { type: Boolean, default: true },
-      sms: { type: Boolean, default: false },
-      push: { type: Boolean, default: true },
+const User = sequelize.define(
+  'User',
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
     },
-    yogaLevel: {
-      type: String,
-      enum: ['beginner', 'intermediate', 'advanced'],
-      default: 'beginner',
+    email: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+      set(value) {
+        this.setDataValue('email', String(value || '').toLowerCase().trim());
+      },
+      validate: {
+        isEmail: true,
+      },
+    },
+    password: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        len: [8, 255],
+      },
+    },
+    firstName: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      set(value) {
+        this.setDataValue('firstName', String(value || '').trim());
+      },
+    },
+    lastName: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      set(value) {
+        this.setDataValue('lastName', String(value || '').trim());
+      },
+    },
+    phone: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    samagraId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    role: {
+      type: DataTypes.ENUM('instructor', 'participant', 'admin'),
+      allowNull: false,
+      defaultValue: 'participant',
+    },
+    location: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    isActive: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+    },
+    profileImage: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
+    },
+    dateOfBirth: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    emergencyContact: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+    },
+    medicalInfo: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+    },
+    status: {
+      type: DataTypes.ENUM('pending', 'approved', 'rejected', 'suspended'),
+      allowNull: false,
+      defaultValue: 'approved',
+    },
+    preferences: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      defaultValue: {
+        notifications: { email: true, sms: false, push: true },
+        yogaLevel: 'beginner',
+      },
+    },
+    fcmTokens: {
+      type: DataTypes.ARRAY(DataTypes.TEXT),
+      allowNull: false,
+      defaultValue: [],
+    },
+    resetPasswordOtp: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    resetPasswordExpires: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    isHealthProfileCompleted: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    currentStreak: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    totalMinutesPracticed: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    totalSessionsAttended: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    fullName: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return `${this.firstName} ${this.lastName}`.trim();
+      },
     },
   },
-  fcmTokens: {
-    type: [String],
-    default: [],
-  },
-  resetPasswordOtp: {
-    type: String,
-  },
-  resetPasswordExpires: {
-    type: Date,
-  },
-
-  //ESIS form for sugar health questions
-  isHealthProfileCompleted: {
-    type: Boolean,
-    default: false,
-  },
-}, {
-  timestamps: true,
-  toJSON: {
-    virtuals: true,
-    transform: function (doc, ret) {
-      // ret.id = ret._id.toString();
-      delete ret.__v;
-      delete ret.password;
-    }
-  }
-});
-
-userSchema.virtual('fullName').get(function() { return `${this.firstName} ${this.lastName}`; });
-userSchema.pre('save', async function(next) { 
-    if (this.isModified('password')) { 
-      const salt = await bcrypt.genSalt(10); 
-      this.password = await bcrypt.hash(this.password, salt); 
-    } 
-    if (this.isNew && this.role === 'instructor') {
-      this.status = 'pending';
-    }
-    next(); 
+  {
+    tableName: 'users',
+    timestamps: true,
+    hooks: {
+      beforeValidate(user) {
+        if (user.isNewRecord && user.role === 'instructor') {
+          user.status = 'pending';
+        }
+      },
+      async beforeSave(user) {
+        if (user.changed('password')) {
+          const salt = await bcrypt.genSalt(10);
+          user.password = await bcrypt.hash(user.password, salt);
+        }
+      },
+    },
   }
 );
-userSchema.methods.comparePassword = async function(candidatePassword) { return bcrypt.compare(candidatePassword, this.password); };
 
-module.exports = mongoose.model('User', userSchema);
+User.prototype.comparePassword = async function comparePassword(candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
+};
+
+User.prototype.toJSON = function toJSON() {
+  const values = { ...this.get() };
+  values._id = values.id;
+  delete values.password;
+  return values;
+};
+
+module.exports = User;

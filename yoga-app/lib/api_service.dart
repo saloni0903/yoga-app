@@ -27,7 +27,7 @@ class ApiService with ChangeNotifier {
     );
     // 2. kIsWeb check for web-specific debugging is acceptable.
     if (kIsWeb) {
-      return 'http://localhost:3000';
+      return 'http://localhost:5000';
     }
 
     // 3. Return the environment-defined URL.
@@ -614,14 +614,14 @@ class ApiService with ChangeNotifier {
   }
 
   //ESIS: New method to submit health profile
-  Future<void> submitHealthProfile(Map<String, dynamic> responses, int totalScore) async {
+  Future<void> submitHealthProfile(
+    Map<String, dynamic> responses,
+    int totalScore,
+  ) async {
     final res = await _client.post(
       Uri.parse('$baseUrl/api/health/submit'),
       headers: _authHeaders(), // Uses your existing token logic
-      body: json.encode({
-        'responses': responses,
-        'totalScore': totalScore,
-      }),
+      body: json.encode({'responses': responses, 'totalScore': totalScore}),
     );
 
     final data = _decode(res);

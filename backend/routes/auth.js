@@ -5,6 +5,7 @@ const User = require('../model/User');
 const auth = require('../middleware/auth');  
 const crypto = require('crypto');
 const { sendEmail } = require('../services/emailService');
+const { Op } = require('sequelize');
 const router = express.Router();
 
 
@@ -28,7 +29,7 @@ router.post('/register', upload.any(), async (req, res) => {
 
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -37,7 +38,7 @@ router.post('/register', upload.any(), async (req, res) => {
     }
 
     // Create new user with all fields from Flutter
-    const user = new User({
+    const user = await User.create({
       email,
       password,
       firstName,
@@ -45,14 +46,12 @@ router.post('/register', upload.any(), async (req, res) => {
       role,
       location,
       phone,
-      samagraId
+      samagraId,
     });
-
-    await user.save();
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role },
+      { userId: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
     );
@@ -81,7 +80,7 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
     // Find user by email
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ where: { email: String(email || '').toLowerCase().trim() } });
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -100,7 +99,7 @@ router.post('/login', async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role },
+      { userId: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
     );
@@ -149,7 +148,7 @@ router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
 
   try {
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ where: { email: String(email || '').toLowerCase().trim() } });
 
     // Security Best Practice:
     // Always send a generic success response, even if the user isn't found.
@@ -168,7 +167,7 @@ router.post('/forgot-password', async (req, res) => {
 
     // Save the OTP and expiry to the user document
     user.resetPasswordOtp = otp;
-    user.resetPasswordExpires = expires;
+    user.resetPasswordExpires = new Date(expires);
     await user.save();
 
     // Send the email
@@ -206,9 +205,11 @@ router.post('/reset-password', async (req, res) => {
   try {
     // Find the user based on email, matching OTP, and unexpired time
     const user = await User.findOne({
-      email: email,
-      resetPasswordOtp: otp,
-      resetPasswordExpires: { $gt: Date.now() }, // Check if expiry is in the future
+      where: {
+        email: String(email || '').toLowerCase().trim(),
+        resetPasswordOtp: otp,
+        resetPasswordExpires: { [Op.gt]: new Date() },
+      },
     });
 
     // If no user matches, the OTP is invalid or expired
@@ -219,8 +220,8 @@ router.post('/reset-password', async (req, res) => {
     // Set the new password. The 'pre-save' hook in User.js will hash it.
     user.password = password;
     // Clear the OTP fields so it can't be used again
-    user.resetPasswordOtp = undefined;
-    user.resetPasswordExpires = undefined;
+    user.resetPasswordOtp = null;
+    user.resetPasswordExpires = null;
 
     await user.save();
 
@@ -249,7 +250,7 @@ router.get('/profile', auth, (req, res) => {
 // Update user profile (authenticated)
 router.put('/profile', auth, async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
     const {
       firstName,
       lastName,
@@ -263,11 +264,8 @@ router.put('/profile', auth, async (req, res) => {
     if (phone !== undefined) updateData.phone = phone;
     if (location !== undefined) updateData.location = location;
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    ).select('-password');
+    await User.update(updateData, { where: { id: userId } });
+    const updatedUser = await User.findByPk(userId);
 
     if (!updatedUser) {
       return res.status(404).json({ success: false, message: 'User not found' });

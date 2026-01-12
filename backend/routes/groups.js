@@ -6,7 +6,8 @@ const GroupMember = require('../model/GroupMember');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const axios = require('axios');
-const mongoose = require('mongoose');
+const { Op } = require('sequelize');
+const sequelize = require('../config/sequelize');
 
 // const Session = require('../model/Session');
 const crypto = require('crypto');
@@ -31,99 +32,140 @@ router.get('/', async (req, res) => {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
-    let query = {};
-
-    // Filter by instructor if provided
+    const baseWhere = {};
     if (instructor_id) {
-      query.instructor_id = new mongoose.Types.ObjectId(instructor_id);
+      baseWhere.instructor_id = instructor_id;
     }
 
-    // Text search across multiple fields
     if (search) {
-      query.$or = [
-        { group_name: { $regex: search, $options: 'i' } },
-        { 'location.address': { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { yoga_style: { $regex: search, $options: 'i' } },
+      baseWhere[Op.or] = [
+        { group_name: { [Op.iLike]: `%${search}%` } },
+        { location_address: { [Op.iLike]: `%${search}%` } },
+        { description: { [Op.iLike]: `%${search}%` } },
+        { yoga_style: { [Op.iLike]: `%${search}%` } },
       ];
     }
 
-    // Separate offline and online groups
-    const offlineQuery = { ...query, groupType: 'offline' };
-    const onlineQuery = { ...query, groupType: 'online' };
+    const offlineWhere = { ...baseWhere, groupType: 'offline' };
+    const onlineWhere = { ...baseWhere, groupType: 'online' };
 
+    const Instructor = sequelize.models.User;
     let offlineGroups = [];
     let onlineGroups = [];
 
-    // Fetch offline groups with distance if lat/long provided
-    if (latitude && longitude) {
-      const userCoords = [parseFloat(longitude), parseFloat(latitude)];
-      
-      offlineGroups = await Group.aggregate([
-        {
-          $geoNear: {
-            near: { type: 'Point', coordinates: userCoords },
-            distanceField: 'distance',
-            spherical: true,
-            maxDistance: 50000, // 50km radius
-            query: offlineQuery,
-          }
-        },
-        {
-          $lookup: {
-            from: 'users',
-            localField: 'instructor_id',
-            foreignField: '_id',
-            as: 'instructor',
-          }
-        },
-        { $unwind: { path: '$instructor', preserveNullAndEmptyArrays: true } },
-        {
-          $addFields: {
-            instructor_id: {
-              _id: '$instructor._id',
-              firstName: '$instructor.firstName',
-              lastName: '$instructor.lastName',
-              email: '$instructor.email',
-            }
-          }
-        },
-        { $project: { instructor: 0 } }
-      ]);
+    const lat = latitude != null ? Number(latitude) : null;
+    const lon = longitude != null ? Number(longitude) : null;
+    const hasCoords = Number.isFinite(lat) && Number.isFinite(lon);
+
+    if (hasCoords) {
+      // Use a SQL query to compute distance (meters) without PostGIS.
+      const replacements = {
+        lat,
+        lon,
+        searchLike: search ? `%${search}%` : null,
+        instructorId: instructor_id || null,
+      };
+
+      const searchSql = search
+        ? 'AND (g.group_name ILIKE :searchLike OR g.location_address ILIKE :searchLike OR g.description ILIKE :searchLike OR g.yoga_style ILIKE :searchLike)'
+        : '';
+      const instructorSql = instructor_id ? 'AND g.instructor_id = :instructorId' : '';
+
+      const [rows] = await sequelize.query(
+        `
+          SELECT * FROM (
+            SELECT
+              g.*,
+              (6371000 * acos(
+                cos(radians(:lat)) * cos(radians(g.latitude)) *
+                cos(radians(g.longitude) - radians(:lon)) +
+                sin(radians(:lat)) * sin(radians(g.latitude))
+              )) AS distance,
+              jsonb_build_object(
+                '_id', u.id,
+                'firstName', u."firstName",
+                'lastName', u."lastName",
+                'email', u.email
+              ) AS instructor_obj
+            FROM groups g
+            LEFT JOIN users u ON u.id = g.instructor_id
+            WHERE g."groupType" = 'offline'
+              ${instructorSql}
+              ${searchSql}
+              AND g.latitude IS NOT NULL
+              AND g.longitude IS NOT NULL
+          ) t
+          WHERE t.distance <= 50000
+          ORDER BY t.created_at DESC
+        `,
+        { replacements }
+      );
+
+      offlineGroups = rows.map(r => ({
+        ...r,
+        _id: r.id,
+        id: r.id,
+        instructor_id: r.instructor_obj,
+        location_text: r.groupType === 'offline' ? (r.location_address || r.location?.address || null) : null,
+      }));
     } else {
-      // No location - fetch all offline groups
-      offlineGroups = await Group.find(offlineQuery)
-        .populate('instructor_id', 'firstName lastName email')
-        .sort({ created_at: -1 })
-        .lean();
+      const results = await Group.findAll({
+        where: offlineWhere,
+        include: [
+          {
+            model: Instructor,
+            as: 'instructor',
+            attributes: ['id', 'firstName', 'lastName', 'email'],
+          },
+        ],
+        order: [['created_at', 'DESC']],
+      });
+
+      offlineGroups = results.map(g => {
+        const obj = g.toJSON();
+        return {
+          ...obj,
+          instructor_id: obj.instructor
+            ? { _id: obj.instructor.id, firstName: obj.instructor.firstName, lastName: obj.instructor.lastName, email: obj.instructor.email }
+            : obj.instructor_id,
+          instructor: undefined,
+          location_text: obj.location_text,
+        };
+      });
     }
 
-    // Fetch all online groups (no distance)
-    onlineGroups = await Group.find(onlineQuery)
-      .populate('instructor_id', 'firstName lastName email')
-      .sort({ created_at: -1 })
-      .lean();
+    const onlineResults = await Group.findAll({
+      where: onlineWhere,
+      include: [
+        {
+          model: Instructor,
+          as: 'instructor',
+          attributes: ['id', 'firstName', 'lastName', 'email'],
+        },
+      ],
+      order: [['created_at', 'DESC']],
+    });
 
-    // Combine results
-    let allGroups = [...offlineGroups, ...onlineGroups];
+    onlineGroups = onlineResults.map(g => {
+      const obj = g.toJSON();
+      return {
+        ...obj,
+        instructor_id: obj.instructor
+          ? { _id: obj.instructor.id, firstName: obj.instructor.firstName, lastName: obj.instructor.lastName, email: obj.instructor.email }
+          : obj.instructor_id,
+        instructor: undefined,
+        location_text: obj.location_text,
+      };
+    });
 
-    // Apply pagination
+    const allGroups = [...offlineGroups, ...onlineGroups];
     const total = allGroups.length;
     const paginatedGroups = allGroups.slice(skip, skip + limitNum);
-
-    // Add location_text virtual
-    const groupsWithVirtuals = paginatedGroups.map(group => ({
-      ...group,
-      location_text: (group.groupType === 'offline' && group.location) 
-        ? group.location.address 
-        : null,
-      id: group._id,
-    }));
 
     res.json({
       success: true,
       data: {
-        groups: groupsWithVirtuals,
+        groups: paginatedGroups,
         pagination: {
           current: pageNum,
           pages: Math.ceil(total / limitNum),
@@ -146,16 +188,29 @@ router.get('/', async (req, res) => {
 router.get('/my-groups', auth, async (req, res) => {
   try {
     // 1. Find all memberships for the current user
-    const memberships = await GroupMember.find({ user_id: req.user.id });
+    const memberships = await GroupMember.findAll({ where: { user_id: req.user.id } });
 
     // 2. Extract just the group IDs from the memberships
     const groupIds = memberships.map(m => m.group_id);
 
     // 3. Find all groups that match those IDs and populate the instructor's name
-    const groups = await Group.find({ '_id': { $in: groupIds } })
-      .populate('instructor_id', 'fullName');
+    const Instructor = sequelize.models.User;
+    const groups = await Group.findAll({
+      where: { id: { [Op.in]: groupIds } },
+      include: [{ model: Instructor, as: 'instructor', attributes: ['id', 'firstName', 'lastName'] }],
+      order: [['created_at', 'DESC']],
+    });
 
-    res.json({ success: true, data: { groups } });
+    const data = groups.map(g => {
+      const obj = g.toJSON();
+      return {
+        ...obj,
+        instructor_id: obj.instructor ? { _id: obj.instructor.id, fullName: `${obj.instructor.firstName} ${obj.instructor.lastName}`.trim() } : obj.instructor_id,
+        instructor: undefined,
+      };
+    });
+
+    res.json({ success: true, data: { groups: data } });
   } catch (error) {
     console.error('Error fetching user groups:', error);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -166,9 +221,10 @@ router.get('/my-groups', auth, async (req, res) => {
 // ==================== GET SINGLE GROUP ====================
 router.get('/:id', async (req, res) => {
   try {
-    const group = await Group.findById(req.params.id)
-      .populate('instructor_id', 'firstName lastName email')
-      .lean(); // Add .lean() to get plain object
+    const Instructor = sequelize.models.User;
+    const group = await Group.findByPk(req.params.id, {
+      include: [{ model: Instructor, as: 'instructor', attributes: ['id', 'firstName', 'lastName', 'email'] }],
+    });
     
     if (!group) {
       return res.status(404).json({
@@ -177,22 +233,25 @@ router.get('/:id', async (req, res) => {
       });
     }
 
-    // Add location_text virtual and member count
+    const groupObj = group.toJSON();
     const groupData = {
-      ...group,
-      location_text: (group.groupType === 'offline' && group.location) 
-        ? group.location.address 
-        : null,
-      id: group._id.toString(),
+      ...groupObj,
+      instructor_id: groupObj.instructor
+        ? { _id: groupObj.instructor.id, firstName: groupObj.instructor.firstName, lastName: groupObj.instructor.lastName, email: groupObj.instructor.email }
+        : groupObj.instructor_id,
+      instructor: undefined,
+      id: groupObj.id,
+      _id: groupObj.id,
+      location_text: groupObj.location_text,
     };
     
     // Add member count
-    const memberCount = await GroupMember.countDocuments({ group_id: group._id });
+    const memberCount = await GroupMember.count({ where: { group_id: groupObj.id } });
     groupData.memberCount = memberCount;
 
     // CRITICAL FIX: Ensure meetLink is always present for online groups
-    if (group.groupType === 'online') {
-      groupData.meetLink = group.meetLink || null;
+    if (groupObj.groupType === 'online') {
+      groupData.meetLink = groupObj.meetLink || null;
     }
 
     res.json({
@@ -263,13 +322,12 @@ router.post('/', auth, async (req, res) => {
               coordinates: [parseFloat(longitude), parseFloat(latitude)],
               address: location_text
           };
-          groupData.location_text = location_text;
+          groupData.location_address = location_text;
           groupData.latitude = parseFloat(latitude);
           groupData.longitude = parseFloat(longitude);
         }
 
-        const group = new Group(groupData);
-        await group.save();
+        const group = await Group.create(groupData);
 
         res.status(201).json({
             success: true,
@@ -298,7 +356,7 @@ router.put('/:id', auth, async (req, res) => {
     const groupId = req.params.id;
     
     // Find existing group
-    const existingGroup = await Group.findById(groupId);
+    const existingGroup = await Group.findByPk(groupId);
     if (!existingGroup) {
       return res.status(404).json({
         success: false,
@@ -307,7 +365,7 @@ router.put('/:id', auth, async (req, res) => {
     }
 
     // Check authorization
-    if (existingGroup.instructor_id.toString() !== req.user._id.toString()) {
+    if (String(existingGroup.instructor_id) !== String(req.user.id)) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this group'
@@ -335,7 +393,6 @@ router.put('/:id', auth, async (req, res) => {
     } = req.body;
 
     const updateData = {};
-    const unsetData = {};
 
     // Update basic fields if provided
     if (group_name !== undefined) updateData.group_name = group_name;
@@ -364,9 +421,12 @@ router.put('/:id', auth, async (req, res) => {
           coordinates: [parseFloat(longitude), parseFloat(latitude)],
           address: location_text
         };
+        updateData.location_address = location_text;
+        updateData.latitude = parseFloat(latitude);
+        updateData.longitude = parseFloat(longitude);
       }
       // Clear meetLink for offline groups
-      unsetData.meetLink = '';
+      updateData.meetLink = null;
       
     } else if (finalGroupType === 'online') {
       // Update meetLink if provided
@@ -374,21 +434,18 @@ router.put('/:id', auth, async (req, res) => {
         updateData.meetLink = meetLink;
       }
       // Clear location for online groups
-      unsetData.location = '';
+      updateData.location = null;
+      updateData.location_address = null;
+      updateData.latitude = null;
+      updateData.longitude = null;
     }
 
-    // Build update query
-    const updateQuery = { $set: updateData };
-    if (Object.keys(unsetData).length > 0) {
-      updateQuery.$unset = unsetData;
-    }
+    await existingGroup.update(updateData);
 
-    // Perform update
-    const updatedGroup = await Group.findByIdAndUpdate(
-      groupId,
-      updateQuery,
-      { new: true, runValidators: true }
-    ).populate('instructor_id', 'firstName lastName email');
+    const Instructor = sequelize.models.User;
+    const updatedGroup = await Group.findByPk(groupId, {
+      include: [{ model: Instructor, as: 'instructor', attributes: ['id', 'firstName', 'lastName', 'email'] }],
+    });
 
     res.json({
       success: true,
@@ -456,7 +513,7 @@ router.put('/:id', auth, async (req, res) => {
 // Delete group
 router.delete('/:id', async (req, res) => {
   try {
-    const group = await Group.findByIdAndDelete(req.params.id);
+    const group = await Group.findByPk(req.params.id);
     
     if (!group) {
       return res.status(404).json({
@@ -465,8 +522,10 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
+    await group.destroy();
+
     // Also remove all group members
-    await GroupMember.deleteMany({ group_id: req.params.id });
+    await GroupMember.destroy({ where: { group_id: req.params.id } });
 
     res.json({
       success: true,
@@ -485,7 +544,12 @@ router.delete('/:id', async (req, res) => {
 // Get group members
 router.get('/:id/members', async (req, res) => {
   try {
-    const members = await GroupMember.getActiveMembers(req.params.id);
+    const User = sequelize.models.User;
+    const members = await GroupMember.findAll({
+      where: { group_id: req.params.id, status: 'active' },
+      include: [{ model: User, as: 'user', attributes: ['id', 'firstName', 'lastName', 'email', 'phone'] }],
+      order: [['joined_at', 'ASC']],
+    });
     
     res.json({
       success: true,
@@ -510,15 +574,15 @@ router.post('/:id/join', auth, async (req, res) => {
     const group_id = req.params.id;
 
     // 1. Fetch group details to get instructor ID and group name
-    const group = await Group.findById(group_id);
+    const group = await Group.findByPk(group_id);
     if (!group) {
         return res.status(404).json({ success: false, message: 'Group not found' });
     }
-    const instructorId = group.instructor_id ? group.instructor_id.toString() : null; // Convert ObjectId to string
+    const instructorId = group.instructor_id ? String(group.instructor_id) : null;
     const groupName = group.group_name;
 
     // 2. Check if user is already a member
-    const existingMember = await GroupMember.findOne({ user_id, group_id });
+    const existingMember = await GroupMember.findOne({ where: { user_id, group_id } });
     if (existingMember) {
       return res.status(400).json({
         success: false,
@@ -527,8 +591,7 @@ router.post('/:id/join', auth, async (req, res) => {
     }
 
     // 3. Add the user to the group
-    const membership = new GroupMember({ user_id, group_id });
-    await membership.save();
+    const membership = await GroupMember.create({ user_id, group_id });
 
     // --- Send Notifications ---
     // 4. Notify the instructor (if they exist and aren't the one joining)
@@ -573,12 +636,13 @@ router.post('/:id/join', auth, async (req, res) => {
 router.delete('/:id/leave', async (req, res) => {
   try {
     const { user_id } = req.body;
-    
-    const membership = await GroupMember.findOneAndUpdate(
-      { user_id, group_id: req.params.id },
+
+    await GroupMember.update(
       { status: 'left' },
-      { new: true }
+      { where: { user_id, group_id: req.params.id } }
     );
+
+    const membership = await GroupMember.findOne({ where: { user_id, group_id: req.params.id } });
 
     if (!membership) {
       return res.status(404).json({

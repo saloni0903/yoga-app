@@ -5,13 +5,15 @@ const Group = require('../model/Group');
 const GroupMember = require('../model/GroupMember'); // <-- Add GroupMember require
 const ReminderLog = require('../model/ReminderLog'); // <-- Add ReminderLog require
 const admin = require('../config/firebase');
+const sequelize = require('../config/sequelize');
+const { QueryTypes } = require('sequelize');
 
 // --- Helper: Calculate Session Occurrences ---
 // Calculates session dates within a given window based on group schedule
 function calculateSessionsForGroup(group, windowStart, windowEnd) {
     const sessionsInWindow = [];
     if (!group.schedule || !group.schedule.startDate || !group.schedule.endDate || !group.schedule.days || !group.schedule.startTime) {
-        // console.warn(`Group ${group._id} has incomplete schedule, skipping reminder calculation.`);
+        // console.warn(`Group ${group.id} has incomplete schedule, skipping reminder calculation.`);
         return sessionsInWindow; // Skip groups with incomplete schedules
     }
 
@@ -43,7 +45,7 @@ function calculateSessionsForGroup(group, windowStart, windowEnd) {
 
     const [startHour, startMinute] = startTime.split(':').map(Number);
     if (isNaN(startHour) || isNaN(startMinute)) {
-       console.error(`Group ${group._id} has invalid startTime format: ${startTime}`);
+         console.error(`Group ${group.id} has invalid startTime format: ${startTime}`);
        return sessionsInWindow; // Skip if time format is wrong
     }
 
@@ -87,10 +89,23 @@ async function processReminders(now) {
     const latestWindowEnd = twentyFourHoursAheadEnd;
 
     try {
-        const activeGroups = await Group.find({
-            'schedule.endDate': { $gte: earliestWindowStart }, // Only groups whose schedule hasn't ended before the earliest reminder time
-             // Add other filters if needed, e.g., only active groups?
-        }).lean(); // Use .lean() for performance when just reading data
+                // Fetch groups whose schedule endDate overlaps our earliest reminder start.
+                // schedule is stored as JSONB; query endDate via JSONB extraction.
+                const earliestDateOnly = earliestWindowStart.toISOString().split('T')[0];
+
+                const activeGroups = await sequelize.query(
+                    `
+                        SELECT id, group_name, schedule
+                        FROM groups
+                        WHERE schedule IS NOT NULL
+                            AND (schedule->>'endDate') IS NOT NULL
+                            AND (schedule->>'endDate')::date >= :earliestDateOnly
+                    `,
+                    {
+                        type: QueryTypes.SELECT,
+                        replacements: { earliestDateOnly },
+                    }
+                );
 
         // console.log(`Found ${activeGroups.length} potentially active groups.`); // Debug log
 
@@ -110,27 +125,33 @@ async function processReminders(now) {
 
                 // Check if reminder was already sent
                 const existingLog = await ReminderLog.findOne({
-                    groupId: group._id,
-                    sessionDateISO: sessionDateISO,
-                    reminderType: reminderType
-                }).lean();
+                    where: {
+                        groupId: group.id,
+                        sessionDateISO: sessionDateISO,
+                        reminderType: reminderType
+                    }
+                });
 
                 if (!existingLog) {
                     // Reminder not sent, find members and send
-                    const members = await GroupMember.find({ group_id: group._id, status: 'active' }).select('user_id').lean(); // Find active members
+                    const members = await GroupMember.findAll({
+                        where: { group_id: group.id, status: 'active' },
+                        attributes: ['user_id'],
+                        raw: true,
+                    });
                     if (members.length > 0) {
                         console.log(`[Reminder] Sending 1hr reminder for group "${group.group_name}" session at ${sessionDateISO} to ${members.length} members.`);
                         for (const member of members) {
                             await sendNotificationToUser(
-                                member.user_id.toString(), // Ensure it's a string ID
+                                String(member.user_id),
                                 'Session Reminder',
                                 `Your yoga session for "${group.group_name}" starts in about 1 hour.`,
-                                { type: 'session_reminder', groupId: group._id.toString(), sessionDate: sessionDateISO }
+                                { type: 'session_reminder', groupId: String(group.id), sessionDate: sessionDateISO }
                             );
                         }
                         // Log that reminder was sent
                         await ReminderLog.create({
-                            groupId: group._id,
+                            groupId: group.id,
                             sessionDateISO: sessionDateISO,
                             reminderType: reminderType
                         });
@@ -145,27 +166,33 @@ async function processReminders(now) {
 
                 // Check if reminder was already sent
                 const existingLog = await ReminderLog.findOne({
-                    groupId: group._id,
-                    sessionDateISO: sessionDateISO,
-                    reminderType: reminderType
-                }).lean();
+                    where: {
+                        groupId: group.id,
+                        sessionDateISO: sessionDateISO,
+                        reminderType: reminderType
+                    }
+                });
 
                  if (!existingLog) {
                     // Reminder not sent, find members and send
-                    const members = await GroupMember.find({ group_id: group._id, status: 'active' }).select('user_id').lean();
+                    const members = await GroupMember.findAll({
+                        where: { group_id: group.id, status: 'active' },
+                        attributes: ['user_id'],
+                        raw: true,
+                    });
                      if (members.length > 0) {
                         console.log(`[Reminder] Sending 24hr reminder for group "${group.group_name}" session at ${sessionDateISO} to ${members.length} members.`);
                         for (const member of members) {
                              await sendNotificationToUser(
-                                member.user_id.toString(),
+                                String(member.user_id),
                                 'Upcoming Session',
                                 `Reminder: Your yoga session for "${group.group_name}" is tomorrow.`,
-                                { type: 'session_reminder', groupId: group._id.toString(), sessionDate: sessionDateISO }
+                                { type: 'session_reminder', groupId: String(group.id), sessionDate: sessionDateISO }
                             );
                         }
                         // Log that reminder was sent
                         await ReminderLog.create({
-                            groupId: group._id,
+                            groupId: group.id,
                             sessionDateISO: sessionDateISO,
                             reminderType: reminderType
                         });
@@ -200,8 +227,7 @@ async function sendNotificationToUser(userId, title, body, data = {}) {
   }
 
   try {
-    // Use findById which works with Mongoose default _id (ObjectId or String depending on schema)
-    const user = await User.findById(userId);
+        const user = await User.findByPk(userId);
     if (!user) {
       // console.log(`User ${userId} not found for notification.`); // Can be noisy
       return;
@@ -238,19 +264,16 @@ async function sendNotificationToUser(userId, title, body, data = {}) {
         });
         // If invalid tokens were found, remove them from the user's document
         if (tokensToRemove.length > 0) {
-            await User.updateOne({ _id: userId }, { $pullAll: { fcmTokens: tokensToRemove } });
-            console.log(`[FCM] Removed ${tokensToRemove.length} invalid tokens for user ${userId}.`)
+            user.fcmTokens = (user.fcmTokens || []).filter(t => !tokensToRemove.includes(t));
+            await user.save();
+            console.log(`[FCM] Removed ${tokensToRemove.length} invalid tokens for user ${userId}.`);
         }
     }
     // --- End Failure Handling ---
 
   } catch (error) {
      // Catch errors during DB lookup or sending
-     if (error.kind === 'ObjectId' || error.name === 'CastError') {
-         console.error(`[Notification] Invalid user ID format: ${userId}`);
-     } else {
-        console.error(`[Notification] Error sending notification to user ${userId}:`, error);
-     }
+     console.error(`[Notification] Error sending notification to user ${userId}:`, error);
   }
 }
 

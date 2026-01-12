@@ -13,13 +13,13 @@ A comprehensive backend API for a yoga group management and attendance tracking 
 
 ## Database Schema
 
-The application uses MongoDB with the following main collections:
+The application uses PostgreSQL (via Sequelize) with the following main tables:
 
-- **Users**: Instructor and participant profiles
-- **Groups**: Yoga group information with location and timing details
-- **GroupMembers**: Membership relationships between users and groups
-- **Attendance**: Session attendance records with QR code tracking
-- **SessionQRCodes**: QR codes for session attendance marking
+- **users**: Instructor and participant profiles
+- **groups**: Yoga group information with location and timing details
+- **group_members**: Membership relationships between users and groups
+- **attendance**: Session attendance records with QR code tracking
+- **session_qr_codes**: QR codes for session attendance marking
 
 ## Installation
 
@@ -31,14 +31,13 @@ The application uses MongoDB with the following main collections:
 
 3. Set up environment variables:
    ```bash
-   cp env.example .env
+   cp .env.example .env
    ```
    Edit `.env` with your configuration.
 
-4. Start MongoDB (if running locally):
-   ```bash
-   mongod
-   ```
+4. Ensure PostgreSQL is running and a database exists.
+   - Local default port is usually `5432`.
+   - Create a database (example): `yoga_app`
 
 5. Seed the database with sample data:
    ```bash
@@ -105,7 +104,9 @@ The seed script creates:
 
 ## Environment Variables
 
-- `MONGODB_URI`: MongoDB connection string
+- `DATABASE_URL`: Postgres connection string (recommended)
+- `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`: Discrete Postgres settings (alternative to `DATABASE_URL`)
+- `DB_SYNC`: If not `false`, auto-sync schema at startup (use migrations in production)
 - `PORT`: Server port (default: 3000)
 - `NODE_ENV`: Environment (development/production)
 - `JWT_SECRET`: Secret key for JWT tokens
@@ -115,8 +116,8 @@ The seed script creates:
 
 - **Node.js** - Runtime environment
 - **Express.js** - Web framework
-- **MongoDB** - Database
-- **Mongoose** - ODM for MongoDB
+- **PostgreSQL** - Database
+- **Sequelize** - ORM
 - **JWT** - Authentication
 - **bcryptjs** - Password hashing
 - **CORS** - Cross-origin resource sharing

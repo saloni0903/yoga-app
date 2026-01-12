@@ -1,6 +1,6 @@
-const mongoose = require('mongoose');
 const User = require('../model/User');
 const connectDB = require('../config/database');
+const sequelize = require('../config/sequelize');
 require('dotenv').config();
 
 const createAdmin = async () => {
@@ -10,13 +10,13 @@ const createAdmin = async () => {
   const adminPassword = 'AdminPassword123!'; 
 
   try {
-    const existingAdmin = await User.findOne({ email: adminEmail });
+    const existingAdmin = await User.findOne({ where: { email: adminEmail } });
     if (existingAdmin) {
       console.log('Admin user already exists.');
       process.exit();
     }
 
-    const admin = new User({
+    const admin = await User.create({
       firstName: 'Aayush',
       lastName: 'Admin',
       email: adminEmail,
@@ -25,15 +25,13 @@ const createAdmin = async () => {
       status: 'approved',
       location: 'Indore, MP', 
     });
-
-    await admin.save();
     console.log(' Aayush admin account created successfully!');
     console.log(`   Email: ${adminEmail}`);
     console.log(`   Password: ${adminPassword}`);
   } catch (error) {
     console.error('Error creating admin user:', error);
   } finally {
-    mongoose.disconnect();
+    await sequelize.close();
   }
 };
 

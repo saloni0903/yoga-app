@@ -1,0 +1,15 @@
+{
+  "name": "yoga-app-root",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix backend run dev",
+    "seed": "npm --prefix backend run seed",
+    "start": "npm --prefix backend run start",
+
+    "dev:backend": "npm --prefix backend run dev",
+    "seed:backend": "npm --prefix backend run seed",
+
+    "dev:admin": "npm --prefix aayush-admin-dashboard run dev",
+    "build:admin": "npm --prefix aayush-admin-dashboard run build"
+  }
+}

@@ -43,7 +43,7 @@ module.exports = async function(req, res, next) {
         console.log('[Auth Middleware] Token decoded:', decoded); // DEBUG LOG
 
         // Find user by ID from token payload
-        req.user = await User.findById(decoded.userId).select('-password');
+        req.user = await User.findByPk(decoded.userId);
 
         if (!req.user) {
             console.log('[Auth Middleware] User not found for decoded ID:', decoded.userId); // DEBUG LOG

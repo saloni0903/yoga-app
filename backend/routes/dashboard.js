@@ -11,19 +11,21 @@ const Attendance = require('../model/Attendance');
 router.get('/', auth, async (req, res) => {
   try {
     // 1. Fetch the current user's stats
-    const user = await User.findById(req.user.id).select(
-      'firstName currentStreak totalMinutesPracticed totalSessionsAttended'
-    );
+    const user = await User.findByPk(req.user.id, {
+      attributes: ['id', 'firstName', 'currentStreak', 'totalMinutesPracticed', 'totalSessionsAttended'],
+    });
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
     // 2. Fetch the user's last 7 attendance records
-    const recentAttendance = await Attendance.find({ user_id: req.user.id })
-      .sort({ session_date: -1 }) // Get the most recent first
-      .limit(7)
-      .select('session_date attendance_type session_duration');
+    const recentAttendance = await Attendance.findAll({
+      where: { user_id: req.user.id },
+      order: [['session_date', 'DESC']],
+      limit: 7,
+      attributes: ['id', 'session_date', 'attendance_type', 'session_duration'],
+    });
 
     res.json({
       success: true,

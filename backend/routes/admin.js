@@ -3,8 +3,11 @@ const express = require('express');
 const router = express.Router();
 const User = require('../model/User');
 const Attendance = require('../model/Attendance');
+const Group = require('../model/Group');
 const isAdmin = require('../middleware/isAdmin');
 const { sendNotificationToUser } = require('../services/notificationService'); // Adjust path if needed
+const sequelize = require('../config/sequelize');
+const { Op, QueryTypes } = require('sequelize');
 
 // Protect all routes in this file with the isAdmin middleware
 router.use(isAdmin);
@@ -14,7 +17,10 @@ router.use(isAdmin);
 // GET all instructors with their status (pending, approved, etc.)
 router.get('/instructors', async (req, res) => {
   try {
-    const instructors = await User.find({ role: 'instructor' }).sort({ createdAt: -1 });
+    const instructors = await User.findAll({
+      where: { role: 'instructor' },
+      order: [['createdAt', 'DESC']],
+    });
     res.json({ success: true, data: instructors });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -30,14 +36,12 @@ router.put('/instructors/:id/status', async (req, res) => {
   }
 
   try {
-    const instructor = await User.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
+    const instructor = await User.findByPk(req.params.id);
     if (!instructor) {
       return res.status(404).json({ success: false, message: 'Instructor not found' });
     }
+
+    await instructor.update({ status });
     // --- Send Notification to Instructor ---
   try {
     let title = 'Account Status Update';
@@ -72,10 +76,12 @@ router.put('/instructors/:id/status', async (req, res) => {
 // DELETE an instructor
 router.delete('/instructors/:id', async (req, res) => {
     try {
-        const instructor = await User.findByIdAndDelete(req.params.id);
+    const instructor = await User.findByPk(req.params.id);
         if (!instructor) {
             return res.status(404).json({ success: false, message: 'Instructor not found' });
         }
+
+    await instructor.destroy();
         // You might also want to delete their groups, etc. (cascading delete)
         res.json({ success: true, message: 'Instructor successfully removed.' });
     } catch (error) {
@@ -93,10 +99,10 @@ router.get('/stats', async (req, res) => {
         today.setHours(0, 0, 0, 0);
 
         // --- THIS IS THE LOGIC YOU WERE MISSING ---
-        const totalParticipants = await User.countDocuments({ role: 'participant' });
-        const totalInstructors = await User.countDocuments({ role: 'instructor', status: 'approved' });
-        const sessionsToday = await Attendance.countDocuments({ marked_at: { $gte: today } });
-        const totalAttendance = await Attendance.countDocuments();
+        const totalParticipants = await User.count({ where: { role: 'participant' } });
+        const totalInstructors = await User.count({ where: { role: 'instructor', status: 'approved' } });
+        const sessionsToday = await Attendance.count({ where: { marked_at: { [Op.gte]: today } } });
+        const totalAttendance = await Attendance.count();
         // -------------------------------------------
 
         // Send the data back in the correct structure
@@ -124,29 +130,23 @@ router.get('/stats/attendance-over-time', async (req, res) => {
     startDate.setHours(0, 0, 0, 0); // Set to midnight
     startDate.setDate(startDate.getDate() - (period - 1)); // Go back (period - 1) days
 
-    // 2. Run the aggregation pipeline
-    const results = await Attendance.aggregate([
+    const results = await sequelize.query(
+      `
+        SELECT
+          to_char(marked_at::date, 'YYYY-MM-DD') AS day,
+          COUNT(*)::int AS attendance
+        FROM attendance
+        WHERE marked_at >= :startDate
+        GROUP BY day
+        ORDER BY day ASC
+      `,
       {
-        // Find all attendance records from the start date until now
-        $match: {
-          marked_at: { $gte: startDate }
-        }
-      },
-      {
-        // Group by the date part of 'marked_at' (in your server's local timezone)
-        $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$marked_at" } },
-          attendance: { $sum: 1 }
-        }
-      },
-      {
-        // Sort by date ascending
-        $sort: { _id: 1 }
+        type: QueryTypes.SELECT,
+        replacements: { startDate },
       }
-    ]);
+    );
 
-    // 3. Create a lookup map for fast processing
-    const dbResultsMap = new Map(results.map(r => [r._id, r.attendance]));
+    const dbResultsMap = new Map(results.map(r => [r.day, r.attendance]));
 
     // 4. Create a complete array for the last 'period' days
     const finalData = [];
@@ -179,39 +179,47 @@ router.get('/activity-feed', async (req, res) => {
     const limit = parseInt(req.query.limit || 7);
 
     // 1. Fetch recent user registrations
-    const registrations = await User.find({ role: 'participant' })
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .select('firstName lastName createdAt')
-      .lean(); // .lean() for faster, plain JS objects
+    const registrations = await User.findAll({
+      where: { role: 'participant' },
+      order: [['createdAt', 'DESC']],
+      limit,
+      attributes: ['id', 'firstName', 'lastName', 'createdAt'],
+    });
 
     // 2. Fetch recent instructor approvals
     // Note: This relies on 'updatedAt'. A better schema might have a statusLog.
-    const approvals = await User.find({ role: 'instructor', status: 'approved' })
-      .sort({ updatedAt: -1 })
-      .limit(limit)
-      .select('firstName lastName updatedAt')
-      .lean();
+    const approvals = await User.findAll({
+      where: { role: 'instructor', status: 'approved' },
+      order: [['updatedAt', 'DESC']],
+      limit,
+      attributes: ['id', 'firstName', 'lastName', 'updatedAt'],
+    });
 
     // 3. Fetch recent session completions (using Attendance records)
     // We need to populate the group name and instructor name
-    const sessions = await Attendance.find()
-      .sort({ marked_at: -1 })
-      .limit(limit)
-      .populate({
-        path: 'group_id',
-        select: 'group_name instructor_id',
-        populate: {
-          path: 'instructor_id',
-          select: 'firstName lastName'
-        }
-      })
-      .select('group_id marked_at')
-      .lean();
+    const sessions = await Attendance.findAll({
+      order: [['marked_at', 'DESC']],
+      limit,
+      attributes: ['id', 'marked_at'],
+      include: [
+        {
+          model: Group,
+          as: 'group',
+          attributes: ['id', 'group_name'],
+          include: [
+            {
+              model: User,
+              as: 'instructor',
+              attributes: ['id', 'firstName', 'lastName'],
+            },
+          ],
+        },
+      ],
+    });
     
     // 4. Map all results into the standardized feed format
     const registrationFeed = registrations.map(u => ({
-      id: u._id.toString() + '_user',
+      id: u.id.toString() + '_user',
       type: 'USER_REGISTERED',
       timestamp: u.createdAt,
       details: {
@@ -220,7 +228,7 @@ router.get('/activity-feed', async (req, res) => {
     }));
 
     const approvalFeed = approvals.map(i => ({
-      id: i._id.toString() + '_instructor',
+      id: i.id.toString() + '_instructor',
       type: 'INSTRUCTOR_APPROVED',
       timestamp: i.updatedAt,
       details: {
@@ -229,12 +237,12 @@ router.get('/activity-feed', async (req, res) => {
     }));
 
     const sessionFeed = sessions.map(s => ({
-      id: s._id.toString() + '_session',
+      id: s.id.toString() + '_session',
       type: 'SESSION_COMPLETED',
       timestamp: s.marked_at,
       details: {
-        groupName: s.group_id?.group_name || 'Unknown Group',
-        instructorName: `${s.group_id?.instructor_id?.firstName || 'N/A'} ${s.group_id?.instructor_id?.lastName || ''}`
+        groupName: s.group?.group_name || 'Unknown Group',
+        instructorName: `${s.group?.instructor?.firstName || 'N/A'} ${s.group?.instructor?.lastName || ''}`
       }
     }));
 
@@ -262,57 +270,26 @@ router.get('/stats/top-groups', async (req, res) => {
     startDate.setDate(startDate.getDate() - 7);
     startDate.setHours(0, 0, 0, 0);
 
-    // 2. Run the aggregation pipeline
-    const topGroups = await Attendance.aggregate([
+    const topGroups = await sequelize.query(
+      `
+        SELECT
+          a.group_id AS id,
+          g.group_name AS name,
+          COUNT(*)::int AS "attendanceCount"
+        FROM attendance a
+        JOIN groups g ON g.id = a.group_id
+        WHERE a.marked_at >= :startDate
+        GROUP BY a.group_id, g.group_name
+        ORDER BY "attendanceCount" DESC
+        LIMIT :limit
+      `,
       {
-        // Filter records for the last 7 days
-        $match: {
-          marked_at: { $gte: startDate }
-        }
-      },
-      {
-        // Group by group_id and count the attendance for each
-        $group: {
-          _id: "$group_id",
-          attendanceCount: { $sum: 1 }
-        }
-      },
-      {
-        // Sort by the count in descending order
-        $sort: { attendanceCount: -1 }
-      },
-      {
-        // Take only the top 'limit'
-        $limit: limit
-      },
-      {
-        // Join with the 'groups' collection to get group details
-        $lookup: {
-          from: 'groups', // This is the collection name Mongoose creates
-          localField: '_id',
-          foreignField: '_id',
-          as: 'groupDetails'
-        }
-      },
-      {
-        // Deconstruct the 'groupDetails' array (it will have 0 or 1 element)
-        $unwind: { path: "$groupDetails", preserveNullAndEmptyArrays: true }
-      },
-      {
-        // Format the final output to match the frontend
-        $project: {
-          _id: 0, // Exclude the default _id
-          id: "$_id", // Send the group's ID
-          name: "$groupDetails.group_name", // Get the name from the joined details
-          attendanceCount: 1 // Pass through the count
-        }
+        type: QueryTypes.SELECT,
+        replacements: { startDate, limit },
       }
-    ]);
+    );
 
-    // Filter out any groups that might have been deleted but still had attendance
-    const finalTopGroups = topGroups.filter(g => g.name);
-
-    res.json({ success: true, data: finalTopGroups });
+    res.json({ success: true, data: topGroups });
 
   } catch (error) {
     console.error('Error fetching top groups:', error);

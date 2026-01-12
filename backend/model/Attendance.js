@@ -1,191 +1,199 @@
-// backend/model/Attendance.js
-const mongoose = require('mongoose');
-const crypto = require('crypto');
+const { DataTypes, Op } = require('sequelize');
+const sequelize = require('../config/sequelize');
 
-const attendanceSchema = new mongoose.Schema({
-  user_id: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-  },
-  group_id: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Group',
-    required: true,
-  },
-  session_date: {
-    type: Date,
-    required: true,
-  },
-  marked_at: {
-    type: Date,
-    default: Date.now,
-  },
-  qr_code_id: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'SessionQRCode',
-  },
-  attendance_type: {
-    type: String,
-    enum: ['present', 'late', 'early_leave', 'absent'],
-    default: 'present',
-  },
-  check_in_time: {
-    type: Date,
-    default: Date.now,
-  },
-  check_out_time: {
-    type: Date,
-  },
-  session_duration: {
-    type: Number, // in minutes
-    default: 60,
-  },
-  notes: {
-    type: String,
-    maxlength: 500,
-  },
-  instructor_notes: {
-    type: String,
-    maxlength: 500,
-  },
-  rating: {
-    type: Number,
-    min: 1,
-    max: 5,
-  },
-  feedback: {
-    type: String,
-    maxlength: 1000,
-  },
-  location_verified: {
-    type: Boolean,
-    default: false,
-  },
-  gps_coordinates: {
-    latitude: Number,
-    longitude: Number,
-  },
-  device_info: {
-    user_agent: String,
-    ip_address: String,
-  },
-}, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true },
-});
-
-// Compound index to ensure unique attendance per user per session
-attendanceSchema.index({ user_id: 1, group_id: 1, session_date: 1 }, { unique: true });
-
-// Index for efficient queries
-attendanceSchema.index({ group_id: 1, session_date: 1 });
-attendanceSchema.index({ user_id: 1, session_date: 1 });
-attendanceSchema.index({ marked_at: -1 });
-attendanceSchema.index({ qr_code_id: 1 });
-
-// Virtual for session duration
-attendanceSchema.virtual('actual_duration').get(function() {
-  if (this.check_in_time && this.check_out_time) {
-    const diffTime = Math.abs(this.check_out_time - this.check_in_time);
-    return Math.round(diffTime / (1000 * 60)); // Convert to minutes
-  }
-  return this.session_duration;
-});
-
-// Virtual for attendance status
-attendanceSchema.virtual('is_present').get(function() {
-  return this.attendance_type === 'present' || this.attendance_type === 'late';
-});
-
-// Pre-save middleware to set check_out_time if not provided
-attendanceSchema.pre('save', function(next) {
-  if (this.isModified('attendance_type') && this.attendance_type === 'early_leave' && !this.check_out_time) {
-    this.check_out_time = new Date();
-  }
-  next();
-});
-
-// Static method to get attendance for a specific session
-attendanceSchema.statics.getSessionAttendance = function(groupId, sessionDate) {
-  return this.find({ 
-    group_id: groupId, 
-    session_date: sessionDate 
-  }).populate('user_id', 'firstName lastName email');
-};
-
-// Static method to get user's attendance history
-attendanceSchema.statics.getUserAttendance = function(userId, groupId = null) {
-  const query = { user_id: userId };
-  if (groupId) {
-    query.group_id = groupId;
-  }
-  return this.find(query).populate('group_id', 'group_name location_text');
-};
-
-// Static method to get attendance statistics
-attendanceSchema.statics.getAttendanceStats = function(groupId, startDate, endDate) {
-  // const matchStage = {
-  //   group_id: new mongoose.Types.UUID(groupId)
-  // };
-  const matchStage = { group_id: groupId }
-
-  
-  if (startDate && endDate) {
-    matchStage.session_date = {
-      $gte: startDate,
-      $lte: endDate
-    };
-  }
-
-  return this.aggregate([
-    { $match: matchStage },
-    {
-      $group: {
-        _id: '$user_id',
-        total_sessions: { $sum: 1 },
-        present_sessions: {
-          $sum: {
-            $cond: [
-              { $in: ['$attendance_type', ['present', 'late']] },
-              1,
-              0
-            ]
-          }
-        },
-        attendance_rate: {
-          $avg: {
-            $cond: [
-              { $in: ['$attendance_type', ['present', 'late']] },
-              1,
-              0
-            ]
-          }
+const Attendance = sequelize.define(
+  'Attendance',
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    user_id: {
+      type: DataTypes.UUID,
+      allowNull: false,
+    },
+    group_id: {
+      type: DataTypes.UUID,
+      allowNull: false,
+    },
+    // Store the session date as a date-only value to simplify uniqueness per day.
+    session_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: false,
+    },
+    marked_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
+    qr_code_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    attendance_type: {
+      type: DataTypes.ENUM('present', 'late', 'early_leave', 'absent'),
+      allowNull: false,
+      defaultValue: 'present',
+    },
+    check_in_time: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
+    check_out_time: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    session_duration: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 60,
+    },
+    notes: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+    },
+    instructor_notes: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+    },
+    rating: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      validate: { min: 1, max: 5 },
+    },
+    feedback: {
+      type: DataTypes.STRING(1000),
+      allowNull: true,
+    },
+    location_verified: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    gps_coordinates: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+    },
+    device_info: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+    },
+    actual_duration: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        const checkIn = this.check_in_time ? new Date(this.check_in_time) : null;
+        const checkOut = this.check_out_time ? new Date(this.check_out_time) : null;
+        if (checkIn && checkOut) {
+          const diffTime = Math.abs(checkOut - checkIn);
+          return Math.round(diffTime / (1000 * 60));
         }
-      }
+        return this.session_duration;
+      },
     },
-    {
-      $lookup: {
-        from: 'users',
-        localField: '_id',
-        foreignField: '_id',
-        as: 'user'
-      }
+    is_present: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.attendance_type === 'present' || this.attendance_type === 'late';
+      },
     },
-    {
-      $unwind: '$user'
+  },
+  {
+    tableName: 'attendance',
+    timestamps: true,
+    indexes: [
+      { unique: true, fields: ['user_id', 'group_id', 'session_date'] },
+      { fields: ['group_id', 'session_date'] },
+      { fields: ['user_id', 'session_date'] },
+      { fields: ['marked_at'] },
+      { fields: ['qr_code_id'] },
+    ],
+    hooks: {
+      beforeSave(attendance) {
+        if (
+          attendance.changed('attendance_type') &&
+          attendance.attendance_type === 'early_leave' &&
+          !attendance.check_out_time
+        ) {
+          attendance.check_out_time = new Date();
+        }
+      },
     },
-    {
-      $project: {
-        user_id: '$_id',
-        user_name: { $concat: ['$user.firstName', ' ', '$user.lastName'] },
-        total_sessions: 1,
-        present_sessions: 1,
-        attendance_rate: { $round: ['$attendance_rate', 2] }
-      }
-    }
-  ]);
+  }
+);
+
+Attendance.prototype.toJSON = function toJSON() {
+  const values = { ...this.get() };
+  values._id = values.id;
+  return values;
 };
 
-module.exports = mongoose.model('Attendance', attendanceSchema);
+Attendance.getSessionAttendance = async function getSessionAttendance(groupId, sessionDate) {
+  const User = sequelize.models.User;
+  return Attendance.findAll({
+    where: { group_id: groupId, session_date: sessionDate },
+    include: [
+      {
+        model: User,
+        as: 'user',
+        attributes: ['id', 'firstName', 'lastName', 'email'],
+      },
+    ],
+    order: [['marked_at', 'DESC']],
+  });
+};
+
+Attendance.getUserAttendance = async function getUserAttendance(userId, groupId = null) {
+  const Group = sequelize.models.Group;
+  const where = { user_id: userId };
+  if (groupId) where.group_id = groupId;
+
+  return Attendance.findAll({
+    where,
+    include: [
+      {
+        model: Group,
+        as: 'group',
+        attributes: ['id', 'group_name', 'location_address', 'groupType'],
+      },
+    ],
+    order: [['session_date', 'DESC']],
+  });
+};
+
+Attendance.getAttendanceStats = async function getAttendanceStats(groupId, startDate, endDate) {
+
+  // Using raw SQL is the simplest way to match the old aggregation output.
+  const replacements = {
+    groupId,
+    startDate: startDate || null,
+    endDate: endDate || null,
+  };
+
+  const dateFilterSql =
+    startDate && endDate ? 'AND a.session_date BETWEEN :startDate AND :endDate' : '';
+
+  const [rows] = await sequelize.query(
+    `
+      SELECT
+        a.user_id AS user_id,
+        (u."firstName" || ' ' || u."lastName") AS user_name,
+        COUNT(*)::int AS total_sessions,
+        SUM(CASE WHEN a.attendance_type IN ('present','late') THEN 1 ELSE 0 END)::int AS present_sessions,
+        ROUND(AVG(CASE WHEN a.attendance_type IN ('present','late') THEN 1 ELSE 0 END)::numeric, 2) AS attendance_rate
+      FROM attendance a
+      JOIN users u ON u.id = a.user_id
+      WHERE a.group_id = :groupId
+      ${dateFilterSql}
+      GROUP BY a.user_id, u."firstName", u."lastName"
+      ORDER BY present_sessions DESC, total_sessions DESC
+    `,
+    { replacements }
+  );
+
+  // Ensure users exist (join already ensures), but keep structure consistent.
+  return rows;
+};
+
+module.exports = Attendance;

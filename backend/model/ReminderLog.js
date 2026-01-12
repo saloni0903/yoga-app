@@ -1,27 +1,43 @@
-// backend/model/ReminderLog.js
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/sequelize');
 
-const reminderLogSchema = new mongoose.Schema({
-    groupId: {
-        type: mongoose.Schema.Types.ObjectId, // Use ObjectId if your Group _id is ObjectId
-        ref: 'Group', // Reference the Group model
-        required: true
+const ReminderLog = sequelize.define(
+    'ReminderLog',
+    {
+        id: {
+            type: DataTypes.UUID,
+            defaultValue: DataTypes.UUIDV4,
+            primaryKey: true,
+        },
+        groupId: {
+            type: DataTypes.UUID,
+            allowNull: false,
+        },
+        sessionDateISO: {
+            type: DataTypes.STRING,
+            allowNull: false,
+        },
+        reminderType: {
+            type: DataTypes.ENUM('1hr', '24hr'),
+            allowNull: false,
+        },
     },
-    sessionDateISO: { // Store the calculated session start time as an ISO string
-        type: String,
-        required: true
-    },
-    reminderType: { // Type of reminder sent ('1hr' or '24hr')
-        type: String,
-        enum: ['1hr', '24hr'],
-        required: true
+    {
+        tableName: 'reminder_logs',
+        timestamps: true,
+        indexes: [
+            {
+                unique: true,
+                fields: ['groupId', 'sessionDateISO', 'reminderType'],
+            },
+        ],
     }
-}, {
-    timestamps: true // Adds createdAt and updatedAt automatically
-});
+);
 
-// Create a compound index to ensure we don't log the same reminder twice
-// and to make lookups faster.
-reminderLogSchema.index({ groupId: 1, sessionDateISO: 1, reminderType: 1 }, { unique: true });
+ReminderLog.prototype.toJSON = function toJSON() {
+    const values = { ...this.get() };
+    values._id = values.id;
+    return values;
+};
 
-module.exports = mongoose.model('ReminderLog', reminderLogSchema);
+module.exports = ReminderLog;

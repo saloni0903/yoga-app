@@ -6,7 +6,7 @@ console.log('🚀 Setting up Yoga App Backend...\n');
 
 // Check if .env file exists
 const envPath = path.join(__dirname, '..', '.env');
-const envExamplePath = path.join(__dirname, '..', 'env.example');
+const envExamplePath = path.join(__dirname, '..', '.env.example');
 
 if (!fs.existsSync(envPath)) {
   console.log('📝 Creating .env file...');
@@ -15,11 +15,19 @@ if (!fs.existsSync(envPath)) {
     // Copy from env.example
     const envContent = fs.readFileSync(envExamplePath, 'utf8');
     fs.writeFileSync(envPath, envContent);
-    console.log('✅ .env file created from env.example');
+    console.log('✅ .env file created from .env.example');
   } else {
     // Create basic .env file
     const basicEnv = `# Database Configuration
-MONGODB_URI=mongodb://localhost:27017/yoga_app
+# Preferred: DATABASE_URL=postgresql://user:password@host:5432/dbname
+PGHOST=localhost
+PGPORT=5432
+PGDATABASE=yoga_app
+PGUSER=postgres
+PGPASSWORD=postgres
+
+# Database bootstrap
+DB_SYNC=true
 
 # Server Configuration
 PORT=3000
@@ -39,20 +47,20 @@ APP_URL=http://localhost:3000
 }
 
 console.log('\n📋 Next steps:');
-console.log('1. Make sure MongoDB is running locally, OR');
-console.log('2. Update MONGODB_URI in .env file with your MongoDB Atlas connection string');
+console.log('1. Ensure PostgreSQL is running and reachable');
+console.log('2. Update DATABASE_URL (or PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD) in .env');
 console.log('3. Run: npm run dev');
-console.log('4. Run: npm run seed (to populate with sample data)');
+console.log('4. Optional: npm run seed (populate sample data)');
 
-console.log('\n🔧 MongoDB Setup Options:');
-console.log('Option A - Local MongoDB:');
-console.log('  - Install MongoDB Community Edition');
-console.log('  - Start MongoDB service');
-console.log('  - Keep MONGODB_URI=mongodb://localhost:27017/yoga_app');
+console.log('\n🔧 PostgreSQL Setup Options:');
+console.log('Option A - Local PostgreSQL:');
+console.log('  - Install PostgreSQL');
+console.log('  - Create database: yoga_app');
+console.log('  - Keep PGHOST=localhost PGPORT=5432');
 
-console.log('\nOption B - MongoDB Atlas (Cloud):');
-console.log('  - Create free account at https://cloud.mongodb.com');
-console.log('  - Create a cluster');
-console.log('  - Get connection string and update MONGODB_URI in .env');
+console.log('\nOption B - Managed Postgres (Cloud):');
+console.log('  - Create a Postgres instance (Render/Railway/Supabase/AWS RDS, etc.)');
+console.log('  - Copy connection string into DATABASE_URL');
+console.log('  - If provider requires SSL, set NODE_ENV=production');
 
 console.log('\n✨ Setup complete!');

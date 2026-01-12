@@ -1,29 +1,44 @@
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/sequelize');
 
-// model/HealthProfile.js
-const mongoose = require('mongoose');
-
-const HealthProfileSchema = new mongoose.Schema({
-  user_id: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
+const HealthProfile = sequelize.define(
+  'HealthProfile',
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    user_id: {
+      type: DataTypes.UUID,
+      allowNull: false,
+    },
+    responses: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      defaultValue: {},
+    },
+    totalScore: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    date: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
   },
-  // Store answers simply. We can expand this later if Ayush Dept asks.
-  responses: {
-    sugar: String,
-    snacking: String,
-    lateDinner: String,
-    physicalActivity: String,
-    screenTime: String,
-    socialMedia: String,
-    music: String,
-    sleep: String,
-    alcohol: String,
-    smoking: String,
-    tobacco: String
-  },
-  totalScore: Number,
-  date: { type: Date, default: Date.now }
-});
+  {
+    tableName: 'health_profiles',
+    timestamps: false,
+    indexes: [{ fields: ['user_id'] }, { fields: ['date'] }],
+  }
+);
 
-module.exports = mongoose.model('HealthProfile', HealthProfileSchema);
+HealthProfile.prototype.toJSON = function toJSON() {
+  const values = { ...this.get() };
+  values._id = values.id;
+  return values;
+};
+
+module.exports = HealthProfile;

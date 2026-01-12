@@ -2,45 +2,56 @@
 const express = require('express');
 const User = require('../model/User');
 const auth = require('../middleware/auth');
+const { Op } = require('sequelize');
 const router = express.Router();
+
+function parseJsonMaybe(value) {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return value;
+    }
+  }
+  return value;
+}
 
 // Get all users (admin only)
 router.get('/', async (req, res) => {
   try {
     const { page = 1, limit = 10, role, search, location } = req.query;
-    const query = {};
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
 
-    if (role) {
-      query.role = role;
-    }
-
-    if (location) {
-      query.location = { $regex: location, $options: 'i' };
-    }
-
+    const where = {};
+    if (role) where.role = role;
+    if (location) where.location = { [Op.iLike]: `%${location}%` };
     if (search) {
-      query.$or = [
-        { firstName: { $regex: search, $options: 'i' } },
-        { lastName: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
+      where[Op.or] = [
+        { firstName: { [Op.iLike]: `%${search}%` } },
+        { lastName: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } },
       ];
     }
 
-    const users = await User.find(query)
-      .select('-password')
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
-      .sort({ createdAt: -1 });
-
-    const total = await User.countDocuments(query);
+    const { rows: users, count: total } = await User.findAndCountAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit: limitNum,
+      offset,
+    });
 
     res.json({
       success: true,
       data: {
         users,
         pagination: {
-          current: parseInt(page),
-          pages: Math.ceil(total / limit),
+          current: pageNum,
+          pages: Math.ceil(total / limitNum),
           total
         }
       }
@@ -60,21 +71,21 @@ router.get('/location/:location', async (req, res) => {
   try {
     const { location } = req.params;
     const { page = 1, limit = 10, role } = req.query;
-    const query = {
-      location: { $regex: location, $options: 'i' }
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
+
+    const where = {
+      location: { [Op.iLike]: `%${location}%` },
     };
+    if (role) where.role = role;
 
-    if (role) {
-      query.role = role;
-    }
-
-    const users = await User.find(query)
-      .select('-password')
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
-      .sort({ createdAt: -1 });
-
-    const total = await User.countDocuments(query);
+    const { rows: users, count: total } = await User.findAndCountAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit: limitNum,
+      offset,
+    });
 
     res.json({
       success: true,
@@ -82,8 +93,8 @@ router.get('/location/:location', async (req, res) => {
         users,
         location,
         pagination: {
-          current: parseInt(page),
-          pages: Math.ceil(total / limit),
+          current: pageNum,
+          pages: Math.ceil(total / limitNum),
           total
         }
       }
@@ -103,19 +114,20 @@ router.get('/instructors/location/:location', async (req, res) => {
   try {
     const { location } = req.params;
     const { page = 1, limit = 10 } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const offset = (pageNum - 1) * limitNum;
 
-    const instructors = await User.find({
+    const where = {
       role: 'instructor',
-      location: { $regex: location, $options: 'i' }
-    })
-      .select('-password')
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
-      .sort({ createdAt: -1 });
+      location: { [Op.iLike]: `%${location}%` },
+    };
 
-    const total = await User.countDocuments({
-      role: 'instructor',
-      location: { $regex: location, $options: 'i' }
+    const { rows: instructors, count: total } = await User.findAndCountAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit: limitNum,
+      offset,
     });
 
     res.json({
@@ -124,8 +136,8 @@ router.get('/instructors/location/:location', async (req, res) => {
         instructors,
         location,
         pagination: {
-          current: parseInt(page),
-          pages: Math.ceil(total / limit),
+          current: pageNum,
+          pages: Math.ceil(total / limitNum),
           total
         }
       }
@@ -143,7 +155,7 @@ router.get('/instructors/location/:location', async (req, res) => {
 // Get user by ID
 router.get('/:id', async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
+    const user = await User.findByPk(req.params.id);
     
     if (!user) {
       return res.status(404).json({
@@ -184,9 +196,9 @@ router.put('/:id', upload.single('profileImage'), async (req, res) => {
     if (samagraId) updateData.samagraId = samagraId;
     if (location) updateData.location = location; // Added location field
     if (dateOfBirth) updateData.dateOfBirth = dateOfBirth;
-    if (emergencyContact) updateData.emergencyContact = emergencyContact;
-    if (medicalInfo) updateData.medicalInfo = medicalInfo;
-    if (preferences) updateData.preferences = preferences;
+    if (emergencyContact) updateData.emergencyContact = parseJsonMaybe(emergencyContact);
+    if (medicalInfo) updateData.medicalInfo = parseJsonMaybe(medicalInfo);
+    if (preferences) updateData.preferences = parseJsonMaybe(preferences);
 
     if (profileImageFile) {
       // In a real application, you would upload this file to a cloud storage
@@ -196,11 +208,8 @@ router.put('/:id', upload.single('profileImage'), async (req, res) => {
       // Example: updateData.profileImage = 'URL_from_cloud_storage';
     }
 
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      { $set: updateData }, // Using $set is safer for updates
-      { new: true, runValidators: true }
-    ).select('-password');
+    await User.update(updateData, { where: { id: req.params.id } });
+    const user = await User.findByPk(req.params.id);
 
     if (!user) {
       return res.status(404).json({
@@ -227,7 +236,10 @@ router.put('/:id', upload.single('profileImage'), async (req, res) => {
 // Delete user
 router.delete('/:id', async (req, res) => {
   try {
-    const user = await User.findByIdAndDelete(req.params.id);
+    const user = await User.findByPk(req.params.id);
+    if (user) {
+      await user.destroy();
+    }
     
     if (!user) {
       return res.status(404).json({
@@ -260,13 +272,14 @@ router.put('/me/fcm-token', auth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'fcmToken is required.' });
     }
 
-    // Use $addToSet to add the token to the array only if it's not already there.
-    // This prevents duplicate tokens for the same device.
-    const user = await User.findByIdAndUpdate(
-      userId,
-      { $addToSet: { fcmTokens: fcmToken } },
-      { new: true }
-    );
+    const user = await User.findByPk(userId);
+    if (user) {
+      const existing = Array.isArray(user.fcmTokens) ? user.fcmTokens : [];
+      if (!existing.includes(fcmToken)) {
+        user.fcmTokens = [...existing, fcmToken];
+        await user.save();
+      }
+    }
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });

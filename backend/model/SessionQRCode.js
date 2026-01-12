@@ -1,124 +1,133 @@
-// backend/model/SessionQRCode.js
-const mongoose = require('mongoose');
+const { DataTypes, Op } = require('sequelize');
 const crypto = require('crypto');
+const sequelize = require('../config/sequelize');
 
-const sessionQRCodeSchema = new mongoose.Schema({
-  group_id: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Group',
-    required: true,
-  },
-  token: {
-    type: String,
-    unique: true,
-    index: true,
-    default: () => crypto.randomBytes(32).toString('hex'),
-  },
-  session_date: {
-    type: Date,
-    required: true,
-  },
-  expires_at: {
-    type: Date,
-    required: true,
-  },
-  created_at: {
-    type: Date,
-    default: Date.now,
-  },
-  created_by: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-  },
-  is_active: {
-    type: Boolean,
-    default: true,
-  },
-  usage_count: {
-    type: Number,
-    default: 0,
-    min: 0,
-  },
-  max_usage: {
-    type: Number,
-    default: 100,
-    min: 1,
-  },
-  session_start_time: {
-    type: Date,
-  },
-  session_end_time: {
-    type: Date,
-  },
-  location_restriction: {
-    enabled: {
-      type: Boolean,
-      default: false,
+const SessionQRCode = sequelize.define(
+  'SessionQRCode',
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
     },
-    latitude: Number,
-    longitude: Number,
-    radius: Number, // in meters
-  },
-  qr_data: {
-    type: String, // The actual QR code data/URL
-  },
-  metadata: {
-    session_type: {
-      type: String,
-      enum: ['regular', 'special', 'workshop', 'retreat'],
-      default: 'regular',
+    group_id: {
+      type: DataTypes.UUID,
+      allowNull: false,
     },
-    description: String,
-    special_instructions: String,
+    token: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+    },
+    session_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: false,
+    },
+    expires_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    },
+    created_by: {
+      type: DataTypes.UUID,
+      allowNull: false,
+    },
+    is_active: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+    },
+    usage_count: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    max_usage: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 100,
+    },
+    session_start_time: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    session_end_time: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    location_restriction: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      defaultValue: { enabled: false },
+    },
+    qr_data: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    metadata: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      defaultValue: {},
+    },
+    is_valid: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        const now = new Date();
+        return (
+          this.is_active &&
+          new Date(this.expires_at) > now &&
+          Number(this.usage_count) < Number(this.max_usage)
+        );
+      },
+    },
+    time_until_expiry: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        const now = new Date();
+        const diffTime = new Date(this.expires_at) - now;
+        return Math.max(0, diffTime);
+      },
+    },
   },
-}, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true },
-});
-
-// Index for efficient queries
-sessionQRCodeSchema.index({ group_id: 1, session_date: 1 });
-sessionQRCodeSchema.index({ expires_at: 1 });
-sessionQRCodeSchema.index({ is_active: 1 });
-sessionQRCodeSchema.index({ created_at: -1 });
-
-// Virtual for QR code validity
-sessionQRCodeSchema.virtual('is_valid').get(function() {
-  const now = new Date();
-  return this.is_active && 
-         this.expires_at > now && 
-         this.usage_count < this.max_usage;
-});
-
-// Virtual for time until expiration
-sessionQRCodeSchema.virtual('time_until_expiry').get(function() {
-  const now = new Date();
-  const diffTime = this.expires_at - now;
-  return Math.max(0, diffTime);
-});
-
-// Pre-save middleware to generate token if not provided
-sessionQRCodeSchema.pre('save', function(next) {
-  if (!this.token) {
-    this.token = crypto.randomBytes(32).toString('hex');
+  {
+    tableName: 'session_qr_codes',
+    timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    indexes: [
+      { unique: true, fields: ['token'] },
+      { fields: ['group_id', 'session_date'] },
+      { fields: ['expires_at'] },
+      { fields: ['is_active'] },
+      { fields: ['created_at'] },
+    ],
+    hooks: {
+      beforeValidate(qr) {
+        if (!qr.token) {
+          qr.token = crypto.randomBytes(32).toString('hex');
+        }
+        if (!qr.qr_data) {
+          qr.qr_data = `${process.env.APP_URL || 'http://localhost:3000'}/qr/scan/${qr.token}`;
+        }
+      },
+    },
   }
-  if (!this.qr_data) {
-    this.qr_data = `${process.env.APP_URL || 'http://localhost:3000'}/qr/scan/${this.token}`;
-  }
-  next();
-});
+);
 
-// Static method to generate QR code for a session
-sessionQRCodeSchema.statics.generateForSession = async function(groupId, sessionDate, createdBy, options = {}) {
+SessionQRCode.prototype.toJSON = function toJSON() {
+  const values = { ...this.get() };
+  values._id = values.id;
+  return values;
+};
+
+SessionQRCode.generateForSession = async function generateForSession(groupId, sessionDate, createdBy, options = {}) {
   const sessionStartTime = options.sessionStartTime || new Date(sessionDate);
-  const sessionEndTime = options.sessionEndTime || new Date(sessionStartTime.getTime() + (60 * 60 * 1000)); // 1 hour default
-  const expiresAt = options.expiresAt || new Date(sessionEndTime.getTime() + (30 * 60 * 1000)); // 30 minutes after session end
-  
-  const qrCode = new this({
+  const sessionEndTime =
+    options.sessionEndTime || new Date(sessionStartTime.getTime() + 60 * 60 * 1000);
+  const expiresAt = options.expiresAt || new Date(sessionEndTime.getTime() + 30 * 60 * 1000);
+
+  return SessionQRCode.create({
     group_id: groupId,
-    session_date: sessionDate,
+    session_date: new Date(sessionDate).toISOString().split('T')[0],
     expires_at: expiresAt,
     created_by: createdBy,
     session_start_time: sessionStartTime,
@@ -127,73 +136,67 @@ sessionQRCodeSchema.statics.generateForSession = async function(groupId, session
     location_restriction: options.locationRestriction || { enabled: false },
     metadata: options.metadata || {},
   });
-  
-  return await qrCode.save();
 };
 
-// Static method to validate and use QR code
-sessionQRCodeSchema.statics.validateAndUse = async function(token, userId, location = null) {
-  const qrCode = await this.findOne({ token, is_active: true });
-  
+SessionQRCode.validateAndUse = async function validateAndUse(token, userId, location = null) {
+  const qrCode = await SessionQRCode.findOne({ where: { token, is_active: true } });
   if (!qrCode) {
     throw new Error('Invalid QR code');
   }
-  
+
   if (!qrCode.is_valid) {
     throw new Error('QR code has expired or reached usage limit');
   }
-  
-  // Check location restriction if enabled
-  if (qrCode.location_restriction.enabled && location) {
+
+  const restriction = qrCode.location_restriction || { enabled: false };
+  if (restriction.enabled && location) {
     const distance = calculateDistance(
       location.latitude,
       location.longitude,
-      qrCode.location_restriction.latitude,
-      qrCode.location_restriction.longitude
+      restriction.latitude,
+      restriction.longitude
     );
-    
-    if (distance > qrCode.location_restriction.radius) {
+    if (distance > restriction.radius) {
       throw new Error('You are too far from the session location');
     }
   }
-  
-  // Increment usage count
-  qrCode.usage_count += 1;
+
+  qrCode.usage_count = Number(qrCode.usage_count) + 1;
   await qrCode.save();
-  
   return qrCode;
 };
 
-// Static method to get active QR codes for a group
-sessionQRCodeSchema.statics.getActiveForGroup = function(groupId, sessionDate = null) {
-  const query = { group_id: groupId, is_active: true };
-  
+SessionQRCode.getActiveForGroup = function getActiveForGroup(groupId, sessionDate = null) {
+  const where = { group_id: groupId, is_active: true };
   if (sessionDate) {
-    query.session_date = sessionDate;
+    where.session_date = new Date(sessionDate).toISOString().split('T')[0];
   } else {
-    // Get QR codes for today and future sessions
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    query.session_date = { $gte: today };
+    const dateOnly = today.toISOString().split('T')[0];
+    where.session_date = { [Op.gte]: dateOnly };
   }
-  
-  return this.find(query).sort({ session_date: 1, created_at: -1 });
+
+  return SessionQRCode.findAll({
+    where,
+    order: [
+      ['session_date', 'ASC'],
+      ['created_at', 'DESC'],
+    ],
+  });
 };
 
-// Helper function to calculate distance between two coordinates
 function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371e3; // Earth's radius in meters
-  const φ1 = lat1 * Math.PI / 180;
-  const φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180;
-  const Δλ = (lon2 - lon1) * Math.PI / 180;
+  const R = 6371e3;
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
 
-  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ/2) * Math.sin(Δλ/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-  return R * c; // Distance in meters
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
-module.exports = mongoose.model('SessionQRCode', sessionQRCodeSchema);
+module.exports = SessionQRCode;

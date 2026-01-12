@@ -11,18 +11,17 @@ router.post('/submit', auth, async (req, res) => {
     const { responses, totalScore } = req.body;
 
     // 1. Create the health profile entry
-    const newProfile = new HealthProfile({
-      user_id: req.user.id, // Gets ID from the token
+    await HealthProfile.create({
+      user_id: req.user.id,
       responses: responses,
-      totalScore: totalScore
+      totalScore: totalScore,
     });
-    
-    await newProfile.save();
 
     // 2. IMPORTANT: Mark the user as "Completed"
-    await User.findByIdAndUpdate(req.user.id, { 
-      isHealthProfileCompleted: true 
-    });
+    await User.update(
+      { isHealthProfileCompleted: true },
+      { where: { id: req.user.id } }
+    );
 
     res.json({ success: true, message: 'Health Profile Saved!' });
 
@@ -35,9 +34,16 @@ router.post('/submit', auth, async (req, res) => {
 router.get('/', auth, async (req, res) => {
   try {
     // We populate user_id to show Name/Email instead of just an ID
-    const profiles = await HealthProfile.find()
-      .populate('user_id', 'firstName lastName email phone') 
-      .sort({ date: -1 }); // Newest first
+    const profiles = await HealthProfile.findAll({
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'firstName', 'lastName', 'email', 'phone'],
+        },
+      ],
+      order: [['date', 'DESC']],
+    });
 
     res.json({ success: true, data: profiles });
   } catch (err) {

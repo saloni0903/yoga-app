@@ -5,7 +5,8 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const Group = require('../model/Group');
 const GroupMember = require('../model/GroupMember');
-const mongoose = require('mongoose');
+const { Op } = require('sequelize');
+const crypto = require('crypto');
 
 // --- HELPER FUNCTION: Calculates sessions for a list of groups ---
 // (startDate aur endDate UTC mein 'YYYY-MM-DD' format mein hone chahiye)
@@ -44,11 +45,11 @@ function calculateSessionsForGroups(groups, startDate, endDate) {
 
         // Add this session to our list
         sessions.push({
-          _id: new mongoose.Types.ObjectId().toString(), // transient ID
+          _id: crypto.randomUUID(), // transient ID
           sessionDate: sessionStartTime.toISOString(),
           endTime: sessionEndTime.toISOString(),
           groupName: group.group_name,
-          groupId: group._id.toString(),
+          groupId: String(group.id || group._id),
           color: group.color,
           groupType: group.groupType,
           meetLink: group.meetLink,
@@ -68,14 +69,25 @@ function calculateSessionsForGroups(groups, startDate, endDate) {
 router.get('/participant', auth, async (req, res) => {
   try {
     // 1. Find all groups the user is a member of
-    const memberships = await GroupMember.find({ user_id: req.user.id, status: 'active' }).select('group_id');
+    const memberships = await GroupMember.findAll({
+      where: { user_id: req.user.id, status: 'active' },
+      attributes: ['group_id'],
+    });
     const groupIds = memberships.map(m => m.group_id);
 
     // 2. Find details of all those groups
-    const groups = await Group.find({ 
-      '_id': { $in: groupIds },
-      'schedule.endDate': { $gte: new Date() } // Only groups that haven't ended
-    }).lean();
+    const groupsRaw = await Group.findAll({
+      where: { id: { [Op.in]: groupIds } },
+      order: [['created_at', 'DESC']],
+    });
+
+    const now = new Date();
+    const groups = groupsRaw
+      .map(g => g.toJSON())
+      .filter(g => {
+        const endDate = g.schedule?.endDate ? new Date(g.schedule.endDate) : null;
+        return endDate ? endDate >= now : true;
+      });
 
     // 3. Define date range (from today to 2 months from now)
     const startDate = new Date();
@@ -103,10 +115,18 @@ router.get('/participant', auth, async (req, res) => {
 router.get('/instructor', auth, async (req, res) => {
   try {
     // 1. Find all groups created by this instructor
-    const groups = await Group.find({ 
-      'instructor_id': req.user.id,
-      'schedule.endDate': { $gte: new Date() } // Only groups that haven't ended
-    }).lean();
+    const groupsRaw = await Group.findAll({
+      where: { instructor_id: req.user.id },
+      order: [['created_at', 'DESC']],
+    });
+
+    const now = new Date();
+    const groups = groupsRaw
+      .map(g => g.toJSON())
+      .filter(g => {
+        const endDate = g.schedule?.endDate ? new Date(g.schedule.endDate) : null;
+        return endDate ? endDate >= now : true;
+      });
 
     // 2. Define date range (from today to 2 months from now)
     const startDate = new Date();
