@@ -1,0 +1,994 @@
+// // main.dart
+// import 'screens/home/home_screen.dart';
+// import 'screens/auth/login_screen.dart';
+// import 'screens/auth/register_screen.dart';
+// import 'screens/profile/profile_screen.dart';
+// import 'screens/onboarding/onboarding_screen.dart';
+// import 'screens/participant/participant_dashboard.dart';
+// import 'screens/instructor/instructor_dashboard.dart';
+
+// import 'providers/language_provider.dart';
+// import 'api_service.dart';
+// import 'models/user.dart'; 
+// import 'theme_provider.dart';
+// import 'package:provider/provider.dart';
+
+// import 'package:flutter/material.dart';
+// import 'package:yoga_app/screens/qr/qr_scanner_screen.dart';
+// import 'package:shared_preferences/shared_preferences.dart';
+
+// import 'services/notification_service.dart';
+// import 'package:firebase_core/firebase_core.dart';
+// import 'package:firebase_messaging/firebase_messaging.dart';
+
+// import 'firebase_options.dart';
+// import 'package:yoga_app/generated/app_localizations.dart';
+
+// import 'screens/health_questionnaire_screen.dart';
+
+// final seed = const Color(0xFF2E7D6E);
+// final surfaceTint = const Color(0xFF204D45);
+
+// @pragma('vm:entry-point') // Required for release mode AOT compilation
+// Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+//   // Initialize Firebase if needed for background tasks
+//   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+//   print("Handling a background message: ${message.messageId}");
+//   // You might want to show a local notification here using flutter_local_notifications
+//   // but keep this handler minimal as it runs in a separate isolate.
+// }
+
+// Future<void> main() async  {
+//   WidgetsFlutterBinding.ensureInitialized();
+//   await Firebase.initializeApp(
+//     options: DefaultFirebaseOptions.currentPlatform,
+//   );
+
+//   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+//   runApp(
+//     MultiProvider(
+//       providers: [
+//         ChangeNotifierProvider(create: (_) => ApiService()),
+//         ChangeNotifierProvider(create: (_) => LanguageProvider()),
+//         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+//       ],
+//       child: Consumer2<ThemeProvider, LanguageProvider>(
+//         builder: (context, themeProvider, languageProvider, child) {
+//           return MyApp(
+//             themeProvider: themeProvider,
+//             languageProvider: languageProvider,
+//           );
+//         },
+//       ),
+//     ),
+//   );
+// }
+
+// class AppEntry extends StatefulWidget {
+//   const AppEntry({super.key});
+
+//   @override
+//   State<AppEntry> createState() => _AppEntryState();
+// }
+
+// class _AppEntryState extends State<AppEntry> {
+//   late Future<bool> _checkOnboardingFuture;
+
+//   @override
+//   void initState() {
+//     super.initState();
+//     _checkOnboardingFuture = _checkIfOnboardingSeen();
+//   }
+//   Future<bool> _checkIfOnboardingSeen() async {
+//     final prefs = await SharedPreferences.getInstance();
+//     return prefs.getBool('hasSeenOnboarding') ?? false;
+//   }
+//   @override
+//   Widget build(BuildContext context) {
+//     return FutureBuilder<bool>(
+//       future: _checkOnboardingFuture,
+//       builder: (context, snapshot) {
+//         // While checking, show a loading circle
+//         if (snapshot.connectionState == ConnectionState.waiting) {
+//           return const Scaffold(body: Center(child: CircularProgressIndicator()));
+//         }
+//         final hasSeenOnboarding = snapshot.data ?? false;
+//         if (hasSeenOnboarding) {
+//           return const AuthWrapper();
+//         } else {
+//           return const OnboardingScreen();
+//         }
+//       },
+//     );
+//   }
+// }
+
+// class AuthWrapper extends StatefulWidget {
+//   const AuthWrapper({super.key});
+
+//   @override
+//   State<AuthWrapper> createState() => _AuthWrapperState();
+// }
+
+// class _AuthWrapperState extends State<AuthWrapper> {
+//   // 1. We store the Future here to prevent it from being called multiple times
+//   late Future<bool> _autoLoginFuture;
+//   bool _notificationsInitialized = false;
+
+//   @override
+//   void initState() {
+//     super.initState();
+//     // 2. We call tryAutoLogin ONCE and store the Future.
+//     // The FutureBuilder will now listen to this.
+//     _autoLoginFuture = Provider.of<ApiService>(context, listen: false).tryAutoLogin();
+//   }
+
+//   // 3. This function will be safely called *after* the build is complete
+//   //    to initialize notifications.
+//   void _initializeNotifications() {
+//     // We use addPostFrameCallback to avoid calling setState during a build
+//     WidgetsBinding.instance.addPostFrameCallback((_) async {
+//       // Check if mounted and if we haven't already initialized
+//       if (mounted && !_notificationsInitialized) {
+//         print("[AuthWrapper] User authenticated. Initializing notifications...");
+//         try {
+//           await FirebaseNotificationService.initialize(context);
+//           // Safely update state if still mounted
+//           if (mounted) {
+//             setState(() { _notificationsInitialized = true; });
+//           }
+//         } catch (e) {
+//           print("[AuthWrapper] Error initializing notifications: $e");
+//         }
+//       }
+//     });
+//   }
+
+//   // 4. This function safely resets the flag when the user logs out.
+//   void _resetNotifications() {
+//     WidgetsBinding.instance.addPostFrameCallback((_) {
+//       if (mounted && _notificationsInitialized) {
+//         print("[AuthWrapper] User logged out. Resetting notification flag.");
+//         setState(() { _notificationsInitialized = false; });
+//       }
+//     });
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     // 5. We use a FutureBuilder to wait for the _autoLoginFuture to complete
+//     return FutureBuilder<bool>(
+//       future: _autoLoginFuture,
+//       builder: (context, snapshot) {
+        
+//         // 6. While the token is being checked, show a loading spinner.
+//         //    This is the proper "loading state" the issue mentioned.
+//         if (snapshot.connectionState == ConnectionState.waiting) {
+//           return const Scaffold(body: Center(child: CircularProgressIndicator()));
+//         }
+
+//         // 7. Once the future is complete, we use Consumer to listen for
+//         //    *all* auth state changes (auto-login, manual login, logout).
+//         return Consumer<ApiService>(
+//           builder: (context, apiService, child) {
+//             print("AuthWrapper rebuild → completed = ${apiService.currentUser?.isHealthProfileCompleted}");
+
+//             if (apiService.isAuthenticated) {
+//               // 8. Auth is successful. Queue the notification init.
+//               //    The function has its own guard to only run once.
+//               _initializeNotifications();
+//               //ESIS: Check if health profile is completed
+
+//               print("ROLE FROM API: ${apiService.currentUser?.role}");
+//               print("HEALTH COMPLETED: ${apiService.currentUser?.isHealthProfileCompleted}");
+
+//               if (apiService.currentUser?.isHealthProfileCompleted == true) {
+//                 final role = apiService.currentUser!.role.toLowerCase();
+                
+//                 if (role == "participant") {
+//                   return const ParticipantDashboard();
+//                 } 
+//                 else if (role == "instructor") {
+//                   return const InstructorDashboard();
+//                 } 
+//                 else {
+//                   return const ParticipantDashboard(); // fallback
+//                 }
+//               } 
+//               else {
+//                 // If not done, show the form
+//                 return const HealthQuestionnaireScreen();
+//               }
+//             } else {
+//               // 9. Auth failed or user logged out. Reset notification flag.
+//               _resetNotifications();
+//               return const LoginScreen();
+//             }
+//           },
+//         );
+//       },
+//     );
+//   }
+// }
+
+// class MyApp extends StatelessWidget {
+
+//   final ThemeProvider themeProvider;
+//   final LanguageProvider languageProvider;
+
+//   const MyApp({super.key, required this.themeProvider, required this.languageProvider});
+
+//   @override
+//   Widget build(BuildContext context) {
+//     final lightBase = ThemeData(
+//       useMaterial3: true,
+//       colorScheme: ColorScheme.fromSeed(
+//         seedColor: seed,
+//         brightness: Brightness.light,
+//       ),
+//     );
+
+//     final darkBase = ThemeData(
+//       useMaterial3: true,
+//       colorScheme: ColorScheme.fromSeed(
+//         seedColor: seed,
+//         brightness: Brightness.dark,
+//       ),
+//     );
+
+//     // Light Theme: Uses semantic colors from the ColorScheme for consistency.
+//     final lightTheme = lightBase.copyWith(
+//       scaffoldBackgroundColor: lightBase.colorScheme.background,
+//       appBarTheme: AppBarTheme(
+//         centerTitle: true,
+//         elevation: 0,
+//         scrolledUnderElevation: 2,
+//         surfaceTintColor: surfaceTint.withOpacity(0.06),
+//         backgroundColor: lightBase.colorScheme.surface,
+//         foregroundColor: lightBase.colorScheme.onSurface,
+//         titleTextStyle: lightBase.textTheme.titleLarge?.copyWith(
+//           fontWeight: FontWeight.w700,
+//           letterSpacing: 0.2,
+//         ),
+//       ),
+//       textTheme: lightBase.textTheme
+//           .apply(
+//             bodyColor: lightBase.colorScheme.onBackground,
+//             displayColor: lightBase.colorScheme.onBackground,
+//           )
+//           .copyWith(
+//             headlineLarge: lightBase.textTheme.headlineLarge
+//                 ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.4),
+//             headlineMedium: lightBase.textTheme.headlineMedium
+//                 ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.2),
+//             titleLarge: lightBase.textTheme.titleLarge
+//                 ?.copyWith(fontWeight: FontWeight.w700),
+//             bodyLarge: lightBase.textTheme.bodyLarge
+//                 ?.copyWith(height: 1.28, letterSpacing: 0.1),
+//           ),
+//       cardTheme: CardThemeData(
+//         color: lightBase.colorScheme.surface,
+//         elevation: 1,
+//         shadowColor: lightBase.colorScheme.shadow.withOpacity(0.5),
+//         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+//         shape: RoundedRectangleBorder(
+//           borderRadius: BorderRadius.circular(16),
+//         ),
+//       ),
+//       elevatedButtonTheme: ElevatedButtonThemeData(
+//         style: ElevatedButton.styleFrom(
+//           elevation: 0,
+//           backgroundColor: lightBase.colorScheme.primary,
+//           foregroundColor: lightBase.colorScheme.onPrimary,
+//           minimumSize: const Size.fromHeight(52),
+//           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+//           textStyle: lightBase.textTheme.labelLarge
+//               ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.2),
+//         ),
+//       ),
+//       outlinedButtonTheme: OutlinedButtonThemeData(
+//         style: OutlinedButton.styleFrom(
+//           minimumSize: const Size.fromHeight(50),
+//           side: BorderSide(color: lightBase.colorScheme.outlineVariant, width: 1.2),
+//           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+//           foregroundColor: lightBase.colorScheme.primary,
+//           textStyle: const TextStyle(fontWeight: FontWeight.w600),
+//         ),
+//       ),
+//       inputDecorationTheme: InputDecorationTheme(
+//         filled: true,
+//         fillColor: lightBase.colorScheme.surface,
+//         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+//         hintStyle: TextStyle(color: lightBase.colorScheme.onSurfaceVariant),
+//         labelStyle: TextStyle(
+//             color: lightBase.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+//         border: OutlineInputBorder(
+//           borderRadius: BorderRadius.circular(14),
+//           borderSide: BorderSide(color: lightBase.colorScheme.outline),
+//         ),
+//         enabledBorder: OutlineInputBorder(
+//           borderRadius: BorderRadius.circular(14),
+//           borderSide: BorderSide(color: lightBase.colorScheme.outline),
+//         ),
+//         focusedBorder: OutlineInputBorder(
+//           borderRadius: BorderRadius.circular(14),
+//           borderSide: BorderSide(color: lightBase.colorScheme.primary, width: 1.6),
+//         ),
+//         errorBorder: OutlineInputBorder(
+//           borderRadius: BorderRadius.circular(14),
+//           borderSide: BorderSide(color: lightBase.colorScheme.error),
+//         ),
+//         prefixIconColor: lightBase.colorScheme.onSurfaceVariant,
+//       ),
+//       chipTheme: lightBase.chipTheme.copyWith(
+//         shape: StadiumBorder(side: BorderSide(color: lightBase.colorScheme.outlineVariant)),
+//         labelStyle: TextStyle(color: lightBase.colorScheme.onSurface),
+//       ),
+//       dividerTheme: DividerThemeData(
+//           color: lightBase.colorScheme.outlineVariant, space: 24, thickness: 1),
+//       navigationBarTheme: NavigationBarThemeData(
+//         height: 68,
+//         indicatorColor: lightBase.colorScheme.secondaryContainer,
+//         backgroundColor: lightBase.colorScheme.surface,
+//         labelTextStyle: WidgetStateProperty.all(
+//           const TextStyle(fontWeight: FontWeight.w600),
+//         ),
+//       ),
+//       snackBarTheme: SnackBarThemeData(
+//         behavior: SnackBarBehavior.floating,
+//         elevation: 1,
+//         backgroundColor: lightBase.colorScheme.inverseSurface,
+//         contentTextStyle: TextStyle(color: lightBase.colorScheme.onInverseSurface),
+//         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+//       ),
+//       bottomSheetTheme: BottomSheetThemeData(
+//         elevation: 2,
+//         backgroundColor: lightBase.colorScheme.surface,
+//         surfaceTintColor: lightBase.colorScheme.surface,
+//         shape: const RoundedRectangleBorder(
+//           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+//         ),
+//       ),
+//       dialogTheme: DialogThemeData(
+//         backgroundColor: lightBase.colorScheme.surface,
+//         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+//       ),
+//       iconTheme: IconThemeData(color: lightBase.colorScheme.onSurfaceVariant),
+//     );
+
+//     // Dark Theme: Perfectly mirrors the light theme's structure using semantic colors.
+//     final darkTheme = darkBase.copyWith(
+//       scaffoldBackgroundColor: darkBase.colorScheme.background,
+//       appBarTheme: AppBarTheme(
+//         centerTitle: true,
+//         elevation: 0,
+//         scrolledUnderElevation: 2,
+//         surfaceTintColor: surfaceTint.withOpacity(0.06),
+//         backgroundColor: darkBase.colorScheme.surface,
+//         foregroundColor: darkBase.colorScheme.onSurface,
+//         titleTextStyle: darkBase.textTheme.titleLarge?.copyWith(
+//           fontWeight: FontWeight.w700,
+//           letterSpacing: 0.2,
+//         ),
+//       ),
+//       textTheme: darkBase.textTheme
+//           .apply(
+//             bodyColor: darkBase.colorScheme.onBackground,
+//             displayColor: darkBase.colorScheme.onBackground,
+//           )
+//           .copyWith(
+//             headlineLarge: darkBase.textTheme.headlineLarge
+//                 ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.4),
+//             headlineMedium: darkBase.textTheme.headlineMedium
+//                 ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.2),
+//             titleLarge: darkBase.textTheme.titleLarge
+//                 ?.copyWith(fontWeight: FontWeight.w700),
+//             bodyLarge: darkBase.textTheme.bodyLarge
+//                 ?.copyWith(height: 1.28, letterSpacing: 0.1),
+//           ),
+//       cardTheme: CardThemeData(
+//         color: darkBase.colorScheme.surface,
+//         elevation: 1,
+//         shadowColor: darkBase.colorScheme.shadow,
+//         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+//         shape: RoundedRectangleBorder(
+//           borderRadius: BorderRadius.circular(16),
+//         ),
+//       ),
+//       elevatedButtonTheme: ElevatedButtonThemeData(
+//         style: ElevatedButton.styleFrom(
+//           elevation: 0,
+//           backgroundColor: darkBase.colorScheme.primary,
+//           foregroundColor: darkBase.colorScheme.onPrimary,
+//           minimumSize: const Size.fromHeight(52),
+//           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+//           textStyle: darkBase.textTheme.labelLarge
+//               ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.2),
+//         ),
+//       ),
+//       outlinedButtonTheme: OutlinedButtonThemeData(
+//         style: OutlinedButton.styleFrom(
+//           minimumSize: const Size.fromHeight(50),
+//           side: BorderSide(color: darkBase.colorScheme.outlineVariant, width: 1.2),
+//           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+//           foregroundColor: darkBase.colorScheme.primary,
+//           textStyle: const TextStyle(fontWeight: FontWeight.w600),
+//         ),
+//       ),
+//       inputDecorationTheme: InputDecorationTheme(
+//         filled: true,
+//         fillColor: darkBase.colorScheme.surfaceVariant.withOpacity(0.5),
+//         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+//         hintStyle: TextStyle(color: darkBase.colorScheme.onSurfaceVariant),
+//         labelStyle: TextStyle(
+//             color: darkBase.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+//         border: OutlineInputBorder(
+//           borderRadius: BorderRadius.circular(14),
+//           borderSide: BorderSide(color: darkBase.colorScheme.outline),
+//         ),
+//         enabledBorder: OutlineInputBorder(
+//           borderRadius: BorderRadius.circular(14),
+//           borderSide: BorderSide(color: darkBase.colorScheme.outline),
+//         ),
+//         focusedBorder: OutlineInputBorder(
+//           borderRadius: BorderRadius.circular(14),
+//           borderSide: BorderSide(color: darkBase.colorScheme.primary, width: 1.6),
+//         ),
+//         errorBorder: OutlineInputBorder(
+//           borderRadius: BorderRadius.circular(14),
+//           borderSide: BorderSide(color: darkBase.colorScheme.error),
+//         ),
+//         prefixIconColor: darkBase.colorScheme.onSurfaceVariant,
+//       ),
+//       chipTheme: darkBase.chipTheme.copyWith(
+//         shape: StadiumBorder(side: BorderSide(color: darkBase.colorScheme.outlineVariant)),
+//         labelStyle: TextStyle(color: darkBase.colorScheme.onSurface),
+//       ),
+//       dividerTheme: DividerThemeData(
+//           color: darkBase.colorScheme.outlineVariant, space: 24, thickness: 1),
+//       navigationBarTheme: NavigationBarThemeData(
+//         height: 68,
+//         indicatorColor: darkBase.colorScheme.secondaryContainer,
+//         backgroundColor: darkBase.colorScheme.surface,
+//         labelTextStyle: WidgetStateProperty.all(
+//           const TextStyle(fontWeight: FontWeight.w600),
+//         ),
+//       ),
+//       snackBarTheme: SnackBarThemeData(
+//         behavior: SnackBarBehavior.floating,
+//         elevation: 1,
+//         backgroundColor: darkBase.colorScheme.inverseSurface,
+//         contentTextStyle: TextStyle(color: darkBase.colorScheme.onInverseSurface),
+//         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+//       ),
+//       bottomSheetTheme: BottomSheetThemeData(
+//         elevation: 2,
+//         backgroundColor: darkBase.colorScheme.surface,
+//         surfaceTintColor: darkBase.colorScheme.surfaceTint,
+//         shape: const RoundedRectangleBorder(
+//           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+//         ),
+//       ),
+//       dialogTheme: DialogThemeData(
+//         backgroundColor: darkBase.colorScheme.surface,
+//         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+//       ),
+//       iconTheme: IconThemeData(color: darkBase.colorScheme.onSurfaceVariant),
+//     );
+
+//     return MaterialApp(
+//       title: 'YES Yoga App',
+//       locale: languageProvider.locale,
+//       localizationsDelegates: AppLocalizations.localizationsDelegates,
+//       supportedLocales: AppLocalizations.supportedLocales,
+//       debugShowCheckedModeBanner: false,
+//       themeMode: themeProvider.themeMode,
+//       theme: lightTheme, // <-- THIS IS THE FIX
+//       darkTheme: darkTheme,
+//       //home: const AppEntry(),
+//       home: const AuthWrapper(),
+//       routes: {
+//         '/login': (context) => const LoginScreen(),
+//         '/register': (context) => const RegisterScreen(),
+//         '/qr-scanner': (context) => const QrScannerScreen(),
+//         '/health-questionnaire': (context) => const HealthQuestionnaireScreen(),
+//       },
+//     );
+//   }
+// }
+// main.dart
+import 'screens/home/home_screen.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/auth/register_screen.dart';
+import 'screens/profile/profile_screen.dart';
+import 'screens/onboarding/onboarding_screen.dart';
+import 'screens/participant/participant_dashboard.dart';
+import 'screens/instructor/instructor_dashboard.dart';
+
+import 'providers/language_provider.dart';
+import 'api_service.dart';
+import 'models/user.dart'; 
+import 'theme_provider.dart';
+import 'package:provider/provider.dart';
+
+import 'package:flutter/material.dart';
+import 'package:yoga_app/screens/qr/qr_scanner_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'services/notification_service.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+
+import 'firebase_options.dart';
+import 'package:yoga_app/generated/app_localizations.dart';
+
+import 'screens/health_questionnaire_screen.dart';
+
+final seed = const Color(0xFF2E7D6E);
+final surfaceTint = const Color(0xFF204D45);
+
+@pragma('vm:entry-point') // Required for release mode AOT compilation
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Initialize Firebase if needed for background tasks
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  print("Handling a background message: ${message.messageId}");
+  // You might want to show a local notification here using flutter_local_notifications
+  // but keep this handler minimal as it runs in a separate isolate.
+}
+
+Future<void> main() async  {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ApiService()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+      ],
+      child: Consumer2<ThemeProvider, LanguageProvider>(
+        builder: (context, themeProvider, languageProvider, child) {
+          return MyApp(
+            themeProvider: themeProvider,
+            languageProvider: languageProvider,
+          );
+        },
+      ),
+    ),
+  );
+}
+
+class AppEntry extends StatefulWidget {
+  const AppEntry({super.key});
+
+  @override
+  State<AppEntry> createState() => _AppEntryState();
+}
+
+class _AppEntryState extends State<AppEntry> {
+  late Future<bool> _checkOnboardingFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkOnboardingFuture = _checkIfOnboardingSeen();
+  }
+  Future<bool> _checkIfOnboardingSeen() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('hasSeenOnboarding') ?? false;
+  }
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _checkOnboardingFuture,
+      builder: (context, snapshot) {
+        // While checking, show a loading circle
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        final hasSeenOnboarding = snapshot.data ?? false;
+        if (hasSeenOnboarding) {
+          return const AuthWrapper();
+        } else {
+          return const OnboardingScreen();
+        }
+      },
+    );
+  }
+}
+
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  // 1. We store the Future here to prevent it from being called multiple times
+  late Future<bool> _autoLoginFuture;
+  bool _notificationsInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 2. We call tryAutoLogin ONCE and store the Future.
+    // The FutureBuilder will now listen to this.
+    _autoLoginFuture = Provider.of<ApiService>(context, listen: false).tryAutoLogin();
+  }
+
+  // 3. This function will be safely called *after* the build is complete
+  //    to initialize notifications.
+  void _initializeNotifications() {
+    // We use addPostFrameCallback to avoid calling setState during a build
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Check if mounted and if we haven't already initialized
+      if (mounted && !_notificationsInitialized) {
+        print("[AuthWrapper] User authenticated. Initializing notifications...");
+        try {
+          await FirebaseNotificationService.initialize(context);
+          // Safely update state if still mounted
+          if (mounted) {
+            setState(() { _notificationsInitialized = true; });
+          }
+        } catch (e) {
+          print("[AuthWrapper] Error initializing notifications: $e");
+        }
+      }
+    });
+  }
+
+  // 4. This function safely resets the flag when the user logs out.
+  void _resetNotifications() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _notificationsInitialized) {
+        print("[AuthWrapper] User logged out. Resetting notification flag.");
+        setState(() { _notificationsInitialized = false; });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 5. We use a FutureBuilder to wait for the _autoLoginFuture to complete
+    return FutureBuilder<bool>(
+      future: _autoLoginFuture,
+      builder: (context, snapshot) {
+        
+        // 6. While the token is being checked, show a loading spinner.
+        //    This is the proper "loading state" the issue mentioned.
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        // 7. Once the future is complete, we use Consumer to listen for
+        //    *all* auth state changes (auto-login, manual login, logout).
+        return Consumer<ApiService>(
+          builder: (context, apiService, child) {
+            print("AuthWrapper rebuild → completed = ${apiService.currentUser?.isHealthProfileCompleted}");
+
+            if (apiService.isAuthenticated) {
+              // 8. Auth is successful. Queue the notification init.
+              //    The function has its own guard to only run once.
+              _initializeNotifications();
+              //ESIS: Check if health profile is completed
+
+              print("ROLE FROM API: ${apiService.currentUser?.role}");
+              print("HEALTH COMPLETED: ${apiService.currentUser?.isHealthProfileCompleted}");
+
+              final role = apiService.currentUser!.role.toLowerCase();
+
+              if (role == "participant") {
+                return const ParticipantDashboard();
+              }
+              else if (role == "instructor") {
+                return const InstructorDashboard();
+              }
+              else {
+                return const ParticipantDashboard();
+              }
+            } else {
+              // 9. Auth failed or user logged out. Reset notification flag.
+              _resetNotifications();
+              return const LoginScreen();
+            }
+          },
+        );
+      },
+    );
+  }
+}
+
+class MyApp extends StatelessWidget {
+
+  final ThemeProvider themeProvider;
+  final LanguageProvider languageProvider;
+
+  const MyApp({super.key, required this.themeProvider, required this.languageProvider});
+
+  @override
+  Widget build(BuildContext context) {
+    final lightBase = ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: seed,
+        brightness: Brightness.light,
+      ),
+    );
+
+    final darkBase = ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: seed,
+        brightness: Brightness.dark,
+      ),
+    );
+
+    // Light Theme: Uses semantic colors from the ColorScheme for consistency.
+    final lightTheme = lightBase.copyWith(
+      scaffoldBackgroundColor: lightBase.colorScheme.background,
+      appBarTheme: AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        surfaceTintColor: surfaceTint.withOpacity(0.06),
+        backgroundColor: lightBase.colorScheme.surface,
+        foregroundColor: lightBase.colorScheme.onSurface,
+        titleTextStyle: lightBase.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+        ),
+      ),
+      textTheme: lightBase.textTheme
+          .apply(
+            bodyColor: lightBase.colorScheme.onBackground,
+            displayColor: lightBase.colorScheme.onBackground,
+          )
+          .copyWith(
+            headlineLarge: lightBase.textTheme.headlineLarge
+                ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.4),
+            headlineMedium: lightBase.textTheme.headlineMedium
+                ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.2),
+            titleLarge: lightBase.textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.w700),
+            bodyLarge: lightBase.textTheme.bodyLarge
+                ?.copyWith(height: 1.28, letterSpacing: 0.1),
+          ),
+      cardTheme: CardThemeData(
+        color: lightBase.colorScheme.surface,
+        elevation: 1,
+        shadowColor: lightBase.colorScheme.shadow.withOpacity(0.5),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          backgroundColor: lightBase.colorScheme.primary,
+          foregroundColor: lightBase.colorScheme.onPrimary,
+          minimumSize: const Size.fromHeight(52),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: lightBase.textTheme.labelLarge
+              ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.2),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(50),
+          side: BorderSide(color: lightBase.colorScheme.outlineVariant, width: 1.2),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          foregroundColor: lightBase.colorScheme.primary,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: lightBase.colorScheme.surface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        hintStyle: TextStyle(color: lightBase.colorScheme.onSurfaceVariant),
+        labelStyle: TextStyle(
+            color: lightBase.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: lightBase.colorScheme.outline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: lightBase.colorScheme.outline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: lightBase.colorScheme.primary, width: 1.6),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: lightBase.colorScheme.error),
+        ),
+        prefixIconColor: lightBase.colorScheme.onSurfaceVariant,
+      ),
+      chipTheme: lightBase.chipTheme.copyWith(
+        shape: StadiumBorder(side: BorderSide(color: lightBase.colorScheme.outlineVariant)),
+        labelStyle: TextStyle(color: lightBase.colorScheme.onSurface),
+      ),
+      dividerTheme: DividerThemeData(
+          color: lightBase.colorScheme.outlineVariant, space: 24, thickness: 1),
+      navigationBarTheme: NavigationBarThemeData(
+        height: 68,
+        indicatorColor: lightBase.colorScheme.secondaryContainer,
+        backgroundColor: lightBase.colorScheme.surface,
+        labelTextStyle: WidgetStateProperty.all(
+          const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        elevation: 1,
+        backgroundColor: lightBase.colorScheme.inverseSurface,
+        contentTextStyle: TextStyle(color: lightBase.colorScheme.onInverseSurface),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        elevation: 2,
+        backgroundColor: lightBase.colorScheme.surface,
+        surfaceTintColor: lightBase.colorScheme.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: lightBase.colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      iconTheme: IconThemeData(color: lightBase.colorScheme.onSurfaceVariant),
+    );
+
+    // Dark Theme: Perfectly mirrors the light theme's structure using semantic colors.
+    final darkTheme = darkBase.copyWith(
+      scaffoldBackgroundColor: darkBase.colorScheme.background,
+      appBarTheme: AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        surfaceTintColor: surfaceTint.withOpacity(0.06),
+        backgroundColor: darkBase.colorScheme.surface,
+        foregroundColor: darkBase.colorScheme.onSurface,
+        titleTextStyle: darkBase.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+        ),
+      ),
+      textTheme: darkBase.textTheme
+          .apply(
+            bodyColor: darkBase.colorScheme.onBackground,
+            displayColor: darkBase.colorScheme.onBackground,
+          )
+          .copyWith(
+            headlineLarge: darkBase.textTheme.headlineLarge
+                ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.4),
+            headlineMedium: darkBase.textTheme.headlineMedium
+                ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.2),
+            titleLarge: darkBase.textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.w700),
+            bodyLarge: darkBase.textTheme.bodyLarge
+                ?.copyWith(height: 1.28, letterSpacing: 0.1),
+          ),
+      cardTheme: CardThemeData(
+        color: darkBase.colorScheme.surface,
+        elevation: 1,
+        shadowColor: darkBase.colorScheme.shadow,
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          backgroundColor: darkBase.colorScheme.primary,
+          foregroundColor: darkBase.colorScheme.onPrimary,
+          minimumSize: const Size.fromHeight(52),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: darkBase.textTheme.labelLarge
+              ?.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.2),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(50),
+          side: BorderSide(color: darkBase.colorScheme.outlineVariant, width: 1.2),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          foregroundColor: darkBase.colorScheme.primary,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: darkBase.colorScheme.surfaceVariant.withOpacity(0.5),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        hintStyle: TextStyle(color: darkBase.colorScheme.onSurfaceVariant),
+        labelStyle: TextStyle(
+            color: darkBase.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: darkBase.colorScheme.outline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: darkBase.colorScheme.outline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: darkBase.colorScheme.primary, width: 1.6),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: darkBase.colorScheme.error),
+        ),
+        prefixIconColor: darkBase.colorScheme.onSurfaceVariant,
+      ),
+      chipTheme: darkBase.chipTheme.copyWith(
+        shape: StadiumBorder(side: BorderSide(color: darkBase.colorScheme.outlineVariant)),
+        labelStyle: TextStyle(color: darkBase.colorScheme.onSurface),
+      ),
+      dividerTheme: DividerThemeData(
+          color: darkBase.colorScheme.outlineVariant, space: 24, thickness: 1),
+      navigationBarTheme: NavigationBarThemeData(
+        height: 68,
+        indicatorColor: darkBase.colorScheme.secondaryContainer,
+        backgroundColor: darkBase.colorScheme.surface,
+        labelTextStyle: WidgetStateProperty.all(
+          const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        elevation: 1,
+        backgroundColor: darkBase.colorScheme.inverseSurface,
+        contentTextStyle: TextStyle(color: darkBase.colorScheme.onInverseSurface),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        elevation: 2,
+        backgroundColor: darkBase.colorScheme.surface,
+        surfaceTintColor: darkBase.colorScheme.surfaceTint,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: darkBase.colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      iconTheme: IconThemeData(color: darkBase.colorScheme.onSurfaceVariant),
+    );
+
+    return MaterialApp(
+      title: 'YES Yoga App',
+      locale: languageProvider.locale,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      debugShowCheckedModeBanner: false,
+      themeMode: themeProvider.themeMode,
+      theme: lightTheme, // <-- THIS IS THE FIX
+      darkTheme: darkTheme,
+      //home: const AppEntry(),
+      home: const AuthWrapper(),
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
+        '/qr-scanner': (context) => const QrScannerScreen(),
+        '/health-questionnaire': (context) => const HealthQuestionnaireScreen(),
+        '/participant': (_) => const ParticipantDashboard(),
+        '/instructor': (_) => const InstructorDashboard(),
+      },
+    );
+  }
+}

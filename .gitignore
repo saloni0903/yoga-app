@@ -1,0 +1,20 @@
+# Root
+.DS_Store
+node_modules/
+.env
+
+# .NET API
+YES_API/bin/
+YES_API/obj/
+YES_API/appsettings.Development.json
+
+# Web
+YES_Web/node_modules/
+YES_Web/dist/
+YES_Web/build/
+
+# Mobile
+YES_MobileApp/.dart_tool/
+YES_MobileApp/build/
+YES_MobileApp/.flutter-plugins
+YES_MobileApp/.flutter-plugins-dependencies

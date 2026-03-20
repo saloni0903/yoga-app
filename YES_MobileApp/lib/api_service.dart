@@ -1,0 +1,1002 @@
+import 'dart:convert';
+//import 'dart:ffi';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import 'src/client_provider.dart'
+    if (dart.library.html) 'src/client_provider_web.dart';
+
+import 'package:yoga_app/models/user.dart';
+import 'package:yoga_app/models/yoga_group.dart';
+import 'package:yoga_app/models/attendance.dart';
+import 'package:yoga_app/models/session_qr_code.dart';
+//import 'package:yoga_app/models/session.dart';
+
+class ApiService with ChangeNotifier {
+  String? tempEmail;
+  String? tempPassword;
+
+  String get baseUrl {
+    if (kIsWeb) {
+      return 'https://localhost:7155';
+    }
+    // 2. kIsWeb check for web-specific debugging is acceptable.
+
+    // Android Emulator
+    return 'https://10.0.2.2:7155';
+  }
+
+  late http.Client _client;
+  ApiService() {
+    _client = getClient();
+  }
+
+  User? _currentUser;
+  bool _isAuthenticated = false;
+  String? _token;
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+
+  // getters
+  User? get currentUser => _currentUser;
+  bool get isAuthenticated => _isAuthenticated;
+
+  List<YogaGroup> _myJoinedGroups = [];
+  List<YogaGroup> get myJoinedGroups => _myJoinedGroups; // Public getter
+  bool _myGroupsCacheValid = false;
+
+  // Secure token helpers
+  Future<void> _saveToken(String token) async {
+    _token = token;
+    await _secureStorage.write(key: 'jwt', value: token);
+  }
+
+  Future<String?> _loadToken() async {
+    _token ??= await _secureStorage.read(key: 'jwt');
+    return _token;
+  }
+
+  Future<void> _clearToken() async {
+    _token = null;
+    await _secureStorage.delete(key: 'jwt');
+  }
+
+  Future<YogaGroup> getGroupById(String groupId) async {
+    final res = await _client.get(
+      Uri.parse('$baseUrl/api/group/$groupId'),
+      headers: await _authHeaders(),
+    );
+    final data = _decode(res);
+    _ensureOk(res, data);
+
+    final rawGroup = data is Map ? data['data'] : null;
+    if (rawGroup == null || rawGroup is! Map<String, dynamic>) {
+      throw Exception('Invalid group response from server');
+    }
+
+    // The group data is directly in 'data' for this endpoint
+    //final payload = data is Map && data['data'] != null ? data['data'] : data;
+    return YogaGroup.fromJson(rawGroup);
+  }
+
+  Future<Map<String, String>> _authHeaders({
+    bool includeContentType = true,
+    bool optional = false,
+  }) async {
+    final headers = <String, String>{};
+    if (includeContentType) headers['Content-Type'] = 'application/json';
+
+    await _loadToken();
+
+    if (_token != null && _token!.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $_token';
+    } else if (!optional) {
+      throw Exception('Authentication required. No token found.');
+    }
+
+    return headers;
+  }
+
+  List<AttendanceRecord> recentAttendance = [];
+
+  // Future<List<AttendanceRecord>> getAttendanceHistory() async {
+  //   if (_currentUser == null){
+  //     throw Exception('Must be logged in to get history.');
+  //   }
+
+  //   final res = await _client.get(
+  //     Uri.parse('$baseUrl/api/attendance/user/${_currentUser!.id}'),
+  //     headers: await _authHeaders(),
+  //   );
+
+  //   final data = _decode(res);
+  //   _ensureOk(res, data);
+
+  //   // The backend returns a paginated response, we need to get the 'attendance' list from it
+  //   final listJson = (data is Map)
+  //     ? (data['data']?['attendance'] ?? [])
+  //     : [];
+
+  //   if (listJson is! List) {
+  //     return [];
+  //   }
+
+  //   return listJson
+  //     .map((e) => AttendanceRecord.fromJson(e)
+  //     ).toList();
+  // }
+
+  Future<List<AttendanceRecord>> getAttendanceHistory() async {
+    if (_currentUser == null) {
+      throw Exception('Must be logged in to get history.');
+    }
+
+    final res = await _client.get(
+      Uri.parse('$baseUrl/api/attendance/user/${_currentUser!.id}'),
+      headers: await _authHeaders(),
+    );
+
+    final data = _decode(res);
+    _ensureOk(res, data);
+
+    // 1. Get the 'data' map directly
+    final userData = (data is Map) ? data['data'] : null;
+
+    // 2. Check if the data exists and contains the ID
+    if (userData == null || userData is! Map) {
+      return [];
+    }
+
+    // 3. Return as a list containing one record
+    return [AttendanceRecord.fromJson(userData as Map<String, dynamic>)];
+  }
+
+  Future<void> fetchDashboardData() async {
+    if (_currentUser == null) return; // Don't fetch if not logged in
+
+    try {
+      final res = await _client.get(
+        Uri.parse('$baseUrl/api/dashboard'),
+        headers: await _authHeaders(),
+      );
+
+      final data = _decode(res);
+      _ensureOk(res, data);
+
+      //final dashboardData = data['data'];
+
+      Map<String, dynamic>? dashboardData;
+
+      if (data is Map && data['data'] is Map) {
+        dashboardData = Map<String, dynamic>.from(data['data']);
+      } else if (data is Map) {
+        dashboardData = Map<String, dynamic>.from(data);
+      } else {
+        print("Unexpected dashboard format: $data");
+        return;
+      }
+
+      final statsData = dashboardData['stats'] as Map<String, dynamic>?;
+      final attendanceList = dashboardData['recentAttendance'] as List?;
+
+      if (statsData != null) {
+        // Update the existing currentUser with new stats from the dashboard
+        _currentUser = _currentUser?.copyWith(
+          totalMinutesPracticed: statsData['totalMinutesPracticed'],
+          totalSessionsAttended: statsData['totalSessionsAttended'],
+          currentStreak: statsData['currentStreak'],
+        );
+      }
+
+      if (attendanceList != null) {
+        // Store the recent attendance history
+        recentAttendance = attendanceList
+            .map((e) => AttendanceRecord.fromJson(e))
+            .toList();
+      }
+
+      // Notify all widgets listening to ApiService that data has changed
+      notifyListeners();
+    } catch (e) {
+      print('Failed to fetch dashboard data: $e');
+      // Optionally re-throw or handle the error
+    }
+  }
+
+  Future<bool> tryAutoLogin() async {
+    debugPrint("[tryAutoLogin] Attempting auto-login...");
+    try {
+      final token = await _loadToken();
+      if (token == null) {
+        _isAuthenticated = false;
+        notifyListeners();
+        return false;
+      }
+
+      // If token exists, try to get profile (which verifies the token's validity)
+      final res = await _client.get(
+        Uri.parse('$baseUrl/api/auth/profile'),
+        headers: await _authHeaders(), // CRITICAL: Must send the token
+      );
+
+      if (res.statusCode == 200) {
+        final data = _decode(res);
+
+        final rawUser = data['data']?['result'] ?? data['data'];
+        if (rawUser == null || rawUser is! Map<String, dynamic>) {
+          throw Exception("User data missing in auto-login response");
+        }
+
+        // _currentUser = User.fromJson(
+        //   data['data'],
+        _currentUser = User.fromJson(rawUser);
+        // User is nested under 'data' in your backend response
+        _isAuthenticated = true;
+        notifyListeners();
+        return true;
+      }
+      debugPrint(
+        "[tryAutoLogin] Failed. Status code: ${res.statusCode}. Clearing token.",
+      );
+      // If token is invalid/expired (e.g., status 401), clear it.
+      await _clearToken();
+      _isAuthenticated = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      // Catch network errors, server down, etc.;
+      await _clearToken();
+      _isAuthenticated = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<User> login(String email, String password) async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/auth/login'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'email': email, 'password': password}),
+    );
+
+    final data = _decode(res);
+    _ensureOk(res, data);
+
+    //final token =
+    // data['data']['token']; // Assuming your mobile backend sends JWT here
+    final token = data['token'];
+    if (token == null) {
+      throw Exception(
+        'Login succeeded but token was not returned in JSON body.',
+      );
+    }
+
+    await _saveToken(token);
+
+    final profileRes = await _client.get(
+      Uri.parse('$baseUrl/api/auth/profile'),
+      // headers: {
+      //   'Authorization': 'Bearer $token',
+      //   'Content-Type': 'application/json',
+      // },
+      headers: await _authHeaders(),
+    );
+
+    final profileData = _decode(profileRes);
+    _ensureOk(profileRes, profileData);
+
+    final rawUser = profileData['data']?['result'] ?? profileData['data'];
+    if (rawUser == null || rawUser is! Map<String, dynamic>) {
+      throw Exception("User data missing in login response");
+    }
+
+    //_currentUser = User.fromJson(data['data']['user']);
+    //_currentUser = User.fromJson(profileData['data']);
+    //_currentUser = User.fromJson(profileData['data']['result']);
+    _currentUser = User.fromJson(rawUser);
+    _isAuthenticated = true;
+    _myGroupsCacheValid = false;
+    _myJoinedGroups = [];
+    notifyListeners();
+    return _currentUser!;
+  }
+
+  Future<void> forgotPassword(String email) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/auth/forgot-password'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode(<String, String>{'email': email}),
+    );
+
+    if (response.statusCode != 200) {
+      final data = jsonDecode(response.body);
+      throw Exception(data['message'] ?? 'Failed to send OTP');
+    }
+    // No data is returned on success, just a 200 OK.
+  }
+
+  /// Sends the new password, email, and OTP to the server.
+  /// Throws an exception if the request fails.
+  Future<void> resetPassword(String email, String otp, String password) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/auth/reset-password'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode(<String, String>{
+        'email': email,
+        'otp': otp,
+        'password': password,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      final data = jsonDecode(response.body);
+      throw Exception(data['message'] ?? 'Failed to reset password');
+    }
+    // No data is returned on success, just a 200 OK.
+  }
+
+  Future<void> logout() async {
+    await _clearToken();
+    _currentUser = null;
+    _isAuthenticated = false;
+    _myGroupsCacheValid = false;
+    _myJoinedGroups = [];
+    notifyListeners();
+  }
+
+  Future<void> register({
+    required String fullName,
+    required String email,
+    required String password,
+    required String phone,
+    required String samagraId,
+    required String role,
+    required String location,
+  }) async {
+    // final parts = fullName.trim().split(' ');
+    // final firstName = parts.isNotEmpty ? parts.first : '';
+    // final lastName = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/auth/register'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'fullName': fullName,
+        'email': email,
+        'phone': phone,
+        'samagraId': samagraId,
+        'password': password,
+        'role': role.toLowerCase(),
+        'location': location,
+      }),
+    );
+    final data = _decode(res);
+    //_ensureCreated(res, data);
+    _ensureOk(res, data);
+
+    // final token =
+    //     data['data']['token']; // Assuming token is returned on successful registration
+
+    final token = data['token'];
+
+    // //print("TOKEN BEING SENT: $token");
+
+    if (token != null) {
+      //throw Exception("Register succeeded but token not returned");
+      //}
+
+      // if (token != null) {
+      await _saveToken(token);
+    }
+
+    // final user = User.fromAuthJson(data['data']);
+    // _currentUser = user;
+    // _isAuthenticated = true;
+    // notifyListeners();
+    //   // return user;
+    //   final profileRes = await _client.get(
+    //   Uri.parse('$baseUrl/api/auth/profile'),
+    //   headers: {
+    //     'Authorization': 'Bearer $token',
+    //     //'Content-Type': 'application/json',
+    //   },
+    // );
+
+    // final profileData = _decode(profileRes);
+    // _ensureOk(profileRes, profileData);
+
+    // final rawUser = profileData['data']['result'] ?? profileData['data'];
+
+    // _currentUser = User.fromJson(rawUser);
+    // _isAuthenticated = true;
+    // _myGroupsCacheValid = false;
+    // _myJoinedGroups = [];
+
+    // notifyListeners();
+    // return _currentUser!;
+
+    return;
+  }
+
+  // Future<void> updateUserFcmToken(String fcmToken) async {
+  //   if (_currentUser == null) return; // Don't proceed if not logged in
+
+  //   // NOTE: This assumes a new backend endpoint `PUT /api/users/me/fcm-token`
+  //   // You will need to create this endpoint.
+  //   final res = await _client.put(
+  //     Uri.parse('$baseUrl/api/users/me/fcm-token'),
+  //     headers: await _authHeaders(),
+  //     body: json.encode({'fcmToken': fcmToken}),
+  //   );
+
+  //   _ensureOk(res, _decode(res));
+  // }
+
+  Future<User> getMyProfile() async {
+    final res = await _client.get(
+      Uri.parse('$baseUrl/api/auth/profile'),
+      headers: await _authHeaders(),
+    );
+
+    final data = _decode(res);
+    _ensureOk(res, data);
+
+    final rawUser = data is Map ? data['data'] : null;
+    if (rawUser == null || rawUser is! Map<String, dynamic>) {
+      throw Exception('Invalid profile response from server');
+    }
+
+    return User.fromJson(rawUser);
+  }
+
+  Future<User> updateMyProfile({
+    required Map<String, dynamic> profileData,
+    Uint8List? imageBytes, // <-- To this
+    String? imageFileName,
+  }) async {
+    if (_currentUser == null) {
+      throw Exception('Not authenticated.');
+    }
+
+    //final uri = Uri.parse('$baseUrl/api/users/${_currentUser!.id}');
+    final uri = Uri.parse('$baseUrl/api/update');
+    http.Response res;
+
+    // ⭐ CHANGE: Use a multipart request if an image file is provided.
+    if (imageBytes != null && imageFileName != null) {
+      var request = http.MultipartRequest('PUT', uri);
+
+      // Add headers
+      request.headers.addAll(await _authHeaders(includeContentType: false));
+
+      // Add text fields
+      profileData.forEach((key, value) {
+        request.fields[key] = value.toString();
+      });
+
+      // Add the image file
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'profileImage',
+          imageBytes,
+          filename: imageFileName,
+        ),
+      );
+
+      final streamedResponse = await request.send();
+      res = await http.Response.fromStream(streamedResponse);
+    } else {
+      // If no file, use the original JSON request
+      res = await _client.put(
+        uri,
+        headers: await _authHeaders(),
+        body: json.encode(profileData),
+      );
+    }
+
+    final data = _decode(res);
+    _ensureOk(res, data);
+
+    final rawUser = data is Map ? data['data'] : null;
+    if (rawUser == null || rawUser is! Map<String, dynamic>) {
+      throw Exception('Invalid update profile response');
+    }
+
+    final updatedUser = User.fromJson(rawUser);
+    _currentUser = updatedUser.copyWith(token: _token);
+    notifyListeners();
+
+    return updatedUser;
+  }
+
+  // Future<List<User>> getGroupMembers({required String groupId}) async {
+  //   final res = await _client.get(
+  //     Uri.parse('$baseUrl/api/groups/$groupId/members'),
+  //     headers: await _authHeaders(),
+  //   );
+  //   final data = _decode(res);
+  //   _ensureOk(res, data);
+  //   debugPrint('DEBUG: Raw members JSON from server: $data');
+  //   // The backend returns a list of user objects
+  //   final List listJson = data['data'] ?? [];
+  //   return listJson.map((e) => User.fromMemberJson(e)).toList();
+  // }
+
+  Future<SessionQrCode> qrGenerate({
+    required String groupId,
+    required DateTime sessionDate,
+    required String createdBy,
+  }) async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/qr/generate'),
+      headers: await _authHeaders(),
+      body: json.encode({
+        'group_id': groupId,
+        'session_date': sessionDate.toIso8601String(),
+        'created_by': createdBy,
+      }),
+    );
+    final data = _decode(res);
+    _ensureCreated(res, data);
+
+    final rawQr = data is Map ? data['data'] : null;
+    if (rawQr == null || rawQr is! Map<String, dynamic>) {
+      throw Exception('Invalid QR response from server');
+    }
+
+    return SessionQrCode.fromJson(data['data']);
+  }
+
+  // Future<List<Session>> getInstructorSchedule() async {
+  //   final res = await _client.get(
+  //     Uri.parse('$baseUrl/api/schedule/instructor'),
+  //     headers: await _authHeaders(),
+  //   );
+  //   final data = _decode(res);
+  //   _ensureOk(res, data);
+  //   final List listJson = data['data'] ?? [];
+  //   return listJson.map((e) => Session.fromJson(e)).toList();
+  // }
+
+  // Future<List<Session>> getParticipantSchedule() async {
+  //   final res = await _client.get(
+  //     Uri.parse('$baseUrl/api/schedule/participant'),
+  //     headers: await _authHeaders(),
+  //   );
+  //   final data = _decode(res);
+  //   _ensureOk(res, data);
+  //   final List listJson = data['data'] ?? [];
+  //   return listJson.map((e) => Session.fromJson(e)).toList();
+  // }
+
+  Future<void> createGroup(Map<String, dynamic> groupData) async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/group/register'),
+      headers: await _authHeaders(),
+      body: jsonEncode(groupData), // It simply encodes the map it receives.
+    );
+    //_ensureCreated(res, _decode(res));
+
+    final decoded = _decode(res);
+
+    if (decoded is String) {
+      return; // Backend returned plain success message
+    }
+
+    if (decoded is Map<String, dynamic>) {
+      _ensureCreated(res, decoded);
+      return;
+    }
+
+    throw Exception('Unexpected response from server');
+  }
+
+  Future<void> updateGroup(String id, Map<String, dynamic> groupData) async {
+    final res = await _client.put(
+      Uri.parse('$baseUrl/api/group/$id'),
+      headers: await _authHeaders(),
+      body: json.encode(groupData), // It simply encodes the map it receives.
+    );
+    //_ensureOk(res, _decode(res));
+
+    final decoded = _decode(res);
+
+    if (decoded is String) {
+      return;
+    }
+
+    if (decoded is Map<String, dynamic>) {
+      _ensureOk(res, decoded);
+      return;
+    }
+
+    throw Exception('Unexpected response from server');
+  }
+
+  Future<void> joinGroup({required String groupId}) async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/group/$groupId/join'),
+      headers: await _authHeaders(),
+      body: jsonEncode({}),
+    );
+    //_ensureOk(res, _decode(res));
+    //await fetchMyJoinedGroups(forceRefresh: true);
+
+    final decoded = _decode(res);
+
+    if (decoded is String) {
+      await fetchMyJoinedGroups(forceRefresh: true);
+      return;
+    }
+
+    if (decoded is Map<String, dynamic>) {
+      _ensureOk(res, decoded);
+      await fetchMyJoinedGroups(forceRefresh: true);
+      return;
+    }
+
+    throw Exception('Unexpected response from server');
+  }
+
+  Future<List<YogaGroup>> fetchMyJoinedGroups({
+    bool forceRefresh = false,
+  }) async {
+    // 1. If cache is valid and we're not forcing a refresh, do nothing.
+    if (_myGroupsCacheValid && !forceRefresh) {
+      return _myJoinedGroups;
+    }
+
+    // 2. If no user, clear the list and exit.
+    if (_currentUser == null) {
+      _myJoinedGroups = [];
+      _myGroupsCacheValid = false;
+      notifyListeners();
+      return [];
+    }
+
+    // 3. Fetch from the network
+    try {
+      final res = await _client.get(
+        Uri.parse('$baseUrl/api/group/my-groups'),
+        headers: await _authHeaders(),
+      );
+
+      final data = _decode(res);
+      _ensureOk(res, data);
+
+      print("RAW my-groups response: $data");
+
+      //final List listJson = data['data']['groups'];
+
+      List listJson = [];
+
+      if (data is List) {
+        // Backend returned []
+        listJson = data;
+      } else if (data is Map && data['data'] is List) {
+        // Backend returned { data: [] }
+        listJson = data['data'];
+      } else if (data is Map &&
+          data['data'] is Map &&
+          data['data']['groups'] is List) {
+        // Backend returned { data: { groups: [] } }
+        listJson = data['data']['groups'];
+      } else {
+        throw Exception("Unexpected my-groups response format: $data");
+      }
+
+      _myJoinedGroups = listJson.map((e) => YogaGroup.fromJson(e)).toList();
+      _myGroupsCacheValid = true;
+
+      // 4. CRITICAL: Notify all listening widgets that the list has changed.
+      notifyListeners();
+      return _myJoinedGroups;
+    } catch (e) {
+      // Don't poison the cache on a temporary network error
+      debugPrint("Failed to fetch joined groups: $e");
+      // Re-throw to let the UI handle the error (e.g., in a RefreshIndicator)
+      throw e;
+    }
+  }
+
+  Future<void> markAttendanceByQr({required String qrToken}) async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/attendance/scan'),
+      headers: await _authHeaders(), // Must be authenticated
+      body: json.encode({'token': qrToken}),
+    );
+
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final body = utf8.decode(res.bodyBytes);
+      throw Exception(
+        body.isNotEmpty
+            ? body
+            : 'Failed to mark attendance (${res.statusCode})',
+      );
+    }
+
+    // final data = _decode(res);
+    // _ensureOk(res, data); // ensureOk is fine, we want a 200 or 201 status
+  }
+
+  Future<List<AttendanceRecord>> getAttendanceForGroup(String groupId) async {
+    // This assumes the user is authenticated, so _currentUser should not be null.
+    if (_currentUser == null) {
+      throw Exception('User not authenticated.');
+    }
+    final uri = Uri.parse(
+      '$baseUrl/api/attendance/user',
+    ).replace(queryParameters: {'GroupId': groupId});
+
+    print(uri); // DEBUG
+    final headers = await _authHeaders();
+
+    final res = await _client.get(uri, headers: headers);
+    final data = _decode(res);
+    _ensureOk(res, data);
+
+    // The backend nests the result in data -> attendance.
+    final listJson = data is Map ? data['data']['attendance'] : null;
+
+    if (listJson is! List) {
+      return [];
+    }
+    return listJson.map((e) => AttendanceRecord.fromJson(e)).toList();
+  }
+
+  dynamic _decode(http.Response res) {
+    final body = utf8.decode(res.bodyBytes);
+
+    try {
+      // Try to decode JSON (Map or List)
+      return json.decode(body);
+    } catch (e) {
+      // If it's not JSON, return plain string
+      return body;
+    }
+  }
+
+  //   dynamic _decode(http.Response res) {
+  //   try {
+  //     final body = utf8.decode(res.bodyBytes);
+  //     final decoded = json.decode(body);
+  //     return decoded; // can be Map or List
+  //   } catch (e) {
+  //     return {
+  //       'success': false,
+  //       'message': 'Invalid response from server (${res.statusCode})',
+  //     };
+  //   }
+  // }
+
+  // Map<String, dynamic> _decode(http.Response res) {
+  //   try {
+  //     return json.decode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+  //   } catch (e) {
+  //     return {
+  //       'success': false,
+  //       'message': 'Invalid response from server (${res.statusCode})',
+  //     };
+  //   }
+  // }
+
+  // void _ensureOk(http.Response res, Map<String, dynamic> data) {
+  //   if (res.statusCode < 200 ||
+  //       res.statusCode >= 300 ||
+  //       (data['success'] == false)) {
+  //     throw Exception(data['message'] ?? 'Request failed (${res.statusCode})');
+  //   }
+  // }
+
+  void _ensureOk(http.Response res, dynamic data) {
+    // If HTTP status failed → error
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      if (data is Map && data['message'] != null) {
+        throw Exception(data['message']);
+      }
+      throw Exception('Request failed (${res.statusCode})');
+    }
+
+    // If backend returned plain string → treat as success
+    if (data is String) return;
+
+    // If backend returned a list → treat as success
+    if (data is List) return;
+
+    // If backend returned a map → only fail if success == false
+    if (data is Map<String, dynamic>) {
+      if (data.containsKey('success') && data['success'] == false) {
+        throw Exception(data['message'] ?? 'Request failed');
+      }
+      return;
+    }
+
+    // Any weird format
+    throw Exception('Unexpected response format');
+  }
+
+  // void _ensureCreated(http.Response res, Map<String, dynamic> data) {
+  //   if ((res.statusCode != 201) || (data['success'] == false)) {
+  //     throw Exception(data['message'] ?? 'Request failed (${res.statusCode})');
+  //   }
+  // }
+
+  void _ensureCreated(http.Response res, dynamic data) {
+    if (res.statusCode != 200 && res.statusCode != 201) {
+      throw Exception('Request failed (${res.statusCode})');
+    }
+
+    if (data is String || data is List) return;
+
+    if (data is Map<String, dynamic>) {
+      if (data.containsKey('success') && data['success'] == false) {
+        throw Exception(data['message'] ?? 'Creation failed');
+      }
+      return;
+    }
+
+    throw Exception('Unexpected response format');
+  }
+
+  // In lib/api_service.dart, REPLACE your getGroups function with this one:
+  Future<List<YogaGroup>> getGroups({
+    String? search,
+    String? instructorId,
+    double? latitude,
+    double? longitude,
+    String? groupType,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/group').replace(
+      queryParameters: {
+        if (search != null && search.isNotEmpty) 'search': search,
+        if (instructorId != null && instructorId.isNotEmpty)
+          'instructor_id': instructorId,
+        if (latitude != null) 'latitude': latitude.toString(),
+        if (longitude != null) 'longitude': longitude.toString(),
+        if (groupType != null) 'groupType': groupType, // <-- 2. ADD THIS LINE
+      },
+    );
+
+    final res = await _client.get(
+      uri,
+      headers: await _authHeaders(optional: true),
+    );
+
+    print("STATUS CODE: ${res.statusCode}");
+    print("RAW BODY: ${res.body}");
+
+    //final data = _decode(res);
+    final decoded = jsonDecode(res.body);
+
+    print("DECODED DATA: $decoded");
+
+    if (decoded is List) {
+      return decoded.map((e) => YogaGroup.fromJson(e)).toList();
+    }
+
+    if (decoded is Map && decoded['data'] is List) {
+      return (decoded['data'] as List)
+          .map((e) => YogaGroup.fromJson(e))
+          .toList();
+    }
+
+    if (decoded is Map &&
+        decoded['data'] is Map &&
+        decoded['data']['groups'] is List) {
+      return (decoded['data']['groups'] as List)
+          .map((e) => YogaGroup.fromJson(e))
+          .toList();
+    }
+
+    throw Exception("Unexpected response format: $decoded");
+
+    // _ensureOk(res, data);
+    // final payload = data['data'];
+    // List listJson = (payload is Map && payload['groups'] is List)
+    //     ? payload['groups']
+    //     : [];
+    // return listJson.map((e) => YogaGroup.fromJson(e)).toList();
+  }
+
+  // Future<Map<String, String>> reverseGeocode({
+  //   required double latitude,
+  //   required double longitude,
+  // }) async {
+  //   final uri = Uri.parse('$baseUrl/api/groups/location/reverse-geocode')
+  //       .replace(
+  //         queryParameters: {
+  //           'lat': latitude.toString(),
+  //           'lon': longitude.toString(),
+  //         },
+  //       );
+  //   final res = await _client.get(uri, headers: _authHeaders(optional: true));
+  //   final data = _decode(res);
+  //   _ensureOk(res, data);
+
+  //   // Return a map with both address and city
+  //   return {
+  //     'address': data['data']['address'] ?? 'Could not fetch address',
+  //     'city': data['data']['city'] ?? '',
+  //   };
+  // }
+
+  //ESIS: New method to submit health profile
+  //   Future<void> submitHealthProfile(
+  //     Map<String, dynamic> responses,
+  //     int totalScore,
+  //   ) async {
+  //     final res = await _client.post(
+  //       Uri.parse('$baseUrl/api/health/register'),
+  //       //Uri.parse('$baseUrl/api/health/submit'),
+  //       //Uri.parse('$baseUrl/register'),
+  //       // headers: await _authHeaders(), // Uses your existing token logic
+  //       // body: json.encode({'responses': responses, 'totalScore': totalScore}),
+  //       // headers: {
+  //       //   'Content-Type': 'application/json',
+  //       //   'Authorization': 'Bearer $_token',
+  //       // },
+  //       headers: await _authHeaders(),
+  //       body: jsonEncode({"responses": responses, "score": totalScore}),
+  //     );
+
+  //     final data = _decode(res);
+  //     _ensureOk(res, data);
+
+  //     // ⭐ CRITICAL: Update the local user object so the app redirects immediately
+  //     if (_currentUser != null) {
+  //       _currentUser = _currentUser!.copyWith(isHealthProfileCompleted: true);
+  //       notifyListeners(); // This triggers AuthWrapper to rebuild and show HomeScreen
+  //     }
+  //   }
+  // }
+
+  Future<void> submitHealthProfile(
+    Map<String, dynamic> responses,
+    int totalScore,
+  ) async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/health/register'),
+      //Uri.parse('$baseUrl/api/health/submit'),
+      //Uri.parse('$baseUrl/register'),
+      headers: await _authHeaders(), // Uses your existing token logic
+      // body: json.encode({'responses': responses, 'totalScore': totalScore}),
+      // headers: {
+      //   'Content-Type': 'application/json',
+      //   'Authorization': 'Bearer $_token',
+      // },
+      // headers: await _authHeaders(),
+      body: jsonEncode({"responses": responses, "score": totalScore}),
+    );
+
+    final data = _decode(res);
+    _ensureOk(res, data);
+    final profileRes = await _client.get(
+      Uri.parse('$baseUrl/api/auth/profile'),
+      headers: await _authHeaders(),
+    );
+
+    final profileData = _decode(profileRes);
+    _ensureOk(profileRes, profileData);
+
+    final rawUser = profileData['data']?['result'] ?? profileData['data'];
+
+    if (rawUser == null || rawUser is! Map<String, dynamic>) {
+      throw Exception('Invalid profile response after health submission');
+    }
+
+    _currentUser = User.fromJson(rawUser);
+    _isAuthenticated = true;
+
+    // ⭐ CRITICAL: Update the local user object so the app redirects immediately
+    if (_currentUser != null) {
+      _currentUser = _currentUser!.copyWith(isHealthProfileCompleted: true);
+      notifyListeners(); // This triggers AuthWrapper to rebuild and show HomeScreen
+    }
+  }
+}

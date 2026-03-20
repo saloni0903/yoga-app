@@ -1,0 +1,6 @@
+@yesmain_HostAddress = http://localhost:5217
+
+GET {{yesmain_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

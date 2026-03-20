@@ -1,0 +1,51 @@
+# Uncomment this line to define a global platform for your project
+platform :ios, '14.0' # <-- Make sure this is uncommented and set to 14.0
+
+# CocoaPods analytics sends network stats seamlessly affecting privacy.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise <<-EOF
+Flutter SDK not found. Ensure Flutter is installed on your system and
+that the tools directory exists at the specified path.
+Build environment is not configured correctly.
+    EOF
+  end
+
+  file = File.open(generated_xcode_build_settings_path)
+  lines = file.readlines
+  file.close
+
+  lines.each do |line|
+    if line.include?('FLUTTER_ROOT')
+      return line.split(' = ').last.strip
+    end
+  end
+
+  raise 'FLUTTER_ROOT not found in Generated.xcconfig'
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+  end
+end
